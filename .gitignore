@@ -1,0 +1,54 @@
+# Binarios Go
+korva
+korva-vault
+korva-sentinel
+dist/
+*.exe
+
+# Secretos y datos privados (NUNCA comitear)
+*.key
+admin.key
+korva.config.local.json
+
+# Datos locales del runtime (~/.korva/ no pertenece aquí)
+.korva/
+
+# Scrolls privados del equipo
+lore/private/
+
+# Base de datos local
+*.db
+*.db-wal
+*.db-shm
+
+# Go
+*.test
+*.out
+vendor/
+
+# Node / Beacon
+node_modules/
+beacon/dist/
+beacon/.env
+beacon/.env.local
+*.tsbuildinfo
+
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/settings.json
+.idea/
+*.swp
+*.swo
+
+# Claude Code project settings (local only)
+.claude/
+
+# Build artifacts
+*.tar.gz
+*.zip

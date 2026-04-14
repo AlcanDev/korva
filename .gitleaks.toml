@@ -1,0 +1,105 @@
+# Korva — gitleaks configuration
+# Detects hardcoded secrets before they reach any repository.
+# Run: gitleaks detect --source . --config .gitleaks.toml
+
+[extend]
+  useDefault = true   # inherits all default rules (API keys, JWT, AWS, GCP, etc.)
+
+# ─── Custom rules for common patterns ────────────────────────────────────────
+
+[[rules]]
+  id = "generic-bearer-token"
+  description = "Bearer token hardcoded in source"
+  regex = '''[Bb]earer\s+[A-Za-z0-9\-_]{20,}'''
+  keywords = ["bearer"]
+  [rules.allowlist]
+    regexes = [
+      # Test fixtures and examples are OK
+      '''[Bb]earer\s+(mock|fake|test|example|EXAMPLE|MOCK|placeholder)''',
+      '''[Bb]earer\s+\$\{''',   # template strings
+      '''[Bb]earer\s+`\$\{''',  # template literals
+    ]
+
+[[rules]]
+  id = "base64-credentials"
+  description = "Potential Base64-encoded credentials"
+  regex = '''Basic\s+[A-Za-z0-9+/]{30,}={0,2}'''
+  keywords = ["basic", "authorization"]
+  [rules.allowlist]
+    regexes = [
+      '''Basic\s+(mock|fake|test|example|EXAMPLE|SkdoeTU3WWV0NG5n)''',
+    ]
+
+[[rules]]
+  id = "consumer-key-pattern"
+  description = "Potential API consumer key (alphanumeric 32+ chars near key-related variable)"
+  regex = '''(?i)(consumerkey|consumer_key|apikey|api_key|clientid|client_id)\s*[:=]\s*['"]?[A-Za-z0-9]{32,}['"]?'''
+  keywords = ["consumerkey", "consumer_key", "apikey", "api_key"]
+  [rules.allowlist]
+    regexes = [
+      # Env var references are safe
+      '''process\.env''',
+      '''configService\.get''',
+      '''this\.config\.get''',
+      # Test mocks are safe
+      '''(mock|fake|test|MOCK|FAKE|TEST)''',
+    ]
+
+[[rules]]
+  id = "connection-string"
+  description = "Database or service connection string with credentials"
+  regex = '''[a-zA-Z+]+://[^:@\s]+:[^@\s]+@[a-zA-Z0-9\-.]+'''
+  keywords = ["://"]
+  [rules.allowlist]
+    regexes = [
+      # localhost and test DBs are OK
+      '''://[^:@]+:[^@]+@localhost''',
+      '''://[^:@]+:[^@]+@127\.0\.0\.1''',
+      '''://[^:@]+:[^@]+@testdb''',
+      # Documentation examples are OK
+      '''://user:password@example\.com''',
+      '''://username:password@host''',
+    ]
+
+[[rules]]
+  id = "private-key-header"
+  description = "PEM private key"
+  regex = '''-----BEGIN (RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----'''
+  keywords = ["private key", "begin rsa"]
+
+# ─── Global allowlist ─────────────────────────────────────────────────────────
+
+[allowlist]
+  description = "Global allowlist — safe paths and patterns"
+
+  # File paths that are safe to contain credential-like strings
+  paths = [
+    # Documentation files may reference example values
+    '''^.*\.md$''',
+    '''^docs/.*''',
+    '''^lore/.*''',
+    # Test fixtures
+    '''^.*/__fixtures__/.*''',
+    '''^.*\.spec\.ts$''',
+    '''^.*\.test\.ts$''',
+    # Changelog
+    '''^CHANGELOG\.md$''',
+    '''^.*\.lock$''',       # lockfiles
+  ]
+
+  # Regex patterns that are globally safe
+  regexes = [
+    # Environment variable references — these are safe
+    '''process\.env\.[A-Z_]+''',
+    '''configService\.get\(''',
+    '''this\.configService\.get\(''',
+    # Vault references — safe
+    '''vault\.hashicorp\.com''',
+    # Example/placeholder values
+    '''(EXAMPLE|MOCK|FAKE|PLACEHOLDER|YOUR_|<YOUR_|MY_KEY|my_key)''',
+    # Base64 encoded text that's obviously documentation
+    '''SkdoeTU3WWV0NG5nOVM2NWdmakswOTg3RmhuUjY0Qmc''', # example key from docs
+  ]
+
+  # Commits to ignore (e.g., example commits in setup docs)
+  commits = []

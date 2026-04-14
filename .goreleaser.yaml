@@ -1,0 +1,124 @@
+version: 2
+
+project_name: korva
+
+before:
+  hooks:
+    - go work sync
+    - go generate ./...
+
+builds:
+  - id: korva
+    main: ./cli/cmd/korva/
+    binary: korva
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ignore:
+      - goos: windows
+        goarch: arm64
+    ldflags:
+      - -s -w
+      - -X github.com/alcandev/korva/internal/version.Version={{.Version}}
+      - -X github.com/alcandev/korva/internal/version.Commit={{.Commit}}
+      - -X github.com/alcandev/korva/internal/version.Date={{.Date}}
+
+  - id: korva-vault
+    main: ./vault/cmd/korva-vault/
+    binary: korva-vault
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ignore:
+      - goos: windows
+        goarch: arm64
+    ldflags:
+      - -s -w
+      - -X github.com/alcandev/korva/internal/version.Version={{.Version}}
+      - -X github.com/alcandev/korva/internal/version.Commit={{.Commit}}
+      - -X github.com/alcandev/korva/internal/version.Date={{.Date}}
+
+  - id: korva-sentinel
+    main: ./sentinel/validator/cmd/korva-sentinel/
+    binary: korva-sentinel
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ignore:
+      - goos: windows
+        goarch: arm64
+    ldflags:
+      - -s -w
+
+archives:
+  - id: korva
+    ids: [korva, korva-vault, korva-sentinel]
+    name_template: "korva_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    format_overrides:
+      - goos: windows
+        format: zip
+    files:
+      - LICENSE
+      - README.md
+      - lore/curated/**
+      - sentinel/rules/**
+      - forge/**
+
+checksum:
+  name_template: "korva_{{ .Version }}_checksums.txt"
+
+snapshot:
+  version_template: "{{ .Tag }}-next"
+
+changelog:
+  sort: asc
+  use: github
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^ci:"
+      - "^chore:"
+      - Merge pull request
+      - Merge remote-tracking branch
+
+release:
+  github:
+    owner: alcandev
+    name: korva
+  name_template: "Korva {{.Version}}"
+  draft: false
+  prerelease: auto
+
+brews:
+  - repository:
+      owner: alcandev
+      name: homebrew-tap
+    name: korva
+    description: "AI ecosystem for enterprise development teams"
+    homepage: "https://github.com/alcandev/korva"
+    license: "MIT"
+    install: |
+      bin.install "korva"
+      bin.install "korva-vault"
+      bin.install "korva-sentinel"
+    test: |
+      system "#{bin}/korva", "--version"

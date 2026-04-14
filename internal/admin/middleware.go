@@ -1,0 +1,52 @@
+package admin
+
+import (
+	"crypto/hmac"
+	"crypto/sha256"
+	"errors"
+	"net/http"
+)
+
+const headerName = "X-Admin-Key"
+
+// Middleware returns an HTTP middleware that validates the X-Admin-Key header.
+// If admin.key does not exist on this machine, all admin requests are rejected
+// with 403 Forbidden — non-admin machines simply cannot use admin endpoints.
+func Middleware(keyPath string) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			provided := r.Header.Get(headerName)
+			if provided == "" {
+				http.Error(w, "missing "+headerName+" header", http.StatusUnauthorized)
+				return
+			}
+
+			cfg, err := Load(keyPath)
+			if err != nil {
+				if errors.Is(err, ErrNoAdminKey) {
+					http.Error(w, "admin operations are not available on this machine", http.StatusForbidden)
+					return
+				}
+				http.Error(w, "internal error", http.StatusInternalServerError)
+				return
+			}
+
+			if !secureEqual(cfg.Key, provided) {
+				http.Error(w, "invalid admin key", http.StatusForbidden)
+				return
+			}
+
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+// secureEqual compares two strings in constant time to prevent timing attacks.
+// It uses HMAC-SHA256 to ensure equal-length comparison regardless of string length.
+func secureEqual(a, b string) bool {
+	ha := hmac.New(sha256.New, []byte("korva-key-compare"))
+	ha.Write([]byte(a))
+	hb := hmac.New(sha256.New, []byte("korva-key-compare"))
+	hb.Write([]byte(b))
+	return hmac.Equal(ha.Sum(nil), hb.Sum(nil))
+}

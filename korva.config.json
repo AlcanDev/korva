@@ -1,0 +1,28 @@
+{
+  "$schema": "https://korva.dev/schemas/config/v1.json",
+  "version": "1",
+  "project": "my-project",
+  "team": "my-team",
+  "country": "CL",
+  "vault": {
+    "port": 7437,
+    "auto_start": true,
+    "private_patterns": [
+      "password",
+      "token",
+      "secret",
+      "api_key",
+      "apikey"
+    ]
+  },
+  "lore": {
+    "active_scrolls": [
+      "forge-sdd"
+    ]
+  },
+  "sentinel": {
+    "enabled": true,
+    "hooks": ["pre-commit"]
+  },
+  "agent": "copilot"
+}
