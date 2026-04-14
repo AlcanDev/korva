@@ -1,0 +1,65 @@
+# Korva — Reglas para Cursor
+
+## Proyecto
+Korva es un ecosistema de IA para equipos enterprise.
+- Engine: Go 1.22+ con go.work (monorepo)
+- Dashboard: React 19 + Vite 6 + TypeScript strict
+- Memoria: SQLite FTS5 + MCP protocol
+
+## Go — Reglas
+
+### Paths cross-platform
+SIEMPRE usa `internal/config.PlatformPaths()` para paths de archivos.
+NUNCA hardcodees `/` o `\` en paths fuera de `internal/config/paths.go`.
+
+### SQLite
+- Driver: `modernc.org/sqlite` (pure Go, sin CGO, funciona en Windows y macOS)
+- IDs: ULID via `github.com/oklog/ulid/v2`
+- Tests: SQLite in-memory con `sql.Open("sqlite", ":memory:")`
+
+### Privacidad
+- `internal/privacy.Filter(text)` en TODO write path al vault
+- `admin.key` nunca se expone en logs, HTTP responses ni Git
+
+### Anti-patterns Go
+```go
+// ❌ Path hardcodeado
+dbPath := os.Getenv("HOME") + "/.korva/vault.db"
+
+// ✅ Via PlatformPaths
+paths, _ := config.PlatformPaths()
+dbPath := paths.VaultDB()
+
+// ❌ Comparación de strings para keys
+if adminKey == provided { ... }
+
+// ✅ Comparación en tiempo constante
+if hmac.Equal([]byte(adminKey), []byte(provided)) { ... }
+```
+
+## React / TypeScript — Reglas
+
+### TypeScript strict
+- Sin `any` — usa tipos explícitos o `unknown`
+- Props de componentes con interfaces nombradas (no inline)
+- TanStack Query para server state, Zustand para UI state
+
+### Estructura de componentes (Atomic Design)
+```
+components/atoms/      → Button, Badge, Spinner
+components/molecules/  → ObservationCard, SearchBar
+components/organisms/  → VaultExplorer, SessionTimeline
+```
+
+### Comunicación con Vault API
+```typescript
+// SIEMPRE via los hooks de api/vault.ts
+import { useObservations } from '@/api/vault'
+
+// NUNCA fetch directo en componentes
+fetch('http://localhost:7437/api/v1/observations') // ❌
+```
+
+## Scrolls
+Los archivos en `lore/curated/` son SCROLL.md — archivos de conocimiento para agentes de IA.
+NO son documentación técnica del proyecto. No modificar sin razón arquitectónica.

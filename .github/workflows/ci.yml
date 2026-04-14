@@ -1,0 +1,128 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  go:
+    name: Go build + test
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        go: ['1.26.x']
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go }}
+          cache: true
+
+      - name: Verify go.work
+        run: go work sync
+
+      - name: Build all modules
+        run: go build github.com/alcandev/korva/...
+
+      - name: Test all modules
+        run: go test github.com/alcandev/korva/... -v -race -count=1
+
+  beacon:
+    name: Beacon build + type-check
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: beacon/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: beacon
+
+      - name: Type check
+        run: npx tsc --noEmit
+        working-directory: beacon
+
+      - name: Build
+        run: npm run build
+        working-directory: beacon
+
+  sentinel:
+    name: Sentinel self-check
+    runs-on: ubuntu-latest
+    needs: go
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.x'
+          cache: true
+
+      - name: Build korva-sentinel
+        run: go build -o korva-sentinel ./sentinel/validator/cmd/korva-sentinel/
+
+      - name: Run sentinel on own source
+        # Check beacon src — a representative TypeScript codebase
+        run: |
+          find beacon/src -name '*.ts' -o -name '*.tsx' | \
+            ./korva-sentinel --format json | \
+            tee sentinel-report.json
+          # Fail if any errors reported
+          jq 'if .errors > 0 then error("sentinel violations found") else . end' sentinel-report.json
+
+      - name: Upload sentinel report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sentinel-report
+          path: sentinel-report.json
+
+  secrets-scan:
+    name: Secret scanning (gitleaks)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # full history — gitleaks scans all commits
+
+      - name: Run gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          config-path: .gitleaks.toml
+
+  lint:
+    name: Go lint
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.x'
+          cache: true
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
+          args: --timeout=5m
