@@ -35,6 +35,9 @@ func Router(s *store.Store, adminKeyPath string) http.Handler {
 	// Prompts
 	mux.HandleFunc("POST /api/v1/prompts", withCORS(savePrompt(s)))
 
+	// Sessions — all (admin-level listing)
+	mux.HandleFunc("GET /api/v1/sessions/all", withCORS(listAllSessions(s)))
+
 	// Admin endpoints — protected by X-Admin-Key
 	adminMW := admin.Middleware(adminKeyPath)
 	mux.Handle("POST /admin/purge", adminMW(withCORS(adminPurge(s))))
@@ -216,6 +219,17 @@ func savePrompt(s *store.Store) http.HandlerFunc {
 			return
 		}
 		writeJSON(w, http.StatusCreated, map[string]string{"status": "saved"})
+	}
+}
+
+func listAllSessions(s *store.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		sessions, err := s.ListSessions(100)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"sessions": sessions})
 	}
 }
 

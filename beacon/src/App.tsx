@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route, NavLink } from 'react-router'
 import {
-  LayoutDashboard, Database, Clock, BookOpen, Settings, Activity
+  LayoutDashboard, Database, Clock, BookOpen, Settings, Activity, Shield
 } from 'lucide-react'
 import { useVaultHealth } from '@/api/vault'
 import Overview from '@/pages/overview/Overview'
@@ -8,22 +8,34 @@ import VaultExplorer from '@/pages/vault-explorer/VaultExplorer'
 import Sessions from '@/pages/sessions/Sessions'
 import LoreManager from '@/pages/lore-manager/LoreManager'
 import SettingsPage from '@/pages/settings/Settings'
+import Admin from '@/pages/admin/Admin'
 
 export default function App() {
   return (
     <BrowserRouter>
-      <div className="flex h-screen overflow-hidden bg-[#0d1117]">
-        <Sidebar />
-        <main className="flex-1 overflow-auto">
-          <Routes>
-            <Route path="/" element={<Overview />} />
-            <Route path="/vault" element={<VaultExplorer />} />
-            <Route path="/sessions" element={<Sessions />} />
-            <Route path="/lore" element={<LoreManager />} />
-            <Route path="/settings" element={<SettingsPage />} />
-          </Routes>
-        </main>
-      </div>
+      <Routes>
+        {/* Admin panel — full-screen, has its own sidebar */}
+        <Route path="/admin/*" element={<Admin />} />
+
+        {/* Main app */}
+        <Route
+          path="/*"
+          element={
+            <div className="flex h-screen overflow-hidden bg-[#0d1117]">
+              <Sidebar />
+              <main className="flex-1 overflow-auto">
+                <Routes>
+                  <Route path="/" element={<Overview />} />
+                  <Route path="/vault" element={<VaultExplorer />} />
+                  <Route path="/sessions" element={<Sessions />} />
+                  <Route path="/lore" element={<LoreManager />} />
+                  <Route path="/settings" element={<SettingsPage />} />
+                </Routes>
+              </main>
+            </div>
+          }
+        />
+      </Routes>
     </BrowserRouter>
   )
 }
@@ -72,6 +84,17 @@ function Sidebar() {
           </NavLink>
         ))}
       </nav>
+
+      {/* Admin link (subtle — only visible on hover) */}
+      <div className="px-2 pb-1">
+        <NavLink
+          to="/admin"
+          className="flex items-center gap-2.5 px-3 py-1.5 rounded-md text-xs text-[#484f58] hover:text-[#f0883e] hover:bg-[#f0883e10] transition-colors"
+        >
+          <Shield size={12} />
+          Admin
+        </NavLink>
+      </div>
 
       {/* Vault status */}
       <div className="px-4 py-3 border-t border-[#21262d]">

@@ -1,0 +1,12 @@
+#!/bin/sh
+# Korva — post-commit hook
+# Auto-syncs vault observations to the team's shared vault after each commit.
+# Installed by: korva sentinel install
+
+# Skip if korva is not installed
+command -v korva >/dev/null 2>&1 || exit 0
+
+# Skip if vault is not reachable (non-blocking — never fail a commit)
+korva sync --vault --quiet 2>/dev/null || true
+
+exit 0
