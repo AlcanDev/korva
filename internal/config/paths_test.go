@@ -1,6 +1,7 @@
 package config
 
 import (
+	"os"
 	"runtime"
 	"strings"
 	"testing"
@@ -75,5 +76,102 @@ func TestVaultDB(t *testing.T) {
 	db := paths.VaultDB()
 	if !strings.HasSuffix(db, "observations.db") {
 		t.Errorf("VaultDB() = %s, want suffix 'observations.db'", db)
+	}
+}
+
+func TestPrivateLoreDir(t *testing.T) {
+	paths := &Paths{LoreDir: "/home/user/.korva/lore"}
+	dir := paths.PrivateLoreDir()
+	if !strings.HasSuffix(dir, "private") {
+		t.Errorf("PrivateLoreDir() = %s, want suffix 'private'", dir)
+	}
+	if !strings.HasPrefix(dir, paths.LoreDir) {
+		t.Errorf("PrivateLoreDir() = %s, should be under LoreDir %s", dir, paths.LoreDir)
+	}
+}
+
+func TestPublicLoreDir(t *testing.T) {
+	paths := &Paths{LoreDir: "/home/user/.korva/lore"}
+	dir := paths.PublicLoreDir()
+	if !strings.HasSuffix(dir, "public") {
+		t.Errorf("PublicLoreDir() = %s, want suffix 'public'", dir)
+	}
+	if !strings.HasPrefix(dir, paths.LoreDir) {
+		t.Errorf("PublicLoreDir() = %s, should be under LoreDir %s", dir, paths.LoreDir)
+	}
+}
+
+func TestEnsureAll_CreatesDirectories(t *testing.T) {
+	base := t.TempDir()
+	paths := &Paths{
+		HomeDir:     base,
+		ConfigFile:  base + "/config.json",
+		AdminKey:    base + "/admin.key",
+		ProfilesDir: base + "/profiles",
+		LoreDir:     base + "/lore",
+		VaultDir:    base + "/vault",
+		LogsDir:     base + "/logs",
+	}
+
+	if err := paths.EnsureAll(); err != nil {
+		t.Fatalf("EnsureAll() error = %v", err)
+	}
+
+	dirs := []string{
+		paths.ProfilesDir,
+		paths.LoreDir,
+		paths.PrivateLoreDir(),
+		paths.PublicLoreDir(),
+		paths.VaultDir,
+		paths.LogsDir,
+	}
+	for _, dir := range dirs {
+		if _, err := os.Stat(dir); os.IsNotExist(err) {
+			t.Errorf("EnsureAll() did not create directory %s", dir)
+		}
+	}
+}
+
+func TestEnsureAll_Idempotent(t *testing.T) {
+	base := t.TempDir()
+	paths := &Paths{
+		HomeDir:     base,
+		ConfigFile:  base + "/config.json",
+		AdminKey:    base + "/admin.key",
+		ProfilesDir: base + "/profiles",
+		LoreDir:     base + "/lore",
+		VaultDir:    base + "/vault",
+		LogsDir:     base + "/logs",
+	}
+
+	// Call twice — should not error
+	if err := paths.EnsureAll(); err != nil {
+		t.Fatalf("first EnsureAll() error = %v", err)
+	}
+	if err := paths.EnsureAll(); err != nil {
+		t.Fatalf("second EnsureAll() error = %v", err)
+	}
+}
+
+func TestSanitizeProfileID(t *testing.T) {
+	tests := []struct {
+		input    string
+		wantSafe bool
+	}{
+		{"falabella-financiero", true},
+		{"my_team_v2", true},
+		{"../../../etc/passwd", false}, // must not contain ..
+		{"team/slash", false},          // must not contain /
+		{"team with spaces", false},    // spaces become _
+	}
+
+	for _, tt := range tests {
+		result := sanitizeProfileID(tt.input)
+		if strings.Contains(result, "..") {
+			t.Errorf("sanitizeProfileID(%q) = %q still contains '..'", tt.input, result)
+		}
+		if strings.Contains(result, "/") {
+			t.Errorf("sanitizeProfileID(%q) = %q still contains '/'", tt.input, result)
+		}
 	}
 }
