@@ -49,6 +49,15 @@ korva init
 
 This creates `~/.korva/config.json` and starts the Vault server configuration.
 
+### Step 1b — Auto-configure your editors (NEW)
+
+```bash
+# Detects VS Code, Cursor, and Claude Code — configures all of them at once
+korva setup
+```
+
+This automatically writes the MCP server configuration into every editor it finds. **No manual editing required.**
+
 ### Step 2 — Start the Vault MCP server
 
 ```bash
@@ -249,6 +258,8 @@ Coverage targets: **>80%** on all testable packages.
 | Document | Contents |
 |----------|----------|
 | [docs/USAGE.md](docs/USAGE.md) | Step-by-step usage guide |
+| [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Deploy shared vault server (Railway / Fly.io / VPS) |
+| [docs/ADMIN_PANEL.md](docs/ADMIN_PANEL.md) | Admin panel — monitor team intelligence, manage scrolls |
 | [docs/TEAM_PROFILES.md](docs/TEAM_PROFILES.md) | Team profile setup and management |
 | [lore/SCROLL_TEMPLATE.md](lore/SCROLL_TEMPLATE.md) | How to write a knowledge Scroll |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | How to contribute |
