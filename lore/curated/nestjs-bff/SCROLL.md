@@ -1,6 +1,6 @@
 ---
 id: nestjs-bff
-version: 1.0.0
+version: 1.1.0
 team: backend
 stack: NestJS, Fastify, TypeScript, HashiCorp Vault, Docker, Kubernetes
 ---
@@ -8,12 +8,12 @@ stack: NestJS, Fastify, TypeScript, HashiCorp Vault, Docker, Kubernetes
 # Scroll: NestJS BFF Patterns
 
 ## Triggers — load when:
-- Files: `main.ts`, `Dockerfile`, `vault/*.hcl`, `*.module.ts`, `fif-http*.ts`
-- Keywords: FifHttpService, FastifyAdapter, NestFastifyApplication, vault, hcl, hub.fif.tech, CIGO, TRO, Apigee, stateless, BFF
+- Files: `main.ts`, `Dockerfile`, `vault/*.hcl`, `*.module.ts`, `*http*.service.ts`
+- Keywords: FastifyAdapter, NestFastifyApplication, vault, hcl, stateless, BFF, HttpService, circuit breaker
 - Tasks: bootstrapping an app, adding an external API call, writing Dockerfile, configuring secrets
 
 ## Context
-All BFF services at Falabella Financiero are stateless NestJS apps using the Fastify platform. They never own a database — they orchestrate calls to downstream systems (CIGO, TRO, Apigee gateways). HTTP calls go through `FifHttpService` from `@df-libs/rest-client`, which provides tracing, logging, and circuit-breaking. Secrets are managed by HashiCorp Vault Agent and injected as Kubernetes environment variables at runtime — they are never stored in `.gitlab-ci.yml` or image layers.
+BFF (Backend-for-Frontend) services are stateless NestJS apps using the Fastify platform. They never own a database — they orchestrate calls to downstream systems (APIs, gateways). HTTP calls go through a managed `HttpService` that provides tracing, logging, and circuit-breaking. Secrets are managed by HashiCorp Vault Agent and injected as Kubernetes environment variables at runtime — they are never stored in CI/CD pipeline files or image layers.
 
 ---
 
@@ -40,38 +40,38 @@ async function bootstrap() {
 bootstrap();
 ```
 
-### 2. FifHttpService: always inject, never instantiate
+### 2. HttpService: always inject, never instantiate
 
-`FifHttpService` is a managed wrapper. It must be provided via `FifHttpModule` and injected — never `new FifHttpService()`.
+The HTTP service is a managed wrapper. It must be provided via its module and injected — never `new HttpService()`.
 
 ```typescript
-// insurance.module.ts
-import { FifHttpModule } from '@df-libs/rest-client';
+// payment.module.ts
+import { HttpModule } from '@nestjs/axios';
 
 @Module({
-  imports: [FifHttpModule.register({ serviceName: 'insurance-bff' })],
-  providers: [InsuranceService, { provide: INSURANCE_PORT, useClass: LifeInsuranceAdapterCL }],
-  controllers: [InsuranceController],
+  imports: [HttpModule.register({ timeout: 5000 })],
+  providers: [PaymentService, { provide: PAYMENT_PORT, useClass: StripePaymentAdapterUS }],
+  controllers: [PaymentController],
 })
-export class InsuranceModule {}
+export class PaymentModule {}
 ```
 
 ```typescript
-// life-insurance.adapter.cl.ts
-import { FifHttpService } from '@df-libs/rest-client';
+// stripe-payment.adapter.us.ts
+import { HttpService } from '@nestjs/axios';
 
 @Injectable()
-export class LifeInsuranceAdapterCL extends LifeInsuranceAdapterBase {
+export class StripePaymentAdapterUS extends StripePaymentAdapterBase {
   constructor(
-    protected readonly httpService: FifHttpService,  // injected
+    protected readonly httpService: HttpService,  // injected
     private readonly configService: ConfigService,
   ) {
     super(httpService);
   }
 
-  protected buildOffersUrl(command: GetInsuranceOffersCommand): string {
-    const base = this.configService.get<string>('CIGO_BASE_URL');
-    return `${base}/cl/v2/insurances/${command.productId}/offers`;
+  protected buildPlansUrl(command: GetPaymentPlansCommand): string {
+    const base = this.configService.get<string>('STRIPE_BASE_URL');
+    return `${base}/us/v2/payments/${command.productId}/plans`;
   }
 }
 ```
@@ -83,11 +83,11 @@ Never read `process.env` directly inside service or adapter classes.
 ```typescript
 // CORRECT
 @Injectable()
-export class InsuranceService {
+export class PaymentService {
   constructor(private readonly config: ConfigService) {}
 
-  private get cigoUrl(): string {
-    return this.config.getOrThrow<string>('CIGO_BASE_URL');
+  private get stripeUrl(): string {
+    return this.config.getOrThrow<string>('STRIPE_BASE_URL');
   }
 }
 ```
@@ -97,33 +97,33 @@ export class InsuranceService {
 Runtime secrets are defined in HCL files and injected as K8s env vars by Vault Agent. Never put secret values in pipeline YAML.
 
 ```hcl
-# vault/qa.hcl
-path "secret/data/home-api/qa" {
+# vault/staging.hcl
+path "secret/data/my-api/staging" {
   capabilities = ["read"]
 }
 ```
 
 ```hcl
 # vault/prod.hcl
-path "secret/data/home-api/prod" {
+path "secret/data/my-api/prod" {
   capabilities = ["read"]
 }
 ```
 
-GitLab CI variables (`$CI_*`, `$HARBOR_USER`) are build-time only — for image tagging, Docker login, etc. They must never carry application secrets.
+CI/CD variables (`$CI_*`, `$REGISTRY_USER`) are build-time only — for image tagging, Docker login, etc. They must never carry application secrets.
 
-### 5. Dockerfile: multi-stage, hub.fif.tech images, npm ci, USER node
+### 5. Dockerfile: multi-stage, official images, npm ci, USER node
 
 ```dockerfile
 # Dockerfile
-FROM hub.fif.tech/base/node:20-latest AS development
+FROM node:20-alpine AS development
 WORKDIR /app
 COPY package*.json ./
 RUN npm ci
 COPY . .
 RUN npm run build
 
-FROM hub.fif.tech/base/node:20-latest AS production
+FROM node:20-alpine AS production
 WORKDIR /app
 ENV NODE_ENV=production
 COPY package*.json ./
@@ -135,14 +135,14 @@ CMD ["node", "dist/main.js"]
 ```
 
 Rules:
-- `hub.fif.tech/base/node:20-latest` — internal Harbor registry, never `docker.io/node`
+- Use official or internally approved base images — never use arbitrary third-party images
 - `npm ci` — deterministic, uses `package-lock.json`; never `npm install`
 - `USER node` in production stage — never run as root
 - Two stages minimum: `development` (build) and `production` (runtime)
 
 ### 6. No database rule — BFF is purely stateless
 
-The BFF must not own any persistent storage. If data needs to be cached, use the `@home-api/redis` shared library (injected, not raw `ioredis`).
+The BFF must not own any persistent storage. If data needs to be cached, use a shared Redis library (injected, not raw `ioredis`).
 
 ```typescript
 // NEVER in a BFF service
@@ -150,7 +150,7 @@ import { InjectRepository } from '@nestjs/typeorm'; // forbidden
 import { TypeOrmModule } from '@nestjs/typeorm';    // forbidden
 
 // ALLOWED for ephemeral caching only
-import { RedisService } from '@home-api/redis';
+import { RedisService } from '@acme/redis';
 ```
 
 ### 7. No Express-specific API surface
@@ -159,15 +159,15 @@ Fastify and Express have different request/response shapes. Never use Express pa
 
 ```typescript
 // BAD — Express pattern, breaks on Fastify
-@Get('offers')
-getOffers(@Req() req: Request) {
+@Get('plans')
+getPlans(@Req() req: Request) {
   return req.body;  // Express-specific
 }
 
 // GOOD — NestJS decorators work on both, but prefer typed DTOs
-@Get('offers')
-getOffers(@Headers() headers: CommonHeadersRequestDTO, @Query() query: GetInsuranceOffersQueryDTO) {
-  return this.insuranceService.getOffers(new GetInsuranceOffersCommand(headers, query.productId));
+@Get('plans')
+getPlans(@Headers() headers: CommonHeadersRequestDTO, @Query() query: GetPaymentPlansQueryDTO) {
+  return this.paymentService.getPlans(new GetPaymentPlansCommand(headers, query.productId));
 }
 ```
 
@@ -178,36 +178,36 @@ getOffers(@Headers() headers: CommonHeadersRequestDTO, @Query() query: GetInsura
 ### BAD: Direct process.env access in a service
 ```typescript
 // BAD
-const url = process.env.CIGO_BASE_URL + '/offers';
+const url = process.env.STRIPE_BASE_URL + '/plans';
 ```
 
 ```typescript
 // GOOD
-const url = this.configService.getOrThrow<string>('CIGO_BASE_URL') + '/offers';
+const url = this.configService.getOrThrow<string>('STRIPE_BASE_URL') + '/plans';
 ```
 
-### BAD: Instantiating FifHttpService manually
+### BAD: Instantiating HttpService manually
 ```typescript
 // BAD
-const http = new FifHttpService();  // bypasses tracing, logging, circuit breaker
+const http = new HttpService();  // bypasses tracing, logging, circuit breaker
 ```
 
 ```typescript
 // GOOD — import module, inject service
-constructor(protected readonly httpService: FifHttpService) {}
+constructor(protected readonly httpService: HttpService) {}
 ```
 
 ### BAD: Secrets in pipeline YAML
 ```yaml
-# BAD — .gitlab-ci.yml
+# BAD — .gitlab-ci.yml or .github/workflows/*.yml
 variables:
   DB_PASSWORD: "supersecret"
-  CIGO_API_KEY: "abc123"
+  STRIPE_API_KEY: "sk_live_abc123"
 ```
 
 ```hcl
 # GOOD — vault/prod.hcl declares the Vault path, Agent injects at runtime
-path "secret/data/home-api/prod" {
+path "secret/data/my-api/prod" {
   capabilities = ["read"]
 }
 ```
@@ -215,7 +215,7 @@ path "secret/data/home-api/prod" {
 ### BAD: Running container as root
 ```dockerfile
 # BAD — no USER directive, defaults to root
-FROM hub.fif.tech/base/node:20-latest
+FROM node:20-alpine
 COPY . .
 CMD ["node", "dist/main.js"]
 ```

@@ -1,8 +1,8 @@
 ---
 id: angular-wc
-version: 1.0.0
+version: 1.1.0
 team: frontend
-stack: Angular 20, Angular Elements, TypeScript, Signals, @df/wc-connector
+stack: Angular 20, Angular Elements, TypeScript, Signals, wc-connector
 ---
 
 # Scroll: Angular Web Components
@@ -13,7 +13,7 @@ stack: Angular 20, Angular Elements, TypeScript, Signals, @df/wc-connector
 - Tasks: creating a new component, setting up host communication, adding a new screen, configuring change detection, bootstrapping a Web Component
 
 ## Context
-Falabella Financiero micro-frontend Web Components are built with Angular 20 and exposed via Angular Elements. Each Web Component communicates with the host application (the shell or native container) through `@df/wc-connector`, which abstracts `postMessage` and event-based protocols. Components use the OnPush change detection strategy and Signals for reactive state — no manual `ChangeDetectorRef.detectChanges()` should be necessary.
+Micro-frontend Web Components are built with Angular 20 and exposed via Angular Elements. Each Web Component communicates with the host application (the shell or native container) through a `wc-connector` abstraction, which wraps `postMessage` and event-based protocols. Components use the OnPush change detection strategy and Signals for reactive state — no manual `ChangeDetectorRef.detectChanges()` should be necessary.
 
 ---
 
@@ -38,55 +38,55 @@ src/
 import { platformBrowser } from '@angular/platform-browser';
 import { createCustomElement } from '@angular/elements';
 import { AppModule } from './app/app.module';
-import { InsuranceOffersComponent } from './app/screens/insurance-offers/insurance-offers.component';
+import { ProductListComponent } from './app/screens/product-list/product-list.component';
 
 platformBrowser()
   .bootstrapModule(AppModule)
   .then((ref) => {
-    const element = createCustomElement(InsuranceOffersComponent, { injector: ref.injector });
-    customElements.define('insurance-offers-wc', element);
+    const element = createCustomElement(ProductListComponent, { injector: ref.injector });
+    customElements.define('product-list-wc', element);
   })
   .catch((err) => console.error(err));
 ```
 
-### 3. @df/wc-connector for host communication
+### 3. wc-connector for host communication
 
-Use `sendRequest` for request-response interactions and listen to `postMessage` events for host-initiated messages. Never use `window.postMessage` directly.
+Use `sendRequest` for request-response interactions and listen to events for host-initiated messages. Never use `window.postMessage` directly.
 
 ```typescript
-// screens/insurance-offers/insurance-offers.component.ts
+// screens/product-list/product-list.component.ts
 import { Component, Input, OnInit, signal } from '@angular/core';
-import { WcConnector } from '@df/wc-connector';
-import { InsuranceOffer } from '../../shared/types/insurance-offer.type';
+import { WcConnector } from '@acme/wc-connector';
+import { Product } from '../../shared/types/product.type';
 
 @Component({
-  selector: 'app-insurance-offers',
-  templateUrl: './insurance-offers.component.html',
+  selector: 'app-product-list',
+  templateUrl: './product-list.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class InsuranceOffersComponent implements OnInit {
-  @Input() productId!: string;
-  @Input() customerId!: string;
+export class ProductListComponent implements OnInit {
+  @Input() categoryId!: string;
+  @Input() userId!: string;
 
-  offers = signal<InsuranceOffer[]>([]);
+  products = signal<Product[]>([]);
   loading = signal(true);
   error = signal<string | null>(null);
 
   constructor(private readonly connector: WcConnector) {}
 
   ngOnInit(): void {
-    this.loadOffers();
+    this.loadProducts();
   }
 
-  private async loadOffers(): Promise<void> {
+  private async loadProducts(): Promise<void> {
     try {
-      const response = await this.connector.sendRequest<InsuranceOffer[]>({
-        action: 'GET_INSURANCE_OFFERS',
-        payload: { productId: this.productId, customerId: this.customerId },
+      const response = await this.connector.sendRequest<Product[]>({
+        action: 'GET_PRODUCTS',
+        payload: { categoryId: this.categoryId, userId: this.userId },
       });
-      this.offers.set(response);
+      this.products.set(response);
     } catch {
-      this.error.set('No se pudieron cargar los seguros');
+      this.error.set('Could not load products');
     } finally {
       this.loading.set(false);
     }
@@ -100,14 +100,14 @@ Web Component inputs and outputs are the contract between the component and the 
 
 ```typescript
 @Component({ ... })
-export class InsuranceOffersComponent {
+export class ProductListComponent {
   // Inputs — host passes data in
-  @Input() productId!: string;
-  @Input() customerId!: string;
-  @Input() country: 'CL' | 'PE' | 'CO' = 'CL';
+  @Input() categoryId!: string;
+  @Input() userId!: string;
+  @Input() region: 'US' | 'EU' | 'APAC' = 'US';
 
   // Outputs — component emits events out
-  @Output() offerSelected = new EventEmitter<{ offerId: string; offerName: string }>();
+  @Output() productSelected = new EventEmitter<{ productId: string; productName: string }>();
   @Output() closed = new EventEmitter<void>();
 }
 ```
@@ -118,13 +118,13 @@ Angular 17+ signals eliminate the need for `ChangeDetectorRef` with OnPush compo
 
 ```typescript
 // CORRECT — Signals + OnPush
-offers     = signal<InsuranceOffer[]>([]);
-selected   = signal<InsuranceOffer | null>(null);
+products   = signal<Product[]>([]);
+selected   = signal<Product | null>(null);
 isLoading  = signal(false);
 
-selectOffer(offer: InsuranceOffer): void {
-  this.selected.set(offer);  // triggers OnPush CD automatically
-  this.offerSelected.emit({ offerId: offer.id, offerName: offer.name });
+selectProduct(product: Product): void {
+  this.selected.set(product);  // triggers OnPush CD automatically
+  this.productSelected.emit({ productId: product.id, productName: product.name });
 }
 ```
 
@@ -133,8 +133,8 @@ selectOffer(offer: InsuranceOffer): void {
 @if (isLoading()) {
   <app-loading-spinner />
 } @else {
-  @for (offer of offers(); track offer.id) {
-    <app-offer-card [offer]="offer" (click)="selectOffer(offer)" />
+  @for (product of products(); track product.id) {
+    <app-product-card [product]="product" (click)="selectProduct(product)" />
   }
 }
 ```
@@ -143,12 +143,12 @@ selectOffer(offer: InsuranceOffer): void {
 
 ```typescript
 @Component({
-  selector: 'app-offer-card',
-  templateUrl: './offer-card.component.html',
+  selector: 'app-product-card',
+  templateUrl: './product-card.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,  // mandatory
 })
-export class OfferCardComponent {
-  @Input() offer!: InsuranceOffer;
+export class ProductCardComponent {
+  @Input() product!: Product;
 }
 ```
 
@@ -159,12 +159,12 @@ Use Angular template refs (`#ref`) and directives. Direct DOM manipulation bypas
 ```html
 <!-- CORRECT — Angular dialog directive -->
 <app-dialog #confirmDialog>
-  <p>¿Confirmar contratación de {{ selected()?.name }}?</p>
-  <button (click)="confirmDialog.close()">Cancelar</button>
-  <button (click)="confirmOffer()">Confirmar</button>
+  <p>Confirm purchase of {{ selected()?.name }}?</p>
+  <button (click)="confirmDialog.close()">Cancel</button>
+  <button (click)="confirmPurchase()">Confirm</button>
 </app-dialog>
 
-<button (click)="confirmDialog.open()">Contratar</button>
+<button (click)="confirmDialog.open()">Buy now</button>
 ```
 
 ```typescript
@@ -181,43 +181,43 @@ openDialog() { this.dialogRef.nativeElement.showModal(); }
 ```typescript
 // BAD — no changeDetection specified (defaults to Default, causes unnecessary checks)
 @Component({
-  selector: 'app-offer-card',
-  templateUrl: './offer-card.component.html',
+  selector: 'app-product-card',
+  templateUrl: './product-card.component.html',
 })
-export class OfferCardComponent { ... }
+export class ProductCardComponent { ... }
 ```
 
 ```typescript
 // GOOD
 @Component({
-  selector: 'app-offer-card',
-  templateUrl: './offer-card.component.html',
+  selector: 'app-product-card',
+  templateUrl: './product-card.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class OfferCardComponent { ... }
+export class ProductCardComponent { ... }
 ```
 
 ### BAD: Direct window.postMessage instead of wc-connector
 ```typescript
 // BAD
-window.parent.postMessage({ action: 'GET_OFFERS', productId: this.productId }, '*');
+window.parent.postMessage({ action: 'GET_PRODUCTS', categoryId: this.categoryId }, '*');
 ```
 
 ```typescript
 // GOOD
-const response = await this.connector.sendRequest({ action: 'GET_INSURANCE_OFFERS', payload: { productId: this.productId } });
+const response = await this.connector.sendRequest({ action: 'GET_PRODUCTS', payload: { categoryId: this.categoryId } });
 ```
 
 ### BAD: Using BehaviorSubject when Signal suffices
 ```typescript
 // BAD — unnecessary RxJS for simple local state
-private offersSubject = new BehaviorSubject<InsuranceOffer[]>([]);
-offers$ = this.offersSubject.asObservable();
+private productsSubject = new BehaviorSubject<Product[]>([]);
+products$ = this.productsSubject.asObservable();
 ```
 
 ```typescript
 // GOOD — Signal for local component state
-offers = signal<InsuranceOffer[]>([]);
+products = signal<Product[]>([]);
 ```
 
 ### BAD: DOM manipulation via ElementRef

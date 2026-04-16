@@ -6,17 +6,17 @@
 
 - Implement ONLY what was designed in Phase 3
 - If something was not in the design, **PAUSE and ask** before adding it
-- Follow the active Scrolls for this project
+- Follow the active Scrolls loaded for this project
 - No creative additions, no "while I'm here" improvements
-- Naming: follow conventions from the nestjs-hexagonal Scroll exactly
+- Follow naming conventions from active architecture Scrolls exactly
 
 ## Checklist before submitting
 
 - [ ] All files listed in Phase 3 design are created/modified
-- [ ] No imports violate hexagonal layer rules
+- [ ] No imports violate architecture layer rules
 - [ ] No `console.log` in src/ (use team logger)
 - [ ] No `any` without `// korva-ignore: reason`
-- [ ] DTO suffix is uppercase DTO (not Dto)
+- [ ] DTO suffix is uppercase DTO (not Dto) — if using NestJS hexagonal patterns
 - [ ] File names are kebab-case
 
 ## If you hit an unexpected blocker
@@ -30,4 +30,4 @@ Options:
 Recommendation: [your choice and why]
 ```
 
-Then wait for ✅ before continuing.
+Then wait for approval before continuing.
