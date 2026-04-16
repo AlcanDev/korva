@@ -17,7 +17,7 @@ const connectionString = 'postgresql://user:pass@host/db';
 process.env.TOKEN = 'hardcoded';
 
 // ✅ Runtime injection via ConfigService (backed by Vault)
-const apiKey = this.configService.get<string>('APIGEE_CONSUMER_KEY');
+const apiKey = this.configService.get<string>('API_CONSUMER_KEY');
 ```
 
 **Detection:** gitleaks scans every commit. Secret = build failure. No exceptions.
@@ -58,7 +58,7 @@ app.useGlobalPipes(new ValidationPipe({
 ```typescript
 // Every non-public route needs a guard
 @Controller('insurance')
-@UseGuards(BearerAuthGuard)  // validates JWT/Bearer from Apigee
+@UseGuards(BearerAuthGuard)  // validates JWT/Bearer token
 export class InsuranceController {}
 
 // Public routes must be explicitly marked
@@ -94,9 +94,9 @@ export class UserResponseDTO {
 app.useGlobalInterceptors(new ClassSerializerInterceptor(app.get(Reflector)));
 ```
 
-## Apigee security headers (set by proxy — do not duplicate in app)
+## API Gateway security headers (set by proxy — do not duplicate in app)
 
-Apigee adds these automatically. If your app sets them too, they'll be duplicated:
+The API Gateway proxy adds these automatically. If your app sets them too, they'll be duplicated:
 - `Content-Security-Policy: frame-ancestors 'none'`
 - `X-Frame-Options: DENY`
 - `Referrer-Policy: no-referrer`
@@ -152,5 +152,5 @@ Before marking a feature complete:
 | A03 Injection | Parameterized queries, DTO whitelist validation |
 | A05 Security Misconfiguration | Docker hardening, K8s network policies, Istio |
 | A06 Vulnerable Components | `npm audit` in CI, `gitleaks` in CI |
-| A07 Auth Failures | Apigee OAuth2, token expiry 899s, no sharing |
+| A07 Auth Failures | OAuth2 client credentials, token expiry enforced, no sharing |
 | A09 Logging Failures | OTel APM, LoggerInterceptor, no sensitive data in logs |

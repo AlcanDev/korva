@@ -13,7 +13,7 @@ stack: GitLab CI, Docker, HashiCorp Vault, Kubernetes, Harbor
 - Tasks: creating a CI pipeline, writing a Dockerfile, managing secrets, configuring a build job, deploying to Kubernetes
 
 ## Context
-All Acme Financiero pipelines consume reusable pipeline definitions from the internal `your-org/dx/configurable-pipelines` project (v5+). Docker images are pulled from and pushed to the internal Harbor registry at `registry.your-company.com`. Build-time configuration uses GitLab CI variables; runtime application secrets are injected by HashiCorp Vault Agent into the Kubernetes pod — never baked into the image or listed in `.gitlab-ci.yml`.
+Production GitLab CI pipelines pull Docker images from a private registry and inject runtime application secrets via HashiCorp Vault Agent — secrets are never baked into the image or listed in `.gitlab-ci.yml`. Build-time configuration uses GitLab CI variables; the two most common security failures are (1) hardcoded credentials in `.gitlab-ci.yml` and (2) running Node.js as root in Docker containers. Both are caught by the patterns below.
 
 ---
 
@@ -71,9 +71,6 @@ build:
 ```hcl
 # CORRECT — vault/prod.hcl declares which Vault paths the app can read
 path "secret/data/home-api/prod/external-api" {
-  capabilities = ["read"]
-}
-path "secret/data/home-api/prod/apigee" {
   capabilities = ["read"]
 }
 ```

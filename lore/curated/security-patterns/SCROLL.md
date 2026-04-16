@@ -459,3 +459,16 @@ export const config = {
 | Rate limiting | `express-rate-limit` with Redis store — strict on `/auth/*` |
 | Session cookies | `HttpOnly + Secure + SameSite=Lax` |
 | Secrets | Environment variables — validated at startup, never in code |
+
+---
+
+## Community Skills
+
+| Skill | Install command |
+|---|---|
+| [Better Auth Best Practices](https://skills.sh/better-auth/skills/better-auth-best-practices) | `npx skills add better-auth/skills --skill better-auth-best-practices -a claude-code` |
+| [Email & Password Auth](https://skills.sh/better-auth/skills/email-and-password-best-practices) | `npx skills add better-auth/skills --skill email-and-password-best-practices -a claude-code` |
+| [Two-Factor Authentication](https://skills.sh/better-auth/skills/two-factor-authentication-best-practices) | `npx skills add better-auth/skills --skill two-factor-authentication-best-practices -a claude-code` |
+| [Clerk Auth](https://skills.sh/clerk/skills/clerk) | `npx skills add clerk/skills --skill clerk -a claude-code` |
+| [Clerk Setup](https://skills.sh/clerk/skills/clerk-setup) | `npx skills add clerk/skills --skill clerk-setup -a claude-code` |
+| [Clerk Testing](https://skills.sh/clerk/skills/clerk-testing) | `npx skills add clerk/skills --skill clerk-testing -a claude-code` |

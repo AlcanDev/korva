@@ -198,11 +198,11 @@ export default defineConfig({
 
 ```html
 <!-- Every interactive element tested by E2E gets data-testid -->
-<design-cards data-testid="offer-card" />
-<design-button data-testid="continue-btn">Continuar</design-button>
+<Card data-testid="offer-card" />
+<Button data-testid="continue-btn">Continuar</Button>
 <div data-testid="skeleton" *ngIf="isLoading()" />
-<design-alerts data-testid="error-alert" role="alert" />
-<design-button data-testid="retry-btn">Reintentar</design-button>
+<Alert data-testid="error-alert" role="alert" />
+<Button data-testid="retry-btn">Reintentar</Button>
 
 <!-- Never use CSS classes or text for E2E selectors -->
 <!-- ❌ page.locator('.primary-btn') — breaks on style changes -->

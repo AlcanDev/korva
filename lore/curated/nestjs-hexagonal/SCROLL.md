@@ -235,3 +235,14 @@ async getPlans(command: GetPaymentPlansCommand) {
 // StripePaymentAdapterUS handles US, StripePaymentAdapterEU handles EU
 // The module decides which adapter is injected
 ```
+
+---
+
+## Community Skills
+
+| Skill | Install command |
+|---|---|
+| [NestJS Best Practices](https://skills.sh/kadajett/agent-nestjs-skills/nestjs-best-practices) | `npx skills add kadajett/agent-nestjs-skills --skill nestjs-best-practices -a claude-code` |
+| [TypeScript Advanced Types](https://skills.sh/wshobson/agents/typescript-advanced-types) | `npx skills add wshobson/agents --skill typescript-advanced-types -a claude-code` |
+| [Node.js Backend Patterns](https://skills.sh/wshobson/agents/nodejs-backend-patterns) | `npx skills add wshobson/agents --skill nodejs-backend-patterns -a claude-code` |
+| [Vitest](https://skills.sh/antfu/skills/vitest) | `npx skills add antfu/skills --skill vitest -a claude-code` |

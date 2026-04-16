@@ -194,7 +194,7 @@ getPlans(@Res({ passthrough: true }) res: Response) {
 **Versioning rules:**
 - Non-breaking additions (new optional field): same version
 - Removing a field or changing type: new version + 90-day deprecation window
-- Never remove a version without confirming zero consumers in Apigee analytics
+- Never remove a version without confirming zero active consumers (check analytics)
 
 ---
 

@@ -1,8 +1,9 @@
-import { BrowserRouter, Routes, Route, NavLink } from 'react-router'
+import { BrowserRouter, Routes, Route, NavLink, Navigate } from 'react-router'
 import {
   LayoutDashboard, Database, Clock, BookOpen, Settings, Activity, Shield
 } from 'lucide-react'
 import { useVaultHealth } from '@/api/vault'
+import LandingPage from '@/pages/landing/LandingPage'
 import Overview from '@/pages/overview/Overview'
 import VaultExplorer from '@/pages/vault-explorer/VaultExplorer'
 import Sessions from '@/pages/sessions/Sessions'
@@ -14,22 +15,22 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Admin panel — full-screen, has its own sidebar */}
+        <Route path="/" element={<LandingPage />} />
         <Route path="/admin/*" element={<Admin />} />
-
-        {/* Main app */}
+        <Route path="/app" element={<Navigate to="/app/overview" replace />} />
         <Route
-          path="/*"
+          path="/app/*"
           element={
-            <div className="flex h-screen overflow-hidden bg-[#0d1117]">
+            <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: 'var(--surface)' }}>
               <Sidebar />
-              <main className="flex-1 overflow-auto">
+              <main style={{ flex: 1, overflowY: 'auto' }}>
                 <Routes>
-                  <Route path="/" element={<Overview />} />
-                  <Route path="/vault" element={<VaultExplorer />} />
-                  <Route path="/sessions" element={<Sessions />} />
-                  <Route path="/lore" element={<LoreManager />} />
-                  <Route path="/settings" element={<SettingsPage />} />
+                  <Route path="overview"  element={<Overview />} />
+                  <Route path="vault"     element={<VaultExplorer />} />
+                  <Route path="sessions"  element={<Sessions />} />
+                  <Route path="lore"      element={<LoreManager />} />
+                  <Route path="settings"  element={<SettingsPage />} />
+                  <Route path="*"         element={<Navigate to="/app/overview" replace />} />
                 </Routes>
               </main>
             </div>
@@ -45,39 +46,39 @@ function Sidebar() {
   const vaultOnline = !isError && health?.status === 'ok'
 
   const navItems = [
-    { to: '/', icon: LayoutDashboard, label: 'Overview' },
-    { to: '/vault', icon: Database, label: 'Vault' },
-    { to: '/sessions', icon: Clock, label: 'Sessions' },
-    { to: '/lore', icon: BookOpen, label: 'Lore' },
-    { to: '/settings', icon: Settings, label: 'Settings' },
+    { to: '/app/overview',  icon: LayoutDashboard, label: 'Overview' },
+    { to: '/app/vault',     icon: Database,        label: 'Vault' },
+    { to: '/app/sessions',  icon: Clock,           label: 'Sessions' },
+    { to: '/app/lore',      icon: BookOpen,        label: 'Lore' },
+    { to: '/app/settings',  icon: Settings,        label: 'Settings' },
   ]
 
   return (
-    <aside className="w-56 flex-shrink-0 border-r border-[#21262d] flex flex-col bg-[#161b22]">
-      {/* Logo */}
-      <div className="px-4 py-5 border-b border-[#21262d]">
-        <div className="flex items-center gap-2">
-          <div className="w-6 h-6 rounded bg-[#238636] flex items-center justify-center text-white text-xs font-bold">
-            K
-          </div>
-          <span className="font-semibold text-[#e6edf3]">Korva Beacon</span>
-        </div>
+    <aside style={{
+      width: 220, flexShrink: 0, display: 'flex', flexDirection: 'column',
+      background: '#161B22', borderRight: '1px solid var(--border)',
+    }}>
+      <div style={{ padding: '18px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div style={{
+          width: 26, height: 26, borderRadius: 7, background: 'var(--accent)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 13, color: '#000',
+        }}>K</div>
+        <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 15, color: 'var(--text)' }}>Korva</span>
       </div>
 
-      {/* Nav */}
-      <nav className="flex-1 py-3 px-2 space-y-0.5">
+      <nav style={{ flex: 1, padding: '12px 8px', display: 'flex', flexDirection: 'column', gap: 2 }}>
         {navItems.map(({ to, icon: Icon, label }) => (
           <NavLink
             key={to}
             to={to}
-            end={to === '/'}
-            className={({ isActive }) =>
-              `flex items-center gap-2.5 px-3 py-2 rounded-md text-sm transition-colors ${
-                isActive
-                  ? 'bg-[#21262d] text-[#e6edf3]'
-                  : 'text-[#8b949e] hover:text-[#e6edf3] hover:bg-[#21262d]'
-              }`
-            }
+            style={({ isActive }) => ({
+              display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px',
+              borderRadius: 7, textDecoration: 'none', fontSize: 13.5,
+              fontFamily: 'var(--font-body)', transition: 'all 0.15s',
+              background: isActive ? 'var(--border)' : 'transparent',
+              color: isActive ? 'var(--text)' : 'var(--text-muted)',
+            })}
           >
             <Icon size={15} />
             {label}
@@ -85,28 +86,23 @@ function Sidebar() {
         ))}
       </nav>
 
-      {/* Admin link (subtle — only visible on hover) */}
-      <div className="px-2 pb-1">
+      <div style={{ padding: '4px 8px 6px' }}>
         <NavLink
           to="/admin"
-          className="flex items-center gap-2.5 px-3 py-1.5 rounded-md text-xs text-[#484f58] hover:text-[#f0883e] hover:bg-[#f0883e10] transition-colors"
+          style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 12px', borderRadius: 7, textDecoration: 'none', fontSize: 12, color: 'var(--text-dim)', fontFamily: 'var(--font-body)' }}
+          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = '#f0883e' }}
+          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text-dim)' }}
         >
           <Shield size={12} />
           Admin
         </NavLink>
       </div>
 
-      {/* Vault status */}
-      <div className="px-4 py-3 border-t border-[#21262d]">
-        <div className="flex items-center gap-2 text-xs">
-          <Activity
-            size={12}
-            className={vaultOnline ? 'text-[#3fb950]' : 'text-[#8b949e]'}
-          />
-          <span className={vaultOnline ? 'text-[#3fb950]' : 'text-[#8b949e]'}>
-            {vaultOnline ? 'Vault online' : 'Vault offline'}
-          </span>
-        </div>
+      <div style={{ padding: '12px 16px', borderTop: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 8 }}>
+        <Activity size={12} style={{ color: vaultOnline ? 'var(--accent)' : 'var(--text-dim)' }} />
+        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: vaultOnline ? 'var(--accent)' : 'var(--text-dim)' }}>
+          {vaultOnline ? 'Vault online' : 'Vault offline'}
+        </span>
       </div>
     </aside>
   )

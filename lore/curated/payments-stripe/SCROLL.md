@@ -447,3 +447,16 @@ app.post('/webhooks/stripe', async (req, res) => {
 | Race conditions | Distributed lock (Redlock) + idempotent DB upsert |
 | Webhook idempotency | `UNIQUE(stripe_event_id)` + transactional insert |
 | Event ordering | Upsert, never insert-only |
+
+---
+
+## Community Skills
+
+| Skill | Install command |
+|---|---|
+| [Stripe Best Practices](https://skills.sh/stripe/ai/stripe-best-practices) | `npx skills add stripe/ai --skill stripe-best-practices -a claude-code` |
+| [Stripe Upgrade Guide](https://skills.sh/stripe/ai/upgrade-stripe) | `npx skills add stripe/ai --skill upgrade-stripe -a claude-code` |
+| [Neon Postgres](https://skills.sh/neondatabase/agent-skills/neon-postgres) | `npx skills add neondatabase/agent-skills --skill neon-postgres -a claude-code` |
+| [Supabase Postgres](https://skills.sh/supabase/agent-skills/supabase-postgres-best-practices) | `npx skills add supabase/agent-skills --skill supabase-postgres-best-practices -a claude-code` |
+| [Prisma Setup](https://skills.sh/prisma/skills/prisma-database-setup) | `npx skills add prisma/skills --skill prisma-database-setup -a claude-code` |
+| [Prisma Client API](https://skills.sh/prisma/skills/prisma-client-api) | `npx skills add prisma/skills --skill prisma-client-api -a claude-code` |
