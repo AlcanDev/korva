@@ -7,7 +7,7 @@
 1. Read the relevant source files
 2. Search Vault: `vault_search "module or concept"`
 3. Identify: existing patterns, dependencies, technical debt in this area
-4. Understand the team's constraints (country adapters, BFF patterns, etc.)
+4. Understand the team's constraints (architecture layers, adapters, shared libs, etc.)
 
 ## Output
 

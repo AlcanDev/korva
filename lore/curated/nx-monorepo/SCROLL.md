@@ -1,6 +1,6 @@
 ---
 id: nx-monorepo
-version: 1.0.0
+version: 1.1.0
 team: backend
 stack: Nx, NestJS, TypeScript, Node 20
 ---
@@ -9,11 +9,11 @@ stack: Nx, NestJS, TypeScript, Node 20
 
 ## Triggers — load when:
 - Files: `nx.json`, `project.json`, `tsconfig.base.json`, `apps/**`, `libs/**`
-- Keywords: nx, affected, workspace, library, import path, @home-api, scope, generate, executor, cache
+- Keywords: nx, affected, workspace, library, import path, @acme, scope, generate, executor, cache
 - Tasks: adding a new library, running builds, creating a new app, importing between projects, CI pipeline setup
 
 ## Context
-The home-insurance platform is an Nx monorepo scoped under `@home-api`. Three apps (CL, PE, CO) each have their own Dockerfile and Vault HCL files. Shared infrastructure (auth, logging, redis, etc.) lives in libs. Business logic is owned by apps, not libs — libs are cross-cutting concerns only. CI always uses `affected` commands to avoid building the entire workspace on every change.
+An Nx monorepo scopes all projects under a single workspace alias (e.g., `@acme`). Multiple apps can share infrastructure libs while each owning their own domain logic. Shared infrastructure (auth, logging, cache, etc.) lives in libs. Business logic is owned by apps, not libs — libs are cross-cutting concerns only. CI always uses `affected` commands to avoid building the entire workspace on every change.
 
 ---
 
@@ -23,31 +23,31 @@ The home-insurance platform is an Nx monorepo scoped under `@home-api`. Three ap
 
 ```
 apps/
-  cl/           @home-api/cl   — Chile BFF
+  api-us/         @acme/api-us   — US region BFF
     Dockerfile
     vault/
-      qa.hcl
+      staging.hcl
       prod.hcl
-  pe/           @home-api/pe   — Peru BFF
+  api-eu/         @acme/api-eu   — EU region BFF
     Dockerfile
     vault/
-      qa.hcl
+      staging.hcl
       prod.hcl
-  co/           @home-api/co   — Colombia BFF
+  api-apac/       @acme/api-apac — APAC region BFF
     Dockerfile
     vault/
-      qa.hcl
+      staging.hcl
       prod.hcl
 
 libs/
-  auth/         @home-api/auth
-  otel/      @home-api/otel
-  exceptions/   @home-api/exceptions
-  flagr/        @home-api/flagr
-  logger/       @home-api/logger
-  redis/        @home-api/redis
-  swagger/      @home-api/swagger
-  util/         @home-api/util
+  auth/           @acme/auth
+  otel/        @acme/otel
+  exceptions/     @acme/exceptions
+  feature-flags/  @acme/feature-flags
+  logger/         @acme/logger
+  redis/          @acme/redis
+  swagger/        @acme/swagger
+  util/           @acme/util
 ```
 
 ### 2. Always use affected commands
@@ -65,14 +65,14 @@ nx affected:test --base=origin/main
 nx affected:graph
 ```
 
-### 3. Import via @home-api alias — never relative paths between projects
+### 3. Import via @acme alias — never relative paths between projects
 
 ```typescript
 // CORRECT — alias import
-import { LoggerService }     from '@home-api/logger';
-import { AuthGuard }         from '@home-api/auth';
-import { RedisService }      from '@home-api/redis';
-import { GlobalExceptionFilter } from '@home-api/exceptions';
+import { LoggerService }          from '@acme/logger';
+import { AuthGuard }              from '@acme/auth';
+import { RedisService }           from '@acme/redis';
+import { GlobalExceptionFilter }  from '@acme/exceptions';
 
 // WRONG — relative import crossing project boundaries
 import { LoggerService } from '../../../../libs/logger/src'; // forbidden
@@ -85,7 +85,7 @@ Relative imports are only allowed within the same project (same `apps/` or `libs
 
 ```bash
 nx generate @nrwl/nest:library <name> \
-  --importPath=@home-api/<name> \
+  --importPath=@acme/<name> \
   --buildable \
   --publishable=false
 ```
@@ -96,7 +96,7 @@ After generation, verify `tsconfig.base.json` has the path alias:
 {
   "compilerOptions": {
     "paths": {
-      "@home-api/<name>": ["libs/<name>/src/index.ts"]
+      "@acme/<name>": ["libs/<name>/src/index.ts"]
     }
   }
 }
@@ -111,13 +111,13 @@ libs/logger/         — structured logging wrapper        (OK)
 libs/auth/           — JWT guard, decorators             (OK)
 libs/redis/          — Redis connection + cache helpers  (OK)
 
-apps/cl/src/
-  domain/            — InsurancePort, InsuranceId        (OK — app owns domain)
-  application/       — InsuranceService                  (OK — app owns use cases)
-  infrastructure/    — LifeInsuranceAdapterCL            (OK — app owns adapters)
+apps/api-us/src/
+  domain/            — PaymentPort, PaymentId            (OK — app owns domain)
+  application/       — PaymentService                    (OK — app owns use cases)
+  infrastructure/    — StripePaymentAdapterUS            (OK — app owns adapters)
 ```
 
-If a domain concept needs to be shared between CL, PE, and CO, use the Template Method pattern in an abstract base class within the app, not by moving it to a lib.
+If a domain concept needs to be shared between region apps, use the Template Method pattern in an abstract base class within each app, not by moving it to a lib.
 
 ### 6. project.json executor configuration
 
@@ -125,29 +125,29 @@ Each app's `project.json` must declare build, serve, test, and lint targets:
 
 ```json
 {
-  "name": "cl",
+  "name": "api-us",
   "$schema": "../../node_modules/nx/schemas/project-schema.json",
-  "sourceRoot": "apps/cl/src",
+  "sourceRoot": "apps/api-us/src",
   "projectType": "application",
   "targets": {
     "build": {
       "executor": "@nrwl/node:build",
       "options": {
-        "outputPath": "dist/apps/cl",
-        "main": "apps/cl/src/main.ts",
-        "tsConfig": "apps/cl/tsconfig.app.json",
-        "assets": ["apps/cl/src/assets"]
+        "outputPath": "dist/apps/api-us",
+        "main": "apps/api-us/src/main.ts",
+        "tsConfig": "apps/api-us/tsconfig.app.json",
+        "assets": ["apps/api-us/src/assets"]
       }
     },
     "test": {
       "executor": "@nrwl/jest:jest",
       "options": {
-        "jestConfig": "apps/cl/jest.config.ts",
+        "jestConfig": "apps/api-us/jest.config.ts",
         "passWithNoTests": false
       }
     }
   },
-  "tags": ["scope:cl", "type:app"]
+  "tags": ["scope:us", "type:app"]
 }
 ```
 
@@ -161,8 +161,8 @@ Each app's `project.json` must declare build, serve, test, and lint targets:
     "depConstraints": [
       { "sourceTag": "type:app",  "onlyDependOnLibsWithTags": ["type:lib"] },
       { "sourceTag": "type:lib",  "onlyDependOnLibsWithTags": ["type:lib"] },
-      { "sourceTag": "scope:cl",  "onlyDependOnLibsWithTags": ["scope:cl", "scope:shared"] },
-      { "sourceTag": "scope:pe",  "onlyDependOnLibsWithTags": ["scope:pe", "scope:shared"] }
+      { "sourceTag": "scope:us",  "onlyDependOnLibsWithTags": ["scope:us", "scope:shared"] },
+      { "sourceTag": "scope:eu",  "onlyDependOnLibsWithTags": ["scope:eu", "scope:shared"] }
     ]
   }]
 }
@@ -191,33 +191,33 @@ import { RedisService } from '../../../libs/redis/src/lib/redis.service';
 
 ```typescript
 // GOOD
-import { RedisService } from '@home-api/redis';
+import { RedisService } from '@acme/redis';
 ```
 
 ### BAD: Domain logic in a lib
 ```typescript
-// BAD — libs/insurance-domain/src/lib/insurance.service.ts
-// Business logic shared across all countries in a lib
-export class InsuranceService {
-  getOffers(country: 'CL' | 'PE' | 'CO') { ... }
+// BAD — libs/payment-domain/src/lib/payment.service.ts
+// Business logic shared across all regions in a lib
+export class PaymentService {
+  getPlans(region: 'US' | 'EU' | 'APAC') { ... }
 }
 ```
 
 ```typescript
-// GOOD — each app owns its InsuranceService
-// apps/cl/src/application/insurance.service.ts — CL-specific
-// apps/pe/src/application/insurance.service.ts — PE-specific
+// GOOD — each app owns its PaymentService
+// apps/api-us/src/application/payment.service.ts   — US-specific
+// apps/api-eu/src/application/payment.service.ts   — EU-specific
 // Shared algorithm lives in an abstract base class inside each app
 ```
 
-### BAD: Missing @home-api path alias after generating a lib
+### BAD: Missing @acme path alias after generating a lib
 ```json
 // BAD — tsconfig.base.json missing new lib
 {
   "compilerOptions": {
     "paths": {
-      "@home-api/logger": ["libs/logger/src/index.ts"]
-      // @home-api/new-lib missing!
+      "@acme/logger": ["libs/logger/src/index.ts"]
+      // @acme/new-lib missing!
     }
   }
 }
@@ -228,8 +228,8 @@ export class InsuranceService {
 {
   "compilerOptions": {
     "paths": {
-      "@home-api/logger":   ["libs/logger/src/index.ts"],
-      "@home-api/new-lib":  ["libs/new-lib/src/index.ts"]
+      "@acme/logger":   ["libs/logger/src/index.ts"],
+      "@acme/new-lib":  ["libs/new-lib/src/index.ts"]
     }
   }
 }

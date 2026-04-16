@@ -20,14 +20,14 @@
 2. Rule two
 
 **Affects:**
-- src/modules/insurances/domain/ports/insurance.port.ts (add method)
-- src/modules/insurances/application/services/insurance.service.ts (update)
-- src/modules/insurances/infrastructure/adapters/base/ (extend)
+- src/modules/payments/domain/ports/payment.port.ts (add method)
+- src/modules/payments/application/services/payment.service.ts (update)
+- src/modules/payments/infrastructure/adapters/base/ (extend)
 ```
 
 ## Rules
 
-- ⏸️ **STOP HERE.** Wait for explicit ✅ from the developer before proceeding.
-- If the developer modifies the spec, update it and wait for ✅ again.
+- STOP HERE. Wait for explicit approval from the developer before proceeding.
+- If the developer modifies the spec, update it and wait for approval again.
 - No code, no design — just the spec.
 - If multiple specs are possible, present them as numbered options (max 3).

@@ -1,85 +1,269 @@
-# Korva
+# Korva — The OS for AI-driven Engineering Teams
 
-> AI ecosystem for enterprise development teams.
+> Give your AI agents persistent memory, architecture guardrails, knowledge injection, and structured workflows — all in a single local system. Free. Open source. Zero cloud.
 
-Korva gives your AI coding assistant (GitHub Copilot, Claude Code, Cursor) **persistent memory**, **architecture-aware instructions**, and a **structured workflow** — all installed with a single command.
+[![MIT License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![Go 1.22+](https://img.shields.io/badge/go-1.22%2B-blue.svg)](https://golang.org)
+[![MCP Protocol](https://img.shields.io/badge/MCP-compatible-cyan.svg)](https://modelcontextprotocol.io)
 
 ---
 
-## ⚡ Install in 1 command
+## The Problem
 
-### macOS / Linux
+Every AI session starts from zero. Your AI doesn't know the race condition you fixed last October. It doesn't know you chose event sourcing in March. It doesn't know the team rule "never access the database from a controller." 
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/AlcanDev/korva/main/scripts/install.sh | sh
+Every developer explains context for 15 minutes before every session. Every. Single. Day.
+
+**Korva is the infrastructure layer that fixes this.**
+
+---
+
+## What Korva Does
+
+```
+Without Korva                         With Korva
+─────────────────────────────         ──────────────────────────────────────
+Session #47:                          vault_context() → 89 team memories
+You: "Remember: Clean Architecture,    ✓ Architecture: CQRS + Events (Mar 2024)
+     Repository pattern, CQRS..."      ✓ Rule: Repository interface only
+AI:  [violates everything again]       ✓ Incident: Direct DB = prod outage
+
+// Same mistake, 47 sessions.         AI generates perfect code.
+// New dev tomorrow? Same conv.       First try. No explanation needed.
 ```
 
-Or via Homebrew:
+Korva is built on **four integrated components**:
+
+| Component | What it does |
+|---|---|
+| 🧠 **Vault** | Persistent AI memory — decisions, incidents, patterns saved forever |
+| 🛡️ **Sentinel** | Architecture guardrails — catches violations before they reach your codebase |
+| 📜 **Lore** | Knowledge injection — opens `payments.ts`, AI already knows PCI + Stripe rules |
+| ⚙️ **Forge** | Structured workflow — 5-phase SDD prevents AI from diving straight into code |
+
+---
+
+## Install in 30 seconds
+
+### macOS / Linux (Homebrew)
 
 ```bash
-brew tap AlcanDev/tap && brew install korva
+brew install alcandev/tap/korva
 ```
 
-### Windows (PowerShell)
+### macOS / Linux (shell script)
+
+```bash
+curl -fsSL https://korva.dev/install.sh | bash
+```
+
+### Windows (PowerShell, run as Administrator)
 
 ```powershell
-iwr -useb https://raw.githubusercontent.com/AlcanDev/korva/main/scripts/install.ps1 | iex
+irm https://korva.dev/install.ps1 | iex
 ```
 
-> **PATH note for Windows**: The installer adds the binaries to `%LOCALAPPDATA%\korva\bin` and updates your user PATH. **Restart your terminal** (PowerShell / CMD) after installing.
+> **Windows note**: Installs to `%LOCALAPPDATA%\korva\bin`. Restart your terminal after install.
 
 ### Verify installation
 
 ```bash
-korva version       # should print version, commit, date
-korva-vault --help
-korva-sentinel --help
+korva version
 ```
 
 ---
 
-## 🚀 Quick Start (5 minutes)
+## Quick Start (5 minutes)
 
-### Step 1 — Initialize Korva
+### 1. Initialize
 
 ```bash
-# In your project root:
 korva init
 ```
 
-This creates `~/.korva/config.json` and starts the Vault server configuration.
+Creates `~/.korva/` with config, generates `admin.key` (0600 permissions), starts the vault server on `:7437`.
 
-### Step 1b — Auto-configure your editors (NEW)
-
-```bash
-# Detects VS Code, Cursor, and Claude Code — configures all of them at once
-korva setup
-```
-
-This automatically writes the MCP server configuration into every editor it finds. **No manual editing required.**
-
-### Step 2 — Start the Vault MCP server
+### 2. Connect your AI editors
 
 ```bash
-korva-vault --mode=both   # Starts MCP (stdio) + HTTP REST on :7437
+korva setup --all
 ```
 
-### Step 3 — Connect your AI assistant
+Auto-configures **VS Code + Copilot**, **Claude Code**, and **Cursor** to use Korva as an MCP server. No JSON editing required. Idempotent — safe to run multiple times.
 
-**VS Code + GitHub Copilot** — add to `.vscode/mcp.json` (or User settings):
+### 3. (Optional) Add your team profile
+
+```bash
+korva init --profile git@github.com:YOUR_ORG/korva-team-profile.git
+```
+
+Clones your team's private scrolls, Sentinel rules, and AI instructions into your local workspace.
+
+### 4. Start using it
+
+In any AI session, your agent now has access to:
+
+```
+vault_save   — save a decision, bug fix, or pattern
+vault_context — load relevant context for the current project
+vault_search  — full-text search across everything saved
+vault_why    — explain why a past decision was made (coming v0.2)
+```
+
+---
+
+## Real Examples
+
+### Vault — Memory that compounds over time
+
+```javascript
+// Friday 11pm: critical production incident
+vault_save({
+  type: "incident",
+  title: "Race condition in payment processor",
+  content: "Two concurrent requests can double-charge.
+            Fix: Redis distributed lock on payment_id.
+            LOCK:payment:{id} with 30s TTL — always."
+})
+
+// 9 months later, new developer opens payments.ts:
+vault_context("payments")
+// → AI: "A past incident shows race conditions here.
+//        Use distributed locking on payment_id
+//        or you risk double-charging customers."
+// Saved: 3-day debugging session, ~$12k incident cost
+```
+
+### Sentinel — Guardrails on every commit
+
+```bash
+$ git commit -m "feat: user authentication endpoint"
+
+Running Korva Sentinel...
+  ✓ NAM-001  Naming conventions
+  ✓ TEST-001 No debug logs in production
+  ✗ SEC-001  Hardcoded secret detected
+  ✗ SEC-003  Timing attack vulnerability
+  ✗ ARC-002  HTTP handler in domain layer
+
+  src/auth/AuthService.ts:14
+  const secret = "sk_live_4xK9mP..."
+                  ^^^ Use process.env.JWT_SECRET
+
+3 critical issues. Commit blocked.
+```
+
+### Lore — Knowledge injected automatically
+
+```
+// You open: src/payments/checkout.ts
+// Korva detects: payments + stripe context
+
+📜 stripe-webhooks  Idempotency keys required
+📜 pci-dss          Never log card numbers or CVV
+📜 decimal-math     Use Decimal.js — never floats
+📜 retry-patterns   Exponential backoff on 429s
+
+// AI already knows all of this. No explanation needed.
+```
+
+### Forge — Structured AI development
+
+```markdown
+# Building: Real-time notifications system
+
+◆ Phase 1: Exploration (no code yet)
+  "Map all mutation paths before designing conflict resolution"
+
+◆ Phase 2: Specification  
+  "WebSocket vs SSE? Define the contract before implementation."
+
+◆ Phase 3: Architecture (vault-aware)
+  "Team uses Redis pub/sub (23 vault observations). 
+   Design topology respecting that constraint."
+
+◆ Phase 4: Implementation — step by step, guided
+
+◆ Phase 5: Sentinel validates
+  ✓ 10/10 architecture rules pass
+```
+
+---
+
+## The Public / Private Model
+
+Korva is built on the **3 Kingdoms privacy model**:
+
+```
+Kingdom 1 — Public (this repo, MIT)
+github.com/AlcanDev/korva
+Core engine · CLI · Vault · Sentinel · 13+ Lore scrolls
+Zero knowledge of your team's data.
+
+     ↓ can reference, never merges ↑
+
+Kingdom 2 — Your private team repo (your GitHub)
+github.com/YOUR_ORG/korva-team-profile
+Team scrolls · Custom rules · AI instructions
+Your patterns, your conventions, your IP.
+
+     ↓ syncs locally, never to cloud ↑
+
+Kingdom 3 — Your machine (~/.korva/)
+vault.db · admin.key (0600) · runtime state
+Stays here. Forever. Unless you choose otherwise.
+```
+
+### Optional: Share vault across your team
+
+```bash
+# Self-host the vault on your own infrastructure
+docker run -p 7437:7437 -v ~/.korva:/data ghcr.io/alcandev/korva-vault
+
+# Team members sync (only non-sensitive observations shared)
+korva sync --remote https://korva.your-company.internal
+```
+
+This is **always opt-in**. Korva never connects to our servers. You control what syncs.
+
+---
+
+## Supported Editors
+
+| Editor | Integration | Status |
+|---|---|---|
+| VS Code + GitHub Copilot | MCP via `mcp.json` | ✅ Supported |
+| Claude Code | MCP via `settings.json` | ✅ Supported |
+| Cursor | MCP via `mcp.json` | ✅ Supported |
+| JetBrains (IntelliJ, GoLand...) | MCP via plugin | 🔨 Roadmap |
+| Neovim | MCP via plugin | 🔨 Roadmap |
+
+Any editor that supports the [Model Context Protocol](https://modelcontextprotocol.io) works with Korva.
+
+---
+
+## Manual Editor Configuration
+
+If `korva setup --all` doesn't cover your editor, configure manually:
+
+### VS Code (`~/.vscode/settings.json` or project `.vscode/mcp.json`)
+
 ```json
 {
-  "servers": {
-    "korva-vault": {
-      "type": "stdio",
-      "command": "korva-vault",
-      "args": ["--mode=mcp"]
+  "mcp": {
+    "servers": {
+      "korva-vault": {
+        "type": "stdio",
+        "command": "korva-vault",
+        "args": ["--mode=mcp"]
+      }
     }
   }
 }
 ```
 
-**Claude Code** — add to `~/.claude/settings.json`:
+### Claude Code (`~/.claude/settings.json`)
+
 ```json
 {
   "mcpServers": {
@@ -91,7 +275,8 @@ korva-vault --mode=both   # Starts MCP (stdio) + HTTP REST on :7437
 }
 ```
 
-**Cursor** — add to `~/.cursor/mcp.json`:
+### Cursor (`~/.cursor/mcp.json`)
+
 ```json
 {
   "mcpServers": {
@@ -103,119 +288,37 @@ korva-vault --mode=both   # Starts MCP (stdio) + HTTP REST on :7437
 }
 ```
 
-### Step 4 — Install pre-commit hooks
-
-```bash
-cd ~/repos/my-project
-korva sentinel install
-```
-
-### Step 5 — Check everything is working
-
-```bash
-korva doctor
-```
-
 ---
 
-## 📦 Components
-
-| Component | Binary | Description |
-|-----------|--------|-------------|
-| **Vault** | `korva-vault` | Persistent memory — SQLite + FTS5 + MCP + HTTP REST :7437 |
-| **CLI** | `korva` | Orchestrator — init, sync, status, doctor, sentinel |
-| **Sentinel** | `korva-sentinel` | Static analysis — 10 architecture rules (HEX, NAM, SEC, TEST) |
-| **Lore** | — | Knowledge Scrolls loaded on-demand by your AI assistant |
-| **Forge** | — | SDD workflow — 5-phase structured development |
-| **Beacon** | — | Web dashboard (React 19 + Vite) — explore memory and sessions |
-
----
-
-## 👥 Team Profiles (private configuration)
-
-Private configuration (proprietary scrolls, internal rules, vault sync) lives in a **separate private repository** and never touches this public codebase. This is the **3 Kingdoms privacy model**:
-
-- 🌍 **Kingdom 1** — this public repo (open source)
-- 🔒 **Kingdom 2** — your private team profile repo
-- 💻 **Kingdom 3** — your local machine (`~/.korva/`)
-
-```bash
-# Install for your team (use your team's private profile URL)
-korva init --profile git@github.com:your-org/korva-team-profile.git
-
-# Sync latest team config (run when team updates the profile)
-korva sync --profile
-```
-
-To create your own team profile repo, see **[korva-team-profile](https://github.com/AlcanDev/korva-team-profile)** as a reference template (rename and make private for your team).
-
----
-
-## 🏗️ Architecture
-
-```
-AI Assistant ──MCP (stdio)──▶ korva-vault ──▶ SQLite FTS5 (~/.korva/vault/)
-     │                              │
-     │                        HTTP :7437
-     │                              │
-     │                         Beacon UI
-     │
-     └── Lore Scrolls ──▶ .github/copilot-instructions.md
-                          CLAUDE.md
-                          .cursorrules
-```
-
-### MCP Tools available to your AI
-
-| Tool | What it does |
-|------|-------------|
-| `vault_save` | Save a decision, pattern, or bug fix |
-| `vault_search` | Full-text search across all observations |
-| `vault_context` | Get recent context for the current project |
-| `vault_timeline` | Observations by date range |
-| `vault_session_start` / `vault_session_end` | Track work sessions |
-| `vault_summary` | Project summary with key decisions |
-| `vault_save_prompt` | Save reusable prompts |
-| `vault_stats` | Global vault statistics |
-
----
-
-## 🗂️ Repository Structure
+## Components
 
 ```
 korva/
-├── cli/               # korva CLI — Go + Cobra
-├── vault/             # Vault server — SQLite + MCP + REST
-├── sentinel/          # Pre-commit hooks + Go validator
+├── vault/       → Vault server — SQLite FTS5 + MCP (stdio) + REST :7437
+├── cli/         → korva CLI — init, setup, sync, sentinel, forge
+├── sentinel/    → Architecture validator — 10 built-in rules + custom YAML
 ├── lore/
-│   └── curated/       # 13 knowledge Scrolls (hexagonal, NestJS, CI/CD...)
-├── forge/             # SDD workflow phases (5 .md files)
-├── scripts/
-│   ├── install.sh     # macOS/Linux one-line installer
-│   └── install.ps1    # Windows PowerShell installer
-└── beacon/            # Web dashboard — React 19 + Vite 6
+│   └── curated/ → 13 knowledge scrolls (NestJS, TypeScript, Docker, CI/CD...)
+├── forge/       → SDD workflow — 5-phase structured development
+└── beacon/      → Web dashboard — React 19 + Vite (explore vault history)
 ```
 
 ---
 
-## 🛠️ Build from Source
+## Build from Source
 
 Requires **Go 1.22+**.
 
 ```bash
-# Clone
 git clone https://github.com/AlcanDev/korva.git
 cd korva
 
-# Sync workspace
-go work sync
-
 # Build all binaries
-go build -o bin/korva        ./cli/cmd/korva/
-go build -o bin/korva-vault  ./vault/cmd/korva-vault/
+go build -o bin/korva          ./cli/cmd/korva/
+go build -o bin/korva-vault    ./vault/cmd/korva-vault/
 go build -o bin/korva-sentinel ./sentinel/validator/cmd/korva-sentinel/
 
-# Add bin/ to your PATH (macOS/Linux)
+# Add to PATH
 export PATH="$PATH:$(pwd)/bin"
 
 # Run all tests
@@ -224,54 +327,51 @@ go test github.com/alcandev/korva/...
 
 ---
 
-## ✅ Tests
+## Documentation
 
-```bash
-# Full test suite
-go test github.com/alcandev/korva/...
-
-# Tests for a specific module
-cd vault && go test ./...
-cd internal && go test ./...
-
-# With coverage report
-go test ./internal/... -cover
-go test ./vault/... -cover
-go test ./sentinel/validator/... -cover
-```
-
-Coverage targets: **>80%** on all testable packages.
+| Document | Description |
+|---|---|
+| [VISION.md](VISION.md) | Strategic vision — 5-layer architecture, public/private model |
+| [ROADMAP.md](ROADMAP.md) | Phase 1→3 roadmap with detailed task breakdown |
+| [docs/USAGE.md](docs/USAGE.md) | Detailed usage guide (all commands, all options) |
+| [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Deploy shared vault server (Railway/Fly.io/VPS/K8s) |
+| [lore/SCROLL_TEMPLATE.md](lore/SCROLL_TEMPLATE.md) | How to write a Lore scroll for any stack |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | How to contribute scrolls, rules, and code |
+| [SECURITY.md](SECURITY.md) | Security policy and responsible disclosure |
 
 ---
 
-## 🔐 Security
+## FAQ
 
-- `admin.key` is generated locally, stored at `~/.korva/admin.key` with permissions `0600` (read-only by owner). It is **never** committed to git or synced anywhere.
-- Admin endpoints (`POST /admin/purge`, etc.) require the `X-Admin-Key` header with a valid key.
-- The Privacy Filter (`internal/privacy`) redacts passwords, tokens, secrets, and `<private>` tagged content before saving to SQLite.
-- Report security issues via GitHub Security Advisories — see [SECURITY.md](SECURITY.md).
+**Is Korva really free? What's the catch?**  
+No catch. MIT license. No paid tier, no telemetry, no SaaS. It runs entirely on your machine. The source is here — verify it yourself.
 
----
+**Does my code leave my machine?**  
+No. The vault runs on `localhost:7437`. MCP communicates via stdin/stdout — no network requests. The privacy filter auto-redacts passwords, tokens, and Bearer keys before saving to SQLite.
 
-## 📖 Documentation
+**How is this different from .cursorrules or CLAUDE.md?**  
+Static files don't accumulate knowledge, can't enforce rules at commit time, and don't inject context automatically. Korva is a cognitive system, not a config file.
 
-| Document | Contents |
-|----------|----------|
-| [docs/USAGE.md](docs/USAGE.md) | Step-by-step usage guide |
-| [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Deploy shared vault server (Railway / Fly.io / VPS) |
-| [docs/ADMIN_PANEL.md](docs/ADMIN_PANEL.md) | Admin panel — monitor team intelligence, manage scrolls |
-| [docs/TEAM_PROFILES.md](docs/TEAM_PROFILES.md) | Team profile setup and management |
-| [lore/SCROLL_TEMPLATE.md](lore/SCROLL_TEMPLATE.md) | How to write a knowledge Scroll |
-| [CONTRIBUTING.md](CONTRIBUTING.md) | How to contribute |
-| [SECURITY.md](SECURITY.md) | Security policy |
-| [CLAUDE.md](CLAUDE.md) | Instructions for Claude Code |
+**Can I use it with my stack (not NestJS/hexagonal)?**  
+Yes. Vault and Lore are stack-agnostic. Sentinel rules are configurable. The community is adding scrolls for Next.js, Laravel, Rust, Go, Python, and more.
 
 ---
 
-## 📄 License
+## Contributing
 
-MIT — see [LICENSE](LICENSE).
+The highest-impact contributions right now:
+
+1. **Write a Lore scroll** for your stack — see [SCROLL_TEMPLATE.md](lore/SCROLL_TEMPLATE.md)
+2. **Add a Sentinel rule** for patterns your team enforces
+3. **Report bugs** with clear reproduction steps in [GitHub Issues](https://github.com/AlcanDev/korva/issues)
+4. **Star the repo** — helps developers discover Korva
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the full guide.
 
 ---
+
+## License
+
+[MIT](LICENSE) — © 2025 AlcanDev
 
 *Build with intent. Ship with confidence.*

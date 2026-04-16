@@ -1,35 +1,35 @@
 ---
-id: design-ui
-version: 1.0.0
+id: component-design-system
+version: 1.1.0
 team: frontend
-stack: Angular 20, Design Components, Sass, CSS custom properties
+stack: Angular 20, Design System, Sass, CSS custom properties
 ---
 
-# Scroll: Design UI Design System
+# Scroll: Component Design System Patterns
 
 ## Triggers — load when:
 - Files: `*.component.ts`, `*.component.html`, `*.component.scss`, `styles.scss`
-- Keywords: design, design-components, Button, Dialog, Input, Select, Table, $avocado, $neutral, $cherry, var(--avocado), title-m, mt-16, pb-8, design system, color variable, Sass variable
+- Keywords: design system, component library, Button, Dialog, Input, Select, Table, Sass variable, CSS custom property, color token, typography class, spacing utility
 - Tasks: adding a UI component, applying colors, using typography classes, spacing elements, building a screen layout
 
 ## Context
-Acme Financiero uses Design as its official design system. All front-end Web Components must import UI primitives exclusively from `design-components` and apply styles via Design's Sass variables and utility classes. No Tailwind, no CSS-in-JS, no Styled Components, no inline styles, no hardcoded hex or rgb values are allowed. Design token consistency is enforced by code review and automated linting.
+A design system centralises visual decisions — colors, typography, spacing — into a single source of truth. All front-end components must import UI primitives exclusively from the team's component library and apply styles via the library's Sass variables and utility classes. No Tailwind, no CSS-in-JS, no Styled Components, no inline styles, no hardcoded hex or rgb values are allowed. Design token consistency is enforced by code review and automated linting.
 
 ---
 
 ## Rules
 
-### 1. Import components from design-components
+### 1. Import components from the component library
 
 ```typescript
 // *.component.ts or a shared module
-import { Button, Dialog, Input, Select, Table, Alert, Badge } from 'design-components';
+import { Button, Dialog, Input, Select, Table, Alert, Badge } from '@acme/components';
 ```
 
-In an Angular module, declare Design components inside `imports`:
+In an Angular module, declare library components inside `imports`:
 
 ```typescript
-// shared/design.module.ts
+// shared/design-system.module.ts
 import { NgModule } from '@angular/core';
 import {
   ButtonModule,
@@ -39,94 +39,94 @@ import {
   TableModule,
   AlertModule,
   BadgeModule,
-} from 'design-components';
+} from '@acme/components';
 
-const DESIGN_MODULES = [ButtonModule, DialogModule, InputModule, SelectModule, TableModule, AlertModule, BadgeModule];
+const DS_MODULES = [ButtonModule, DialogModule, InputModule, SelectModule, TableModule, AlertModule, BadgeModule];
 
-@NgModule({ imports: DESIGN_MODULES, exports: DESIGN_MODULES })
-export class DesignModule {}
+@NgModule({ imports: DS_MODULES, exports: DS_MODULES })
+export class DesignSystemModule {}
 ```
 
-### 2. CSS global stylesheet — import from CDN separately
+### 2. CSS global stylesheet — import once at root level
 
-The global Design stylesheet (resets, font-face, CSS custom properties) must be imported in the global stylesheet — not in component styles.
+The global stylesheet (resets, font-face, CSS custom properties) must be imported in the root global stylesheet — not in component styles.
 
 ```scss
 // styles.scss  (global)
-@import url('https://cdn.internal.example.com/design/latest/design.global.css');
+@import url('https://cdn.acme.io/design-system/latest/global.css');
 ```
 
-Component-level `.scss` files import only Design's Sass tokens:
+Component-level `.scss` files import only the design system's Sass tokens:
 
 ```scss
-// insurance-offers.component.scss
-@import 'design-components/scss/tokens';
+// product-card.component.scss
+@import '@acme/components/scss/tokens';
 
-.offer-card {
+.product-card {
   background-color: $neutral-10;
   border: 1px solid $neutral-30;
   padding: 16px;
 }
 ```
 
-### 3. Colors: always Sass variables, never hex values
+### 3. Colors: always design tokens, never hex values
 
-#### Available palette
+#### Available palette (example token names — match your actual system)
 
 | Variable | Description |
 |---|---|
-| `$avocado` | Primary green — brand, CTAs |
+| `$primary` | Brand primary — CTAs, highlights |
 | `$neutral` | Grays — text, borders, backgrounds |
-| `$cherry` | Error / destructive |
-| `$orange` | Warning |
-| `$raspberry` | Secondary accent |
+| `$danger` | Error / destructive |
+| `$warning` | Warning states |
+| `$accent` | Secondary accent |
 
-Each color has a numeric scale: `$avocado-10` through `$avocado-100` (light to dark).
+Each color has a numeric scale: `$primary-10` through `$primary-100` (light to dark).
 
 ```scss
 // CORRECT
-.offer-price   { color: $avocado-60; }
-.offer-error   { color: $cherry-50; }
-.card-border   { border-color: $neutral-30; }
-.section-bg    { background-color: $neutral-10; }
-.cta-button    { background-color: $avocado; }  // base token = main shade
+.price-highlight { color: $primary-60; }
+.error-message   { color: $danger-50; }
+.card-border     { border-color: $neutral-30; }
+.section-bg      { background-color: $neutral-10; }
+.cta-button      { background-color: $primary; }  // base token = main shade
 
 // WRONG
-.offer-price   { color: #2d7d32; }   // hardcoded hex
-.offer-error   { color: #c62828; }   // hardcoded hex
-.card-border   { border-color: rgba(0,0,0,.12); }  // hardcoded rgba
+.price-highlight { color: #2d7d32; }              // hardcoded hex
+.error-message   { color: #c62828; }              // hardcoded hex
+.card-border     { border-color: rgba(0,0,0,.12); } // hardcoded rgba
 ```
 
 ### 4. CSS custom properties in component templates
 
-When applying Design colors dynamically (e.g., from a variable), use CSS custom properties:
+When applying colors dynamically (e.g., from a runtime variable), use CSS custom properties:
 
 ```html
 <!-- CORRECT -->
-<div [style.color]="'var(--avocado-60)'">{{ offer.name }}</div>
+<div [style.color]="'var(--primary-60)'">{{ product.name }}</div>
 
 <!-- For static use, prefer Sass variables in SCSS instead of inline style -->
 ```
 
 ```html
 <!-- WRONG — hardcoded hex in template -->
-<div [style.color]="'#2d7d32'">{{ offer.name }}</div>
+<div [style.color]="'#2d7d32'">{{ product.name }}</div>
 ```
 
 ### 5. Typography: className, not inline font-size
 
-Design provides typography utility classes. Always use them — never set `font-size`, `font-weight`, or `line-height` manually.
+The design system provides typography utility classes. Always use them — never set `font-size`, `font-weight`, or `line-height` manually.
 
 ```html
 <!-- CORRECT -->
-<h2 class="title-m">Seguros para tu hogar</h2>
-<p class="body-m">Elige el plan que mejor se adapte a ti.</p>
-<span class="label-s">Precio mensual</span>
-<strong class="title-s">$15.990</strong>
+<h2 class="title-m">Choose your plan</h2>
+<p class="body-m">Select the option that works best for you.</p>
+<span class="label-s">Monthly price</span>
+<strong class="title-s">$15.99</strong>
 
 <!-- WRONG -->
-<h2 style="font-size: 24px; font-weight: 700;">Seguros para tu hogar</h2>
-<p style="font-size: 16px;">Elige el plan...</p>
+<h2 style="font-size: 24px; font-weight: 700;">Choose your plan</h2>
+<p style="font-size: 16px;">Select the option...</p>
 ```
 
 Available typography classes: `display-l`, `display-m`, `title-xl`, `title-l`, `title-m`, `title-s`, `body-l`, `body-m`, `body-s`, `label-l`, `label-m`, `label-s`.
@@ -136,38 +136,40 @@ Available typography classes: `display-l`, `display-m`, `title-xl`, `title-l`, `
 ```html
 <!-- CORRECT -->
 <div class="mt-16 pb-8 px-24">
-  <app-offer-card class="mb-8" *ngFor="let offer of offers()" [offer]="offer" />
+  <app-product-card class="mb-8" *ngFor="let item of items()" [item]="item" />
 </div>
 
 <!-- WRONG -->
 <div style="margin-top: 16px; padding-bottom: 8px; padding-left: 24px;">
-  <app-offer-card style="margin-bottom: 8px;" ... />
+  <app-product-card style="margin-bottom: 8px;" ... />
 </div>
 ```
 
-Design spacing scale follows 4px base: `4, 8, 12, 16, 20, 24, 32, 40, 48, 64`. Classes: `mt-{n}`, `mb-{n}`, `ml-{n}`, `mr-{n}`, `pt-{n}`, `pb-{n}`, `px-{n}`, `py-{n}`.
+Spacing scale follows 4px base: `4, 8, 12, 16, 20, 24, 32, 40, 48, 64`. Classes: `mt-{n}`, `mb-{n}`, `ml-{n}`, `mr-{n}`, `pt-{n}`, `pb-{n}`, `px-{n}`, `py-{n}`.
 
-### 7. Available Design components (21 total)
+### 7. Use existing components before building custom ones
+
+Always check whether the design system already provides the component you need. Typical libraries include:
 
 Button, Dialog, Input, Select, Textarea, Checkbox, Radio, Toggle, Table, Pagination, Cards, Alerts, Badges, Chips, Tabs, Accordion, Breadcrumb, Stepper, Tooltip, Skeleton, Progress.
 
 Use these before building custom equivalents. If a component is missing, file a request to the design system team — do not improvise an alternative.
 
 ```html
-<!-- Insurance offer screen using Design components -->
-<tmc-alert *ngIf="error()" type="error" [message]="error()!" class="mb-16" />
+<!-- Product listing screen using design system components -->
+<ds-alert *ngIf="error()" type="error" [message]="error()!" class="mb-16" />
 
-<div class="offers-grid mt-24">
-  <tmc-card *ngFor="let offer of offers(); track offer.id" class="offer-card mb-16">
-    <h3 class="title-s">{{ offer.name }}</h3>
-    <p class="body-m mt-8 mb-16">{{ offer.description }}</p>
-    <strong class="title-m" [style.color]="'var(--avocado-60)'">
-      ${{ offer.monthlyPrice | number }}/mes
+<div class="products-grid mt-24">
+  <ds-card *ngFor="let item of items(); track item.id" class="product-card mb-16">
+    <h3 class="title-s">{{ item.name }}</h3>
+    <p class="body-m mt-8 mb-16">{{ item.description }}</p>
+    <strong class="title-m" [style.color]="'var(--primary-60)'">
+      ${{ item.monthlyPrice | number }}/mo
     </strong>
-    <tmc-button class="mt-16" variant="primary" (click)="selectOffer(offer)">
-      Contratar
-    </tmc-button>
-  </tmc-card>
+    <ds-button class="mt-16" variant="primary" (click)="selectItem(item)">
+      Get started
+    </ds-button>
+  </ds-card>
 </div>
 ```
 
@@ -175,39 +177,39 @@ Use these before building custom equivalents. If a component is missing, file a 
 
 ## Anti-Patterns
 
-### BAD: Tailwind utility classes
+### BAD: Utility framework (Tailwind) mixed with design system
 ```html
-<!-- BAD — Tailwind is not part of the design system -->
+<!-- BAD — Tailwind is not the design system -->
 <div class="flex flex-col gap-4 p-6 bg-green-700 text-white rounded-lg">
 ```
 
 ```html
-<!-- GOOD — Design spacing + components -->
-<tmc-card class="px-24 py-16">
+<!-- GOOD — design system spacing + components -->
+<ds-card class="px-24 py-16">
 ```
 
 ### BAD: Hardcoded hex color in SCSS
 ```scss
 // BAD
-.offer-price { color: #1b5e20; }
-.error-text  { color: #b71c1c; }
+.price-highlight { color: #1b5e20; }
+.error-text      { color: #b71c1c; }
 ```
 
 ```scss
 // GOOD
-.offer-price { color: $avocado-70; }
-.error-text  { color: $cherry-60; }
+.price-highlight { color: $primary-70; }
+.error-text      { color: $danger-60; }
 ```
 
 ### BAD: Inline font-size and font-weight
 ```html
 <!-- BAD -->
-<p style="font-size: 14px; font-weight: 500; color: #333;">Descripción del seguro</p>
+<p style="font-size: 14px; font-weight: 500; color: #333;">Product description</p>
 ```
 
 ```html
 <!-- GOOD -->
-<p class="body-s" [style.color]="'var(--neutral-80)'">Descripción del seguro</p>
+<p class="body-s" [style.color]="'var(--neutral-80)'">Product description</p>
 ```
 
 ### BAD: CSS-in-JS or Styled Components
@@ -220,8 +222,8 @@ const StyledCard = styled.div`
 ```
 
 ```scss
-// GOOD — component SCSS with Design tokens
-.insurance-card {
+// GOOD — component SCSS with design system tokens
+.product-card {
   background: $neutral-0;
   padding: 16px;
   border: 1px solid $neutral-20;
