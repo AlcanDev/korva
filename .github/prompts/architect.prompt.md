@@ -39,7 +39,7 @@ Consequences: [Key trade-offs]
 
 ## Context to consider:
 - The team follows strict hexagonal architecture (Domain / Application / Infrastructure)
-- All APIs are versioned from v1, exposed through Apigee
+- All APIs are versioned from v1, exposed through an API Gateway
 - Shared libraries in `libs/` are consumed by multiple apps — breaking changes require semver bump + consumer coordination
 - All secrets come from HashiCorp Vault — never environment variables from CI
 - Load the `forge-sdd` scroll for the full design process

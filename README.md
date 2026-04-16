@@ -167,6 +167,8 @@ Running Korva Sentinel...
 // AI already knows all of this. No explanation needed.
 ```
 
+> **60+ community skills**: Install curated community skills from [skills.sh](https://skills.sh) to give your AI best practices for every library in your stack — alongside Korva's team scrolls. See [docs/COMMUNITY-SKILLS.md](docs/COMMUNITY-SKILLS.md).
+
 ### Forge — Structured AI development
 
 ```markdown
@@ -334,6 +336,7 @@ go test github.com/alcandev/korva/...
 | [VISION.md](VISION.md) | Strategic vision — 5-layer architecture, public/private model |
 | [ROADMAP.md](ROADMAP.md) | Phase 1→3 roadmap with detailed task breakdown |
 | [docs/USAGE.md](docs/USAGE.md) | Detailed usage guide (all commands, all options) |
+| [docs/COMMUNITY-SKILLS.md](docs/COMMUNITY-SKILLS.md) | Community skills — 60+ curated skills for your stack |
 | [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Deploy shared vault server (Railway/Fly.io/VPS/K8s) |
 | [lore/SCROLL_TEMPLATE.md](lore/SCROLL_TEMPLATE.md) | How to write a Lore scroll for any stack |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | How to contribute scrolls, rules, and code |

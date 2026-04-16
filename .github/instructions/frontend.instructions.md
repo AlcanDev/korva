@@ -2,7 +2,7 @@
 applyTo: "src/**/*.component.ts,src/**/*.component.html,src/**/*.tsx,src/**/*.scss,src/**/*.css,apps/*/src/**"
 ---
 
-# Frontend — Angular Web Components + React (Tomaco UI)
+# Frontend — Angular Web Components + React
 
 ## Angular Web Components (primary pattern)
 
@@ -31,12 +31,9 @@ export class InsuranceCardComponent implements OnInit, OnDestroy {
 }
 ```
 
-## Tomaco UI — design system (mandatory)
+## Design system
 
 ```typescript
-// Imports — always from tomaco-components
-import { Button, Dialog, Input, Table, Select, Cards, Alerts } from 'tomaco-components';
-
 // ❌ Never raw hex or px values
 color: #3b82f6;
 font-size: 16px;
@@ -53,7 +50,7 @@ className="title-m body-s caption-s"
 className="mt-16 pb-8 ma-24 px-12"
 ```
 
-**Tomaco color semantics:**
+**Color semantics:**
 - `$avocado` — green, primary actions, success
 - `$neutral` — grays, text, borders
 - `$cherry` — red, errors, destructive actions
@@ -98,7 +95,7 @@ trackById = (_: number, item: InsuranceOffer) => item.id;
 ```html
 <!-- Every interactive element needs a label -->
 <button aria-label="Select insurance plan" (click)="select(offer)">
-  <tomaco-icon name="check" aria-hidden="true" />
+  <Icon name="check" aria-hidden="true" />
 </button>
 
 <!-- Images need alt text -->
@@ -110,11 +107,11 @@ trackById = (_: number, item: InsuranceOffer) => item.id;
 <span id="rut-error" role="alert">{{ rutError }}</span>
 
 <!-- Focus management for dialogs -->
-<!-- Use Dialog from tomaco-components — it handles focus trap automatically -->
+<!-- Use a Dialog component from your component library — it should handle focus trap automatically -->
 ```
 
 **Color contrast:** All text must meet 4.5:1 (normal) or 3:1 (large text).
-Use Tomaco tokens — they are pre-validated for contrast.
+Use design system tokens — they are pre-validated for contrast.
 
 ## i18n
 
@@ -128,14 +125,14 @@ All user-facing strings must go through the i18n pipe or `$localize`:
 
 ```html
 <!-- Loading state -->
-<tomaco-skeleton [rows]="3" *ngIf="isLoading()" />
+<Skeleton [rows]="3" *ngIf="isLoading()" />
 
 <!-- Error state -->
-<tomaco-alerts type="error" [message]="errorMessage()" *ngIf="error()" />
+<Alert type="error" [message]="errorMessage()" *ngIf="error()" />
 
 <!-- Empty state -->
 <div class="empty-state" *ngIf="!isLoading() && !hasOffers()">
-  <tomaco-icon name="inbox" size="48" />
+  <Icon name="inbox" size="48" />
   <p class="body-m neutral-60">No hay planes disponibles</p>
 </div>
 ```
@@ -146,7 +143,7 @@ All user-facing strings must go through the i18n pipe or `$localize`:
 // ❌ Direct DOM manipulation — use Angular template bindings
 document.getElementById('btn').style.color = 'red';
 
-// ❌ Inline styles — use Tomaco utility classes or Sass variables
+// ❌ Inline styles — use design system utility classes or Sass variables
 [style.color]="'#ff0000'"
 
 // ❌ console.log in component code
@@ -155,6 +152,6 @@ document.getElementById('btn').style.color = 'red';
 
 // ❌ any type on component inputs/outputs
 
-// ❌ Non-tomaco components when tomaco equivalent exists
-<button class="btn"> → use <tomaco-button>
+// ❌ Raw HTML elements when a design system component equivalent exists
+<button class="btn"> → use <Button> from your component library
 ```

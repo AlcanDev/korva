@@ -2,7 +2,7 @@
 applyTo: ".gitlab-ci.yml,Dockerfile,docker-compose*.yml,helm/**,k8s/**,*.yaml,*.yml,infra/**"
 ---
 
-# DevOps — GitLab CI + Docker + Kubernetes + Apigee
+# DevOps — GitLab CI + Docker + Kubernetes
 
 ## Dockerfile rules (hardened production images)
 
@@ -147,8 +147,7 @@ annotations:
   vault.hashicorp.com/agent-inject-secret-config: "secret/data/fif/apps/insurance/qa/config"
   vault.hashicorp.com/agent-inject-template-config: |
     {{- with secret "secret/data/fif/apps/insurance/qa/config" -}}
-    APIGEE_CONSUMER_KEY={{ .Data.data.apigee_consumer_key }}
-    APIGEE_CONSUMER_SECRET={{ .Data.data.apigee_consumer_secret }}
+    APP_SECRET={{ .Data.data.app_secret }}
     {{- end }}
 ```
 

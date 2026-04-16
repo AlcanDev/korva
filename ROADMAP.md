@@ -33,13 +33,15 @@ The goal of Phase 1 is to make the four core components (Vault, Sentinel, Lore, 
 - [ ] **GitHub Actions integration** — run Sentinel on every PR automatically
 
 ### Lore — Knowledge Injection (v0.1.0 ✅)
-- [x] 13 curated scrolls (NestJS, TypeScript, CI/CD, Docker/K8s, etc.)
+- [x] 16 curated scrolls (React/Next.js, NestJS, TypeScript, Payments/Stripe, Security, CI/CD, Docker/K8s, etc.)
 - [x] Auto-load by file context
 - [x] Team Profile scroll distribution
+- [x] Community scroll layer (`lore/community/`)
+- [ ] **`korva lore skills`** — detect project stack, install matching community skills from [skills.sh](https://skills.sh). Covers 60+ technologies: React, Next.js, NestJS, Go, Python, Flutter, Stripe, Cloudflare, and more. See [docs/COMMUNITY-SKILLS.md](docs/COMMUNITY-SKILLS.md).
 - [ ] **Scroll versioning** — `scroll@2.1` for breaking changes
 - [ ] **Stack auto-detection** — analyze package.json/go.mod and suggest relevant scrolls
 - [ ] **Community scroll registry** — `korva lore search "react performance"`
-- [ ] **5 new scroll packs**: Next.js App Router, React Native, Go microservices, Python FastAPI, Rust
+- [ ] **5 new scroll packs**: Python FastAPI, Go microservices, Rust, Ruby on Rails, React Native
 
 ### Forge — Structured Workflow (v0.1.0 ✅)
 - [x] 5-phase SDD workflow documentation

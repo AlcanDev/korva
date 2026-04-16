@@ -24,7 +24,7 @@ Detailed rules for each discipline live in `.github/instructions/`:
 - `/architect` — design review, ADRs, hexagonal boundaries
 - `/qa-engineer` — test plan, coverage gaps, edge cases
 - `/security-audit` — OWASP, secrets, headers, WAF
-- `/ux-review` — Tomaco compliance, accessibility, state coverage
+- `/ux-review` — design system compliance, accessibility, state coverage
 - `/devops-review` — Dockerfile, CI, K8s, observability
 - `/code-review` — full review: correctness, patterns, tests, readability
 
@@ -120,9 +120,7 @@ Load via `vault_search "scroll:<id>"` when relevant:
 | `nx-monorepo` | Nx commands, lib structure |
 | `gitlab-ci` | Pipeline templates |
 | `angular-wc` | Angular Elements, Web Components |
-| `tomaco-ui` | Design system, tokens, components |
 | `forge-sdd` | SDD phases, approval gates |
-| `apigee-oauth` | OAuth2 client credentials, token caching |
 | `docker-k8s` | Dockerfile hardening, K8s, Helm |
 | `playwright-e2e` | E2E tests, Page Object Model |
 | `api-design` | REST, OpenAPI, versioning, responses |

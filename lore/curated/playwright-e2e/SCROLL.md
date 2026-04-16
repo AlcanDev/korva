@@ -198,11 +198,11 @@ export default defineConfig({
 
 ```html
 <!-- Every interactive element tested by E2E gets data-testid -->
-<tomaco-cards data-testid="offer-card" />
-<tomaco-button data-testid="continue-btn">Continuar</tomaco-button>
+<Card data-testid="offer-card" />
+<Button data-testid="continue-btn">Continuar</Button>
 <div data-testid="skeleton" *ngIf="isLoading()" />
-<tomaco-alerts data-testid="error-alert" role="alert" />
-<tomaco-button data-testid="retry-btn">Reintentar</tomaco-button>
+<Alert data-testid="error-alert" role="alert" />
+<Button data-testid="retry-btn">Reintentar</Button>
 
 <!-- Never use CSS classes or text for E2E selectors -->
 <!-- ❌ page.locator('.primary-btn') — breaks on style changes -->

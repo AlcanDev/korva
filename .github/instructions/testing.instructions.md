@@ -166,7 +166,7 @@ import { test, expect } from '@playwright/test';
 
 test.describe('Insurance offers flow', () => {
   test.beforeEach(async ({ page }) => {
-    // Mock API responses — never depend on real Apigee in E2E
+    // Mock API responses — never depend on real external APIs in E2E
     await page.route('**/insurance/v1/offers', route =>
       route.fulfill({ json: { offers: InsuranceOfferFactory.buildList(3) } })
     );
@@ -220,7 +220,7 @@ expect(service['_privateMethod']).toHaveBeenCalled();
 
 // ❌ Relying on test execution order
 // ❌ Real HTTP calls in unit/integration tests — mock always
-// ❌ Real Apigee tokens in E2E tests
+// ❌ Real API tokens in E2E tests — always mock the token service
 // ❌ Skipping tests without Jira ticket — describe.skip('TODO')
 // ❌ Empty test bodies that always pass
 it('works', () => {});
