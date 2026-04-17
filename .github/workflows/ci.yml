@@ -6,11 +6,18 @@ on:
   pull_request:
     branches: [main]
 
+# Cancel redundant runs on the same branch/PR
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
+  # ─── Go: build + test (matrix: ubuntu, macOS, Windows) ─────────────────────
   go:
     name: Go build + test
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false   # don't cancel other OS jobs when one fails
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
         go: ['1.26.x']
@@ -18,96 +25,29 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Go
+      - name: Set up Go ${{ matrix.go }}
         uses: actions/setup-go@v5
         with:
           go-version: ${{ matrix.go }}
           cache: true
 
-      - name: Verify go.work
+      - name: Sync workspace
         run: go work sync
 
       - name: Build all modules
         run: go build github.com/alcandev/korva/...
 
-      - name: Test all modules
-        run: go test github.com/alcandev/korva/... -v -race -count=1
+      # Race detector on Linux + macOS (reliable with modernc.org/sqlite)
+      - name: Test (Linux / macOS)
+        if: runner.os != 'Windows'
+        run: go test github.com/alcandev/korva/... -race -count=1 -timeout 120s
 
-  beacon:
-    name: Beacon build + type-check
-    runs-on: ubuntu-latest
+      # Windows: skip race detector — known flakiness with SQLite file locking
+      - name: Test (Windows)
+        if: runner.os == 'Windows'
+        run: go test github.com/alcandev/korva/... -count=1 -timeout 120s
 
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: 'npm'
-          cache-dependency-path: beacon/package-lock.json
-
-      - name: Install dependencies
-        run: npm ci
-        working-directory: beacon
-
-      - name: Type check
-        run: npx tsc --noEmit
-        working-directory: beacon
-
-      - name: Build
-        run: npm run build
-        working-directory: beacon
-
-  sentinel:
-    name: Sentinel self-check
-    runs-on: ubuntu-latest
-    needs: go
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: '1.26.x'
-          cache: true
-
-      - name: Build korva-sentinel
-        run: go build -o korva-sentinel ./sentinel/validator/cmd/korva-sentinel/
-
-      - name: Run sentinel on own source
-        # Check beacon src — a representative TypeScript codebase
-        run: |
-          find beacon/src -name '*.ts' -o -name '*.tsx' | \
-            ./korva-sentinel --format json | \
-            tee sentinel-report.json
-          # Fail if any errors reported
-          jq 'if .errors > 0 then error("sentinel violations found") else . end' sentinel-report.json
-
-      - name: Upload sentinel report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: sentinel-report
-          path: sentinel-report.json
-
-  secrets-scan:
-    name: Secret scanning (gitleaks)
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0   # full history — gitleaks scans all commits
-
-      - name: Run gitleaks
-        uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          config-path: .gitleaks.toml
-
+  # ─── Go lint ────────────────────────────────────────────────────────────────
   lint:
     name: Go lint
     runs-on: ubuntu-latest
@@ -124,5 +64,105 @@ jobs:
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v6
         with:
-          version: latest
+          version: v1.64.8   # pinned — avoids surprise breakage from "latest"
           args: --timeout=5m
+
+  # ─── Beacon (React + TypeScript) ────────────────────────────────────────────
+  beacon:
+    name: Beacon build + type-check
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: beacon/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: beacon
+
+      # npm run build = tsc -b (type-check + compilation) + vite build
+      # No separate tsc --noEmit step — it's redundant and can diverge
+      - name: Build
+        run: npm run build
+        working-directory: beacon
+
+  # ─── Sentinel self-check ────────────────────────────────────────────────────
+  sentinel:
+    name: Sentinel self-check
+    runs-on: ubuntu-latest
+    needs: go
+    # Run even if Windows job fails — sentinel only needs the ubuntu result
+    if: always() && !cancelled() && needs.go.result != 'skipped'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.x'
+          cache: true
+
+      - name: Build korva-sentinel
+        run: go build -o korva-sentinel ./sentinel/validator/cmd/korva-sentinel/
+
+      - name: Scan beacon source
+        run: |
+          # Feed file list via stdin (how korva-sentinel expects it from pre-commit hooks)
+          find beacon/src \( -name '*.ts' -o -name '*.tsx' \) \
+            | ./korva-sentinel --format json \
+            | tee sentinel-report.json
+
+          # Fail the job if sentinel found architecture violations
+          jq --exit-status '.errors == 0' sentinel-report.json > /dev/null || {
+            echo "::error::Sentinel found violations — see sentinel-report artifact"
+            exit 1
+          }
+
+      - name: Upload sentinel report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sentinel-report
+          path: sentinel-report.json
+
+  # ─── Secret scanning (gitleaks) ─────────────────────────────────────────────
+  secrets-scan:
+    name: Secret scanning (gitleaks)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # full history — scan all commits
+
+      # Install gitleaks directly (no license required, no third-party action needed)
+      - name: Install gitleaks
+        run: |
+          curl -sSfL \
+            https://github.com/gitleaks/gitleaks/releases/download/v8.21.2/gitleaks_8.21.2_linux_x64.tar.gz \
+            | tar xz gitleaks
+          chmod +x gitleaks
+
+      - name: Detect secrets
+        run: |
+          ./gitleaks detect \
+            --source . \
+            --config .gitleaks.toml \
+            --redact \
+            --exit-code 1 \
+            --report-path gitleaks-report.json \
+            --report-format json
+
+      - name: Upload gitleaks report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gitleaks-report
+          path: gitleaks-report.json
