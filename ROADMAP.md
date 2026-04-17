@@ -7,7 +7,7 @@ Status: `v0.1.0` released · Phase 1 in progress
 ---
 
 ## Phase 1 — Solid Foundation ✅ → 🔨
-*Target: v0.2.0 — Q2 2025*
+*Target: v0.2.0 — Q2 2026*
 
 The goal of Phase 1 is to make the four core components (Vault, Sentinel, Lore, Forge) polished, well-documented, and adopted by early teams.
 
@@ -33,7 +33,7 @@ The goal of Phase 1 is to make the four core components (Vault, Sentinel, Lore, 
 - [ ] **GitHub Actions integration** — run Sentinel on every PR automatically
 
 ### Lore — Knowledge Injection (v0.1.0 ✅)
-- [x] 16 curated scrolls (React/Next.js, NestJS, TypeScript, Payments/Stripe, Security, CI/CD, Docker/K8s, etc.)
+- [x] 18 curated scrolls (React/Next.js, NestJS, TypeScript, Payments/Stripe, Security, CI/CD, Docker/K8s, token-efficiency, MCP builder, frontend-design, claude-api, etc.)
 - [x] Auto-load by file context
 - [x] Team Profile scroll distribution
 - [x] Community scroll layer (`lore/community/`)
@@ -52,7 +52,7 @@ The goal of Phase 1 is to make the four core components (Vault, Sentinel, Lore, 
 
 ### Infrastructure & DX
 - [ ] **`korva onboard`** — analyze codebase, auto-generate initial vault observations
-- [ ] **`korva doctor`** — diagnose configuration issues
+- [ ] **`korva doctor`** — diagnose configuration issues (vault reachable, hooks installed, profile valid, admin.key permissions)
 - [ ] **`korva update`** — self-update CLI and vault binary
 - [ ] **Windows installer improvements** — silent install, MSI package
 - [ ] **ARM64 binaries** — Apple Silicon native, Raspberry Pi support
@@ -60,7 +60,7 @@ The goal of Phase 1 is to make the four core components (Vault, Sentinel, Lore, 
 ---
 
 ## Phase 2 — Intelligence Layer 🔮
-*Target: v0.3.0 — Q3 2025*
+*Target: v0.3.0 — Q3 2026*
 
 Phase 2 adds intelligence on top of the foundation. The system starts understanding intent and providing runtime protection.
 
@@ -136,7 +136,7 @@ query: "what affects our payment flow?"
 ---
 
 ## Phase 3 — Autonomous Systems 🚀
-*Target: v1.0.0 — Q4 2025*
+*Target: v1.0.0 — Q4 2026*
 
 Phase 3 introduces semi-autonomous execution and full organizational intelligence.
 
@@ -203,7 +203,7 @@ korva audit --from 2025-01-01 --regulation gdpr
 | Version | Phase | Focus |
 |---|---|---|
 | v0.1.x | 1 | Core stability, bug fixes |
-| v0.2.0 | 1 | Decision engine, VS Code extension, 5 new scrolls |
+| v0.2.0 | 1 | `korva doctor`, decision engine, VS Code extension, 5 new scrolls |
 | v0.3.0 | 2 | Intent detection, Runtime guardian, Knowledge graph |
 | v0.4.0 | 2 | Cognitive profiles, Audit log, Cloud sync |
 | v1.0.0 | 3 | Autonomous Forge, Cross-repo, Compliance |
