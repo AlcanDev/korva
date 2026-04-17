@@ -192,29 +192,33 @@ Running Korva Sentinel...
 
 ---
 
-## The Public / Private Model
+## Privacy Model: The 3 Kingdoms
 
-Korva is built on the **3 Kingdoms privacy model**:
+> **Enterprise differentiator.** This is how Korva separates public tooling from private team knowledge — a strict, auditable privacy boundary that keeps your IP in your control.
+
+Korva enforces a **3 Kingdoms privacy model** where each data type lives in exactly one kingdom and **never crosses to another**:
 
 ```
-Kingdom 1 — Public (this repo, MIT)
-github.com/AlcanDev/korva
-Core engine · CLI · Vault · Sentinel · 13+ Lore scrolls
-Zero knowledge of your team's data.
-
-     ↓ can reference, never merges ↑
-
-Kingdom 2 — Your private team repo (your GitHub)
-github.com/YOUR_ORG/korva-team-profile
-Team scrolls · Custom rules · AI instructions
-Your patterns, your conventions, your IP.
-
-     ↓ syncs locally, never to cloud ↑
-
-Kingdom 3 — Your machine (~/.korva/)
-vault.db · admin.key (0600) · runtime state
-Stays here. Forever. Unless you choose otherwise.
+┌─────────────────────────────────────────────────────────────────────┐
+│  KINGDOM 1 — Public                github.com/alcandev/korva        │
+│  MIT license · Open source · Zero knowledge of your team's data    │
+│  Core engine · CLI · Vault · Sentinel · 18+ curated Lore scrolls   │
+│                                                                     │
+│     can reference ↓          never merges ↑                        │
+├─────────────────────────────────────────────────────────────────────┤
+│  KINGDOM 2 — Private Team      github.com/YOUR-ORG/team-profile     │
+│  Team scrolls · Custom Sentinel rules · AI instruction extensions  │
+│  Your patterns, your conventions, your IP. Shared within your team.│
+│                                                                     │
+│     syncs locally ↓          never to cloud ↑                      │
+├─────────────────────────────────────────────────────────────────────┤
+│  KINGDOM 3 — Your Machine                      ~/.korva/            │
+│  vault.db · admin.key (0600) · runtime observations                │
+│  Stays here. Forever. Unless you explicitly choose to share it.    │
+└─────────────────────────────────────────────────────────────────────┘
 ```
+
+**The invariant:** Data flows inward only. Nothing from your machine or private repo ever touches the public repo. Your `admin.key` never leaves Kingdom 3. Zero cloud required by default.
 
 ### Optional: Share vault across your team
 
