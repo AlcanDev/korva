@@ -1,20 +1,39 @@
 import { useState } from 'react'
-import { Search, Trash2, Tag, Calendar, User, AlertCircle } from 'lucide-react'
+import { Search, Trash2, Tag, Calendar, User, AlertCircle, ChevronLeft, ChevronRight } from 'lucide-react'
 import { useAdminSearch, useAdminDeleteObservation, type Observation } from '@/api/admin'
 
-const TYPE_OPTIONS = ['', 'decision', 'pattern', 'bugfix', 'learning', 'context']
+const TYPE_OPTIONS = ['', 'decision', 'pattern', 'bugfix', 'learning', 'context', 'antipattern', 'task']
+const PAGE_SIZE = 20
 
 export default function AdminVault() {
   const [query, setQuery] = useState('')
   const [project, setProject] = useState('')
   const [type, setType] = useState('')
+  const [offset, setOffset] = useState(0)
   const [selected, setSelected] = useState<Observation | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
 
-  const { data, isLoading } = useAdminSearch(query, project, type)
+  const { data, isLoading } = useAdminSearch(query, project, type, PAGE_SIZE, offset)
   const deleteMutation = useAdminDeleteObservation()
 
   const results = data?.results ?? []
+  const total = data?.total ?? data?.count ?? 0
+  const hasPrev = offset > 0
+  const hasNext = data != null && offset + PAGE_SIZE < total
+
+  function handleDelete(id: string) {
+    deleteMutation.mutate(id, {
+      onSuccess: () => {
+        setConfirmDelete(null)
+        if (selected?.id === id) setSelected(null)
+      },
+    })
+  }
+
+  // Reset to first page whenever filters change
+  function setQueryAndReset(v: string) { setQuery(v); setOffset(0) }
+  function setProjectAndReset(v: string) { setProject(v); setOffset(0) }
+  function setTypeAndReset(v: string) { setType(v); setOffset(0) }
 
   function handleDelete(id: string) {
     deleteMutation.mutate(id, {
@@ -26,11 +45,13 @@ export default function AdminVault() {
   }
 
   return (
-    <div className="p-6 space-y-4">
+    <div className="p-4 sm:p-6 space-y-4">
       <div>
         <h2 className="text-lg font-semibold text-[#e6edf3]">Vault Browser</h2>
         <p className="text-sm text-[#8b949e] mt-0.5">
-          All observations — {data?.count ?? '…'} total
+          {total > 0
+            ? `${total} observation${total !== 1 ? 's' : ''} · page ${Math.floor(offset / PAGE_SIZE) + 1} of ${Math.ceil(total / PAGE_SIZE)}`
+            : 'All observations'}
         </p>
       </div>
 
@@ -42,7 +63,7 @@ export default function AdminVault() {
             type="text"
             placeholder="Search observations..."
             value={query}
-            onChange={e => setQuery(e.target.value)}
+            onChange={e => setQueryAndReset(e.target.value)}
             className="w-full bg-[#161b22] border border-[#30363d] rounded-lg pl-9 pr-3 py-2 text-sm text-[#e6edf3] placeholder-[#484f58] focus:outline-none focus:border-[#388bfd]"
           />
         </div>
@@ -50,12 +71,12 @@ export default function AdminVault() {
           type="text"
           placeholder="Project filter..."
           value={project}
-          onChange={e => setProject(e.target.value)}
-          className="bg-[#161b22] border border-[#30363d] rounded-lg px-3 py-2 text-sm text-[#e6edf3] placeholder-[#484f58] focus:outline-none focus:border-[#388bfd] w-40"
+          onChange={e => setProjectAndReset(e.target.value)}
+          className="bg-[#161b22] border border-[#30363d] rounded-lg px-3 py-2 text-sm text-[#e6edf3] placeholder-[#484f58] focus:outline-none focus:border-[#388bfd] w-full sm:w-40"
         />
         <select
           value={type}
-          onChange={e => setType(e.target.value)}
+          onChange={e => setTypeAndReset(e.target.value)}
           className="bg-[#161b22] border border-[#30363d] rounded-lg px-3 py-2 text-sm text-[#e6edf3] focus:outline-none focus:border-[#388bfd]"
         >
           {TYPE_OPTIONS.map(t => (
@@ -64,7 +85,7 @@ export default function AdminVault() {
         </select>
       </div>
 
-      <div className="flex gap-4">
+      <div className="flex flex-col lg:flex-row gap-4">
         {/* List */}
         <div className="flex-1 space-y-2 min-w-0">
           {isLoading && (
@@ -105,11 +126,34 @@ export default function AdminVault() {
               </div>
             </div>
           ))}
+
+          {/* Pagination controls */}
+          {(hasPrev || hasNext) && (
+            <div className="flex items-center justify-between pt-2">
+              <button
+                onClick={() => setOffset(Math.max(0, offset - PAGE_SIZE))}
+                disabled={!hasPrev}
+                className="flex items-center gap-1 text-xs text-[#8b949e] hover:text-[#e6edf3] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              >
+                <ChevronLeft size={13} /> Prev
+              </button>
+              <span className="text-xs text-[#484f58]">
+                {offset + 1}–{Math.min(offset + PAGE_SIZE, total)} of {total}
+              </span>
+              <button
+                onClick={() => setOffset(offset + PAGE_SIZE)}
+                disabled={!hasNext}
+                className="flex items-center gap-1 text-xs text-[#8b949e] hover:text-[#e6edf3] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              >
+                Next <ChevronRight size={13} />
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Detail panel */}
         {selected && (
-          <div className="w-80 flex-shrink-0 bg-[#161b22] border border-[#21262d] rounded-xl p-5 space-y-4 self-start sticky top-0">
+          <div className="w-full lg:w-80 lg:flex-shrink-0 bg-[#161b22] border border-[#21262d] rounded-xl p-5 space-y-4 self-start lg:sticky lg:top-0">
             <div>
               <TypeBadge type={selected.type} />
               <h3 className="text-sm font-semibold text-[#e6edf3] mt-2">{selected.title}</h3>
