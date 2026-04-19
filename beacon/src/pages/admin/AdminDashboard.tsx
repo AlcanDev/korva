@@ -13,9 +13,16 @@ export default function AdminDashboard() {
   }
 
   if (error) {
+    const msg = error.message
+    const hint = msg.includes('403') || msg.includes('401')
+      ? 'Admin key rejected — check ~/.korva/admin.key and re-login.'
+      : msg.includes('500') || msg.includes('502') || msg.includes('503') || msg.includes('Failed to fetch')
+        ? 'Vault server unreachable — run korva-vault (or korva vault start) and reload.'
+        : `Unexpected error: ${msg}`
     return (
-      <div className="bg-[#f8514912] border border-[#f8514930] rounded-xl p-6 text-[#f85149] text-sm">
-        Failed to load stats: {error.message}
+      <div className="m-6 bg-[#f8514912] border border-[#f8514930] rounded-xl p-5 space-y-1">
+        <p className="text-[#f85149] text-sm font-medium">Could not load dashboard</p>
+        <p className="text-[#8b949e] text-xs">{hint}</p>
       </div>
     )
   }
@@ -32,7 +39,7 @@ export default function AdminDashboard() {
   const maxProjectCount = Math.max(...topProjects.map(([, v]) => v), 1)
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-4 sm:p-6 space-y-6">
       <div>
         <h2 className="text-lg font-semibold text-[#e6edf3]">System Overview</h2>
         <p className="text-sm text-[#8b949e] mt-0.5">Real-time vault intelligence metrics</p>

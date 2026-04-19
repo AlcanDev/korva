@@ -13,6 +13,11 @@ var rootCmd = &cobra.Command{
 	Use:     "korva",
 	Short:   "Korva — AI ecosystem for enterprise development teams",
 	Version: version.String(),
+	// CompletionOptions fine-tunes the auto-generated `korva completion` sub-command.
+	CompletionOptions: cobra.CompletionOptions{
+		// Keep the completion command visible in `korva --help`.
+		HiddenDefaultCmd: false,
+	},
 }
 
 // Execute runs the root command.
@@ -29,6 +34,13 @@ func init() {
 	rootCmd.AddCommand(loreCmd)
 	rootCmd.AddCommand(sentinelCmd)
 	rootCmd.AddCommand(adminCmd)
+	rootCmd.AddCommand(hiveCmd)
+	rootCmd.AddCommand(licenseCmd)
+	rootCmd.AddCommand(teamsCmd)
+	rootCmd.AddCommand(authCmd)
+	rootCmd.AddCommand(vaultCmd)
+	rootCmd.AddCommand(updateCmd)
+	rootCmd.AddCommand(obsCmd)
 }
 
 func printSuccess(msg string) {

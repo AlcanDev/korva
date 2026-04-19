@@ -1,17 +1,26 @@
 version: "3.9"
 
-# ── Korva Vault — servidor compartido de equipo ───────────────────────────────
+# ── Korva — stack completo para equipo ───────────────────────────────────────
 #
-# Uso rápido:
+# Uso rápido (solo vault):
+#   docker compose up -d vault
+#
+# Stack completo (vault + licensing server):
+#   KORVA_LICENSING_SECRET=change-me \
+#   KORVA_LICENSING_KEY_PEM="$(cat priv.pem)" \
 #   docker compose up -d
 #
-# Con variables de entorno personalizadas:
-#   KORVA_ADMIN_KEY=tu-key docker compose up -d
+# Variables de entorno requeridas:
+#   KORVA_ADMIN_KEY_PATH          — ruta local de admin.key (vault)
+#   KORVA_LICENSING_SECRET        — bearer secret para /v1/issue
+#   KORVA_LICENSING_KEY_PEM       — contenido del priv.pem (o usa _KEY_FILE)
 
 services:
+
+  # ── Vault (memoria compartida del equipo) ─────────────────────────────────
   vault:
     image: ghcr.io/alcandev/korva-vault:latest
-    # O para build local:
+    # Para build local:
     # build: .
     container_name: korva-vault
     restart: unless-stopped
@@ -19,7 +28,7 @@ services:
       - "${KORVA_PORT:-7437}:7437"
     volumes:
       - korva-data:/data
-      # Admin key (montar tu admin.key local — NUNCA hardcodear en este archivo)
+      # Admin key — monta tu admin.key local; NUNCA hardcodear en este archivo
       - ${KORVA_ADMIN_KEY_PATH:-/dev/null}:/data/admin.key:ro
     environment:
       KORVA_VAULT_DB: /data/vault.db
@@ -37,8 +46,44 @@ services:
       - "traefik.http.routers.korva.entrypoints=websecure"
       - "traefik.http.routers.korva.tls.certresolver=letsencrypt"
 
+  # ── Licensing server (Korva for Teams) ────────────────────────────────────
+  # Solo necesario para operadores que venden licencias Korva for Teams.
+  # Clientes individuales NO necesitan este servicio.
+  licensing:
+    image: ghcr.io/alcandev/korva-licensing:latest
+    # Para build local (desde la raíz del repo):
+    # build:
+    #   context: .
+    #   dockerfile: forge/licensing-server/Dockerfile
+    container_name: korva-licensing
+    restart: unless-stopped
+    ports:
+      - "${KORVA_LICENSING_PORT:-7440}:7440"
+    volumes:
+      - licensing-data:/data
+    environment:
+      KORVA_LICENSING_PORT: 7440
+      KORVA_LICENSING_DB: /data/licensing.db
+      # Secreto para el endpoint admin /v1/issue — CAMBIAR EN PRODUCCIÓN
+      KORVA_LICENSING_ADMIN_SECRET: "${KORVA_LICENSING_SECRET:?KORVA_LICENSING_SECRET is required}"
+      # Clave privada RSA-4096 (generada con: make keygen)
+      # Opción A — inline como variable de entorno:
+      KORVA_LICENSING_PRIVATE_KEY_PEM: "${KORVA_LICENSING_KEY_PEM:-}"
+      # Opción B — mount del archivo (descomentar si prefieres archivo):
+      # KORVA_LICENSING_PRIVATE_KEY_FILE: /run/secrets/licensing_key
+    # secrets:
+    #   - licensing_key
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:7440/v1/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    profiles:
+      - teams  # docker compose --profile teams up -d
+
   # ── Traefik (reverse proxy + HTTPS automático) ────────────────────────────
-  # Descomentar si se despliega en VPS con dominio propio
+  # Descomentar para despliegue en VPS con dominio propio
   # traefik:
   #   image: traefik:v3.0
   #   container_name: traefik
@@ -60,5 +105,11 @@ services:
 volumes:
   korva-data:
     driver: local
+  licensing-data:
+    driver: local
   # traefik-certs:
   #   driver: local
+
+# secrets:
+#   licensing_key:
+#     file: ./priv.pem
