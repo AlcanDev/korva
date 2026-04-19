@@ -57,13 +57,13 @@ brew install alcandev/tap/korva
 curl -fsSL https://korva.dev/install.sh | bash
 ```
 
-### Windows (PowerShell, run as Administrator)
+### Windows (PowerShell)
 
 ```powershell
 irm https://korva.dev/install.ps1 | iex
 ```
 
-> **Windows note**: Installs to `%LOCALAPPDATA%\korva\bin`. Restart your terminal after install.
+> Installs to `%LOCALAPPDATA%\korva\bin` and updates your user PATH automatically. Open a new terminal after install.
 
 ### Verify installation
 
@@ -319,16 +319,20 @@ Requires **Go 1.22+**.
 git clone https://github.com/AlcanDev/korva.git
 cd korva
 
-# Build all binaries
-go build -o bin/korva          ./cli/cmd/korva/
-go build -o bin/korva-vault    ./vault/cmd/korva-vault/
-go build -o bin/korva-sentinel ./sentinel/validator/cmd/korva-sentinel/
+# Build all binaries (vault without embedded Beacon)
+make build
+
+# Build vault with Beacon UI embedded (requires Node 18+)
+make vault-full
 
 # Add to PATH
 export PATH="$PATH:$(pwd)/bin"
 
 # Run all tests
 go test github.com/alcandev/korva/...
+
+# Generate shell completions (bash, zsh, fish → completions/)
+make completions
 ```
 
 ---
@@ -340,18 +344,48 @@ go test github.com/alcandev/korva/...
 | [VISION.md](VISION.md) | Strategic vision — 5-layer architecture, public/private model |
 | [ROADMAP.md](ROADMAP.md) | Phase 1→3 roadmap with detailed task breakdown |
 | [docs/USAGE.md](docs/USAGE.md) | Detailed usage guide (all commands, all options) |
-| [docs/COMMUNITY-SKILLS.md](docs/COMMUNITY-SKILLS.md) | Community skills — 60+ curated skills for your stack |
+| [docs/LICENSING.md](docs/LICENSING.md) | Licensing server deployment + license activation guide |
 | [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Deploy shared vault server (Railway/Fly.io/VPS/K8s) |
+| [docs/COMMUNITY-SKILLS.md](docs/COMMUNITY-SKILLS.md) | Community skills — 60+ curated skills for your stack |
 | [lore/SCROLL_TEMPLATE.md](lore/SCROLL_TEMPLATE.md) | How to write a Lore scroll for any stack |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | How to contribute scrolls, rules, and code |
 | [SECURITY.md](SECURITY.md) | Security policy and responsible disclosure |
 
 ---
 
+## Korva for Teams
+
+**Korva Community** (this repo) is free forever — MIT license, no telemetry, no cloud required.
+
+**Korva for Teams** is the paid tier for engineering teams that want:
+
+| Feature | Community | Teams |
+|---------|-----------|-------|
+| Vault, Sentinel, Lore, Forge | ✅ | ✅ |
+| Beacon dashboard | ✅ | ✅ |
+| Team Profile via private Git repo | ✅ | ✅ |
+| Private Scrolls managed from Beacon | ❌ | ✅ |
+| Custom skills library in Beacon | ❌ | ✅ |
+| Audit log (who saved what, when) | ❌ | ✅ |
+| Custom config overrides per team | ❌ | ✅ |
+| Multi-profile workspaces | ❌ | ✅ |
+| Priority support | ❌ | ✅ |
+
+License keys are **offline-first** (RS256 JWS) — the vault verifies the license locally on every start with no network call. A single online heartbeat every 24 h keeps the license current; 7-day grace period if the server is temporarily unreachable.
+
+```bash
+# Activate after purchase
+korva license activate KORVA-XXXX-XXXX-XXXX-XXXX
+```
+
+> Interested? → [korva.dev/teams](https://korva.dev/teams)
+
+---
+
 ## FAQ
 
 **Is Korva really free? What's the catch?**  
-No catch. MIT license. No paid tier, no telemetry, no SaaS. It runs entirely on your machine. The source is here — verify it yourself.
+The core product (Vault, Sentinel, Lore, Forge, Beacon) is MIT license — free forever, no telemetry, no SaaS required. Korva for Teams is an optional paid upgrade for teams that want managed private scrolls, skills, and audit logging from the Beacon panel. See the table above.
 
 **Does my code leave my machine?**  
 No. The vault runs on `localhost:7437`. MCP communicates via stdin/stdout — no network requests. The privacy filter auto-redacts passwords, tokens, and Bearer keys before saving to SQLite.

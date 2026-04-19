@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+    "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  korva-vault.plist — launchd agent for Korva Vault server (macOS)
+
+  Install (current user, no sudo required):
+    cp scripts/korva-vault.plist ~/Library/LaunchAgents/dev.korva.vault.plist
+    launchctl load ~/Library/LaunchAgents/dev.korva.vault.plist
+
+  Uninstall:
+    launchctl unload ~/Library/LaunchAgents/dev.korva.vault.plist
+    rm ~/Library/LaunchAgents/dev.korva.vault.plist
+
+  View logs:
+    tail -f ~/.korva/logs/vault.log
+    tail -f ~/.korva/logs/vault-error.log
+-->
+<plist version="1.0">
+<dict>
+    <!-- Unique identifier (reverse-DNS) -->
+    <key>Label</key>
+    <string>dev.korva.vault</string>
+
+    <!-- Binary to run — adjust if korva-vault lives elsewhere in PATH -->
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/local/bin/korva-vault</string>
+        <string>--mode=http</string>
+    </array>
+
+    <!-- Start on login and keep alive on crash -->
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <dict>
+        <!-- Restart after crash, but not after a clean exit (e.g. `korva vault stop`) -->
+        <key>SuccessfulExit</key>
+        <false/>
+    </dict>
+
+    <!-- Log files — created automatically by launchd -->
+    <key>StandardOutPath</key>
+    <string>~/.korva/logs/vault.log</string>
+    <key>StandardErrorPath</key>
+    <string>~/.korva/logs/vault-error.log</string>
+
+    <!-- Working directory — same as korva home -->
+    <key>WorkingDirectory</key>
+    <string>~/.korva</string>
+
+    <!-- Optional environment overrides:
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>KORVA_HIVE_ENDPOINT</key>
+        <string>https://hive.internal.company.com</string>
+    </dict>
+    -->
+
+    <!-- Throttle restart after 10 s to avoid CPU-spin on boot failure -->
+    <key>ThrottleInterval</key>
+    <integer>10</integer>
+</dict>
+</plist>

@@ -11,13 +11,18 @@ import (
 // Paths holds all filesystem paths used by Korva.
 // Always obtain via PlatformPaths() — never hardcode separators.
 type Paths struct {
-	HomeDir     string
-	ConfigFile  string
-	AdminKey    string
-	ProfilesDir string
-	LoreDir     string
-	VaultDir    string
-	LogsDir     string
+	HomeDir          string
+	ConfigFile       string
+	AdminKey         string
+	HiveKey          string
+	InstallID        string
+	LicenseFile      string
+	LicenseStateFile string
+	SessionTokenFile string // ~/.korva/session.token — member auth session
+	ProfilesDir      string
+	LoreDir          string
+	VaultDir         string
+	LogsDir          string
 }
 
 // PlatformPaths returns the correct base paths for the current OS.
@@ -31,19 +36,35 @@ func PlatformPaths() (*Paths, error) {
 	}
 
 	return &Paths{
-		HomeDir:     base,
-		ConfigFile:  filepath.Join(base, "config.json"),
-		AdminKey:    filepath.Join(base, "admin.key"),
-		ProfilesDir: filepath.Join(base, "profiles"),
-		LoreDir:     filepath.Join(base, "lore"),
-		VaultDir:    filepath.Join(base, "vault"),
-		LogsDir:     filepath.Join(base, "logs"),
+		HomeDir:          base,
+		ConfigFile:       filepath.Join(base, "config.json"),
+		AdminKey:         filepath.Join(base, "admin.key"),
+		HiveKey:          filepath.Join(base, "hive.key"),
+		InstallID:        filepath.Join(base, "install.id"),
+		LicenseFile:      filepath.Join(base, "license.key"),
+		LicenseStateFile: filepath.Join(base, "license.state.json"),
+		SessionTokenFile: filepath.Join(base, "session.token"),
+		ProfilesDir:      filepath.Join(base, "profiles"),
+		LoreDir:          filepath.Join(base, "lore"),
+		VaultDir:         filepath.Join(base, "vault"),
+		LogsDir:          filepath.Join(base, "logs"),
 	}, nil
 }
 
 // VaultDB returns the path to the main SQLite database.
 func (p *Paths) VaultDB() string {
 	return filepath.Join(p.VaultDir, "observations.db")
+}
+
+// VaultPIDFile returns the path to the vault server PID file.
+// Used by `korva vault start/stop/status` to track the running process.
+func (p *Paths) VaultPIDFile() string {
+	return filepath.Join(p.VaultDir, "vault.pid")
+}
+
+// VaultLogFile returns the path to the vault server log file.
+func (p *Paths) VaultLogFile() string {
+	return filepath.Join(p.LogsDir, "vault.log")
 }
 
 // ProfileDir returns the local clone path for a given profile ID.
