@@ -1,7 +1,9 @@
 # Korva — Go workspace Makefile
 # Requires Go 1.22+ and a working `go.work` at the repo root.
 
-.PHONY: all build test lint clean tidy sync vault cli sentinel help
+.PHONY: all build test lint clean tidy sync vault vault-full cli sentinel \
+        licensing-server licensing-mock hive-mock keygen release-dry \
+        docker docker-licensing completions help
 
 # ─── Defaults ─────────────────────────────────────────────────────────────────
 
@@ -20,11 +22,64 @@ build:
 vault:
 	go build -o bin/korva-vault github.com/alcandev/korva/vault/cmd/korva-vault
 
+# vault-full: build korva-vault with the Beacon SPA embedded inside the binary.
+# Requires Node 18+ and npm. The resulting binary serves the Beacon at http://localhost:7437.
+vault-full:
+	@echo "Building Beacon..."
+	cd beacon && npm ci --silent && npm run build
+	@echo "Copying dist into vault/internal/ui/..."
+	rm -rf vault/internal/ui/dist
+	cp -r beacon/dist vault/internal/ui/dist
+	@echo "Building korva-vault with embedded UI..."
+	go build -tags embedui -o bin/korva-vault github.com/alcandev/korva/vault/cmd/korva-vault
+	@echo "Done: bin/korva-vault ($(du -sh bin/korva-vault | cut -f1))"
+
 cli:
 	go build -o bin/korva github.com/alcandev/korva/cli/cmd/korva
 
 sentinel:
 	go build -o bin/korva-sentinel github.com/alcandev/korva/sentinel/validator/cmd/korva-sentinel
+
+hive-mock:
+	go run github.com/alcandev/korva/forge/hive-mock
+
+licensing-mock:
+	go run github.com/alcandev/korva/forge/licensing-mock
+
+# licensing-server: start the production licensing server (requires env vars)
+#   KORVA_LICENSING_PRIVATE_KEY_FILE=./priv.pem
+#   KORVA_LICENSING_ADMIN_SECRET=change-me
+licensing-server:
+	go run github.com/alcandev/korva/forge/licensing-server
+
+# keygen: generate a fresh RSA-4096 key pair for the licensing server.
+# Output: priv.pem (server only) + pubkey.pem (copy to internal/license/keys/)
+keygen:
+	go run github.com/alcandev/korva/forge/licensing-server/keygen
+
+# release-dry: validate the goreleaser config without publishing.
+release-dry:
+	goreleaser release --snapshot --clean
+
+# completions: generate shell completion scripts for bash, zsh, and fish.
+completions:
+	@mkdir -p completions
+	go run github.com/alcandev/korva/cli/cmd/korva completion bash  > completions/korva.bash
+	go run github.com/alcandev/korva/cli/cmd/korva completion zsh   > completions/korva.zsh
+	go run github.com/alcandev/korva/cli/cmd/korva completion fish  > completions/korva.fish
+	@echo "Completions written to completions/"
+
+# docker: build the korva-vault Docker image locally.
+docker:
+	docker build -t ghcr.io/alcandev/korva-vault:dev .
+
+# docker-licensing: build the licensing server Docker image locally.
+# Build context must be the repo root (go.work).
+docker-licensing:
+	docker build \
+	  -f forge/licensing-server/Dockerfile \
+	  -t ghcr.io/alcandev/korva-licensing:dev \
+	  .
 
 # ─── Test ────────────────────────────────────────────────────────────────────
 
@@ -83,8 +138,10 @@ help:
 	@echo ""
 	@echo "  make build         Build all Go modules"
 	@echo "  make vault         Build korva-vault binary  → bin/korva-vault"
+	@echo "  make vault-full    Build korva-vault with embedded Beacon UI (requires Node)"
 	@echo "  make cli           Build korva CLI binary    → bin/korva"
 	@echo "  make sentinel      Build korva-sentinel      → bin/korva-sentinel"
+	@echo "  make completions   Generate shell completions (bash, zsh, fish) → completions/"
 	@echo ""
 	@echo "  make test          Run all tests (no race)"
 	@echo "  make test-race     Run all tests with race detector"
@@ -101,4 +158,12 @@ help:
 	@echo "  make beacon-build  Build Beacon for production"
 	@echo ""
 	@echo "  make clean         Remove bin/ and coverage files"
+	@echo ""
+	@echo "  make hive-mock         Start Hive mock server (port 7438)"
+	@echo "  make licensing-mock    Start licensing mock server (port 7439)"
+	@echo "  make licensing-server  Start production licensing server (port 7440)"
+	@echo "  make keygen            Generate RSA-4096 key pair for licensing"
+	@echo "  make release-dry       Dry-run goreleaser (no publish)"
+	@echo "  make docker            Build korva-vault Docker image locally"
+	@echo "  make docker-licensing  Build korva-licensing Docker image locally"
 	@echo ""

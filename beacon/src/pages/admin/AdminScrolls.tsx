@@ -59,7 +59,7 @@ export default function AdminScrolls() {
   const activeCount = scrolls.filter(s => s.active).length
 
   return (
-    <div className="p-6 space-y-4">
+    <div className="p-4 sm:p-6 space-y-4">
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-lg font-semibold text-[#e6edf3]">Scrolls & Instructions</h2>
@@ -185,12 +185,12 @@ export default function AdminScrolls() {
             <div className="space-y-3">
               {INSTRUCTION_FILES.map(f => (
                 <div key={f.key} className="bg-[#161b22] border border-[#21262d] rounded-xl p-5">
-                  <div className="flex items-start justify-between">
+                  <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
                     <div>
                       <p className="text-sm font-medium text-[#e6edf3] font-mono">{f.name}</p>
                       <p className="text-xs text-[#8b949e] mt-0.5">{f.description}</p>
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 flex-shrink-0">
                       <button
                         onClick={() => {
                           setInstructionText(`# ${f.name} — Team Instructions\n\nAdd your team-specific AI instructions here.\nThese will be injected into every developer's project.\n`)

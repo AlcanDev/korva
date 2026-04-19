@@ -14,10 +14,18 @@ import (
 	"github.com/alcandev/korva/internal/privacy"
 )
 
+// HiveEnqueuer is implemented by hive.Outbox. The store calls it after
+// every successful Save so cloud sync is decoupled from local persistence.
+// A nil enqueuer disables Hive sync (Community installs that opted out).
+type HiveEnqueuer interface {
+	Enqueue(observationID string, payload []byte) error
+}
+
 // Store provides all Vault persistence operations over SQLite.
 type Store struct {
 	db              *sql.DB
 	privatePatterns []string
+	hive            HiveEnqueuer
 }
 
 // New opens a Store backed by the SQLite database at dbPath.
@@ -41,6 +49,18 @@ func NewMemory(privatePatterns []string) (*Store, error) {
 // Close closes the underlying database connection.
 func (s *Store) Close() error {
 	return s.db.Close()
+}
+
+// AttachHive wires a Hive outbox to receive enqueue calls after every Save.
+// Pass nil to disable Hive sync for this store.
+func (s *Store) AttachHive(h HiveEnqueuer) {
+	s.hive = h
+}
+
+// DB exposes the underlying *sql.DB for callers that need to construct
+// peer components (e.g. hive.Outbox) over the same database file.
+func (s *Store) DB() *sql.DB {
+	return s.db
 }
 
 // --- vault_save ---
@@ -75,6 +95,13 @@ func (s *Store) Save(obs Observation) (string, error) {
 		return "", fmt.Errorf("inserting observation: %w", err)
 	}
 
+	// Hive enqueue is best-effort: Save must never fail because cloud sync misbehaved.
+	if s.hive != nil {
+		if payload, mErr := json.Marshal(obs); mErr == nil {
+			_ = s.hive.Enqueue(obs.ID, payload)
+		}
+	}
+
 	return obs.ID, nil
 }
 
@@ -94,7 +121,31 @@ func (s *Store) Get(id string) (*Observation, error) {
 	return obs, err
 }
 
+// Delete removes an observation by ID. Returns (true, nil) if deleted,
+// (false, nil) if the ID was not found, or (false, err) on DB error.
+func (s *Store) Delete(id string) (bool, error) {
+	res, err := s.db.Exec(`DELETE FROM observations WHERE id = ?`, id)
+	if err != nil {
+		return false, fmt.Errorf("delete observation %s: %w", id, err)
+	}
+	n, _ := res.RowsAffected()
+	return n > 0, nil
+}
+
 // --- vault_search ---
+
+// CountObservations returns the total number of observations matching the
+// given filters, ignoring Limit and Offset. Used for pagination metadata.
+func (s *Store) CountObservations(filters SearchFilters) (int, error) {
+	args := []any{}
+	where := buildWhereClause(filters, &args)
+	if where != "" {
+		where = "WHERE " + strings.TrimPrefix(where, " AND ")
+	}
+	var n int
+	err := s.db.QueryRow(`SELECT COUNT(*) FROM observations o `+where, args...).Scan(&n)
+	return n, err
+}
 
 // Search performs a full-text search with optional filters.
 // If query is empty, returns recent observations matching the filters.
@@ -131,9 +182,9 @@ func (s *Store) searchFTS(query string, filters SearchFilters) (*sql.Rows, error
 		JOIN observations_fts fts ON o.rowid = fts.rowid
 		WHERE observations_fts MATCH ?` + where + `
 		ORDER BY rank
-		LIMIT ?`
+		LIMIT ? OFFSET ?`
 
-	args = append(args, filters.Limit)
+	args = append(args, filters.Limit, filters.Offset)
 	return s.db.Query(q, args...)
 }
 
@@ -149,9 +200,9 @@ func (s *Store) searchRecent(filters SearchFilters) (*sql.Rows, error) {
 		       o.type, o.title, o.content, o.tags, o.author, o.created_at
 		FROM observations o ` + where + `
 		ORDER BY o.created_at DESC
-		LIMIT ?`
+		LIMIT ? OFFSET ?`
 
-	args = append(args, filters.Limit)
+	args = append(args, filters.Limit, filters.Offset)
 	return s.db.Query(q, args...)
 }
 
@@ -344,6 +395,7 @@ func (s *Store) Stats() (*VaultStats, error) {
 		ByType:    make(map[string]int),
 		ByProject: make(map[string]int),
 		ByTeam:    make(map[string]int),
+		ByCountry: make(map[string]int),
 	}
 
 	s.db.QueryRow(`SELECT COUNT(*) FROM observations`).Scan(&stats.TotalObservations)
@@ -383,6 +435,17 @@ func (s *Store) Stats() (*VaultStats, error) {
 		}
 	}
 
+	rows, err = s.db.Query(`SELECT country, COUNT(*) FROM observations WHERE country != '' GROUP BY country`)
+	if err == nil {
+		defer rows.Close()
+		for rows.Next() {
+			var c string
+			var n int
+			rows.Scan(&c, &n)
+			stats.ByCountry[c] = n
+		}
+	}
+
 	return stats, nil
 }
 
@@ -410,10 +473,176 @@ func buildWhereClause(f SearchFilters, args *[]any) string {
 		parts = append(parts, "o.author = ?")
 		*args = append(*args, f.Author)
 	}
+	if !f.Since.IsZero() {
+		parts = append(parts, "o.created_at >= ?")
+		*args = append(*args, f.Since.UTC().Format(time.RFC3339))
+	}
+	if !f.Until.IsZero() {
+		parts = append(parts, "o.created_at <= ?")
+		*args = append(*args, f.Until.UTC().Format(time.RFC3339))
+	}
 	if len(parts) == 0 {
 		return ""
 	}
 	return " AND " + strings.Join(parts, " AND ")
+}
+
+// --- vault_purge ---
+
+// Purge deletes observations that match opts. At least one filter is required.
+// When DryRun is true, it returns the count that would be deleted without
+// performing the actual deletion.
+func (s *Store) Purge(opts PurgeOptions) (int, error) {
+	var conds []string
+	var args []any
+
+	if opts.Project != "" {
+		conds = append(conds, "project = ?")
+		args = append(args, opts.Project)
+	}
+	if opts.Team != "" {
+		conds = append(conds, "team = ?")
+		args = append(args, opts.Team)
+	}
+	if opts.Type != "" {
+		conds = append(conds, "type = ?")
+		args = append(args, opts.Type)
+	}
+	if !opts.Before.IsZero() {
+		conds = append(conds, "created_at < ?")
+		args = append(args, opts.Before.UTC().Format(time.RFC3339))
+	}
+	if len(conds) == 0 {
+		return 0, fmt.Errorf("purge requires at least one filter (project, team, type, or before) to prevent accidental full deletion")
+	}
+
+	where := " WHERE " + strings.Join(conds, " AND ")
+
+	if opts.DryRun {
+		var n int
+		if err := s.db.QueryRow("SELECT COUNT(*) FROM observations"+where, args...).Scan(&n); err != nil {
+			return 0, fmt.Errorf("purge dry-run: %w", err)
+		}
+		return n, nil
+	}
+
+	res, err := s.db.Exec("DELETE FROM observations"+where, args...)
+	if err != nil {
+		return 0, fmt.Errorf("purge: %w", err)
+	}
+	n, _ := res.RowsAffected()
+	return int(n), nil
+}
+
+// --- vault_export ---
+
+// Export returns all observations matching opts, ordered by creation time ascending.
+// All fields are optional — empty values mean "no filter".
+func (s *Store) Export(opts ExportOptions) ([]Observation, error) {
+	var conds []string
+	var args []any
+
+	if opts.Project != "" {
+		conds = append(conds, "project = ?")
+		args = append(args, opts.Project)
+	}
+	if opts.Team != "" {
+		conds = append(conds, "team = ?")
+		args = append(args, opts.Team)
+	}
+	if opts.Type != "" {
+		conds = append(conds, "type = ?")
+		args = append(args, opts.Type)
+	}
+
+	where := ""
+	if len(conds) > 0 {
+		where = " WHERE " + strings.Join(conds, " AND ")
+	}
+
+	rows, err := s.db.Query(`
+		SELECT id, COALESCE(session_id,''), project, team, country, type,
+		       title, content, tags, author, created_at
+		FROM observations`+where+` ORDER BY created_at ASC`, args...)
+	if err != nil {
+		return nil, fmt.Errorf("export: %w", err)
+	}
+	defer rows.Close()
+	return scanObservations(rows)
+}
+
+// --- vault_clean (dedup) ---
+
+// Dedup detects observations with an identical (project, type, content) triplet
+// and removes all but the oldest one (by ULID, which encodes creation time).
+// When DryRun is true, it counts duplicates without deleting anything.
+// When project is empty, the operation runs across the entire vault.
+func (s *Store) Dedup(project string, dryRun bool) (DedupResult, error) {
+	var totalQuery string
+	var dupQuery string
+	var deleteQuery string
+	var qArgs []any
+
+	if project != "" {
+		totalQuery = `SELECT COUNT(*) FROM observations WHERE project = ?`
+		dupQuery = `
+			SELECT COUNT(*) FROM observations
+			WHERE project = ?
+			AND id NOT IN (
+				SELECT MIN(id) FROM observations
+				WHERE project = ?
+				GROUP BY project, type, lower(trim(content))
+			)`
+		deleteQuery = `
+			DELETE FROM observations
+			WHERE project = ?
+			AND id NOT IN (
+				SELECT MIN(id) FROM observations
+				WHERE project = ?
+				GROUP BY project, type, lower(trim(content))
+			)`
+		qArgs = []any{project, project}
+	} else {
+		totalQuery = `SELECT COUNT(*) FROM observations`
+		dupQuery = `
+			SELECT COUNT(*) FROM observations
+			WHERE id NOT IN (
+				SELECT MIN(id) FROM observations
+				GROUP BY project, type, lower(trim(content))
+			)`
+		deleteQuery = `
+			DELETE FROM observations
+			WHERE id NOT IN (
+				SELECT MIN(id) FROM observations
+				GROUP BY project, type, lower(trim(content))
+			)`
+		qArgs = nil
+	}
+
+	var result DedupResult
+	result.DryRun = dryRun
+
+	totalArgs := qArgs[:0:0] // reuse backing array but reset len
+	if project != "" {
+		totalArgs = []any{project}
+	}
+	if err := s.db.QueryRow(totalQuery, totalArgs...).Scan(&result.Total); err != nil {
+		return result, fmt.Errorf("dedup count total: %w", err)
+	}
+	if err := s.db.QueryRow(dupQuery, qArgs...).Scan(&result.Duplicates); err != nil {
+		return result, fmt.Errorf("dedup count duplicates: %w", err)
+	}
+	if dryRun || result.Duplicates == 0 {
+		return result, nil
+	}
+
+	res, err := s.db.Exec(deleteQuery, qArgs...)
+	if err != nil {
+		return result, fmt.Errorf("dedup delete: %w", err)
+	}
+	n, _ := res.RowsAffected()
+	result.Removed = int(n)
+	return result, nil
 }
 
 func scanObservations(rows *sql.Rows) ([]Observation, error) {

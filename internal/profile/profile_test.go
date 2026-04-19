@@ -26,7 +26,7 @@ func validProfile() config.TeamProfile {
 // ---------------------------------------------------------------------------
 
 func TestValidate_OK(t *testing.T) {
-	if err := Validate(validProfile()); err != nil {
+	if err := Validate(validProfile(), nil); err != nil {
 		t.Fatalf("expected valid profile, got error: %v", err)
 	}
 }
@@ -34,7 +34,7 @@ func TestValidate_OK(t *testing.T) {
 func TestValidate_MissingID(t *testing.T) {
 	p := validProfile()
 	p.Profile.ID = ""
-	if err := Validate(p); err == nil {
+	if err := Validate(p, nil); err == nil {
 		t.Error("expected error for missing ID")
 	}
 }
@@ -42,7 +42,7 @@ func TestValidate_MissingID(t *testing.T) {
 func TestValidate_MissingVersion(t *testing.T) {
 	p := validProfile()
 	p.Profile.Version = ""
-	if err := Validate(p); err == nil {
+	if err := Validate(p, nil); err == nil {
 		t.Error("expected error for missing version")
 	}
 }
@@ -50,7 +50,7 @@ func TestValidate_MissingVersion(t *testing.T) {
 func TestValidate_MissingTeam(t *testing.T) {
 	p := validProfile()
 	p.Profile.Team = ""
-	if err := Validate(p); err == nil {
+	if err := Validate(p, nil); err == nil {
 		t.Error("expected error for missing team")
 	}
 }
@@ -60,7 +60,7 @@ func TestValidate_PathTraversalInID(t *testing.T) {
 	for _, id := range cases {
 		p := validProfile()
 		p.Profile.ID = id
-		if err := Validate(p); err == nil {
+		if err := Validate(p, nil); err == nil {
 			t.Errorf("expected error for ID with path traversal: %q", id)
 		}
 	}
@@ -76,7 +76,7 @@ func TestValidate_ShellMetacharsInSyncRepo(t *testing.T) {
 	for _, repo := range dangerous {
 		p := validProfile()
 		p.Overrides.Vault = &config.VaultOverride{SyncRepo: repo}
-		if err := Validate(p); err == nil {
+		if err := Validate(p, nil); err == nil {
 			t.Errorf("expected error for dangerous sync_repo: %q", repo)
 		}
 	}
@@ -91,7 +91,7 @@ func TestValidate_SafeSyncRepo(t *testing.T) {
 	for _, repo := range safe {
 		p := validProfile()
 		p.Overrides.Vault = &config.VaultOverride{SyncRepo: repo}
-		if err := Validate(p); err != nil {
+		if err := Validate(p, nil); err != nil {
 			t.Errorf("unexpected error for safe sync_repo %q: %v", repo, err)
 		}
 	}
@@ -100,7 +100,7 @@ func TestValidate_SafeSyncRepo(t *testing.T) {
 func TestValidate_InvalidMergeStrategy(t *testing.T) {
 	p := validProfile()
 	p.Overrides.Instructions = &config.InstructionsOverride{MergeStrategy: "overwrite"}
-	if err := Validate(p); err == nil {
+	if err := Validate(p, nil); err == nil {
 		t.Error("expected error for invalid merge_strategy")
 	}
 }
@@ -109,7 +109,7 @@ func TestValidate_ValidMergeStrategies(t *testing.T) {
 	for _, strat := range []string{"append", "replace", ""} {
 		p := validProfile()
 		p.Overrides.Instructions = &config.InstructionsOverride{MergeStrategy: strat}
-		if err := Validate(p); err != nil {
+		if err := Validate(p, nil); err != nil {
 			t.Errorf("unexpected error for merge_strategy %q: %v", strat, err)
 		}
 	}
