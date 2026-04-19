@@ -1,5 +1,5 @@
 # ── Stage 1: build ────────────────────────────────────────────────────────────
-FROM golang:1.22-alpine AS builder
+FROM golang:1.26-alpine AS builder
 
 RUN apk add --no-cache git ca-certificates
 
@@ -16,9 +16,9 @@ RUN go work sync && \
       ./vault/cmd/korva-vault/
 
 # ── Stage 2: runtime ──────────────────────────────────────────────────────────
-FROM alpine:3.20
+FROM alpine:3.21
 
-RUN apk add --no-cache ca-certificates tzdata && \
+RUN apk add --no-cache ca-certificates tzdata wget && \
     addgroup -S korva && adduser -S korva -G korva
 
 COPY --from=builder /bin/korva-vault /usr/local/bin/korva-vault

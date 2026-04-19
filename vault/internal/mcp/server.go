@@ -136,6 +136,12 @@ func (s *Server) dispatch(tool string, args map[string]any) (any, error) {
 		return s.toolSavePrompt(args)
 	case "vault_stats":
 		return s.toolStats(args)
+	case "vault_delete":
+		return s.toolDelete(args)
+	case "vault_bulk_save":
+		return s.toolBulkSave(args)
+	case "vault_query":
+		return s.toolQuery(args)
 	default:
 		return nil, fmt.Errorf("unknown tool: %s", tool)
 	}
@@ -163,6 +169,63 @@ func (s *Server) toolSave(args map[string]any) (any, error) {
 		return nil, err
 	}
 	return map[string]string{"id": id, "status": "saved"}, nil
+}
+
+func (s *Server) toolBulkSave(args map[string]any) (any, error) {
+	rawItems, ok := args["observations"]
+	if !ok {
+		return nil, fmt.Errorf("observations is required")
+	}
+	items, ok := rawItems.([]any)
+	if !ok {
+		return nil, fmt.Errorf("observations must be an array")
+	}
+	if len(items) == 0 {
+		return nil, fmt.Errorf("observations array is empty")
+	}
+	const maxBulk = 50
+	if len(items) > maxBulk {
+		return nil, fmt.Errorf("too many observations: max %d per call, got %d", maxBulk, len(items))
+	}
+
+	ids := make([]string, 0, len(items))
+	var errs []string
+
+	for i, raw := range items {
+		m, ok := raw.(map[string]any)
+		if !ok {
+			errs = append(errs, fmt.Sprintf("item[%d]: not an object", i))
+			continue
+		}
+		obs := store.Observation{
+			Project: stringArg(m, "project"),
+			Team:    stringArg(m, "team"),
+			Country: stringArg(m, "country"),
+			Type:    store.ObservationType(stringArg(m, "type")),
+			Title:   stringArg(m, "title"),
+			Content: stringArg(m, "content"),
+			Author:  stringArg(m, "author"),
+			Tags:    stringSliceArg(m, "tags"),
+		}
+		if obs.Type == "" {
+			obs.Type = store.TypeContext
+		}
+		id, err := s.store.Save(obs)
+		if err != nil {
+			errs = append(errs, fmt.Sprintf("item[%d]: %v", i, err))
+			continue
+		}
+		ids = append(ids, id)
+	}
+
+	result := map[string]any{
+		"saved": len(ids),
+		"ids":   ids,
+	}
+	if len(errs) > 0 {
+		result["errors"] = errs
+	}
+	return result, nil
 }
 
 func (s *Server) toolSearch(args map[string]any) (any, error) {
@@ -275,6 +338,52 @@ func (s *Server) toolSavePrompt(args map[string]any) (any, error) {
 
 func (s *Server) toolStats(args map[string]any) (any, error) {
 	return s.store.Stats()
+}
+
+func (s *Server) toolDelete(args map[string]any) (any, error) {
+	id := stringArg(args, "id")
+	if id == "" {
+		return nil, fmt.Errorf("id is required")
+	}
+	deleted, err := s.store.Delete(id)
+	if err != nil {
+		return nil, err
+	}
+	if !deleted {
+		return map[string]any{"deleted": false, "message": "observation not found"}, nil
+	}
+	return map[string]any{"deleted": true, "id": id}, nil
+}
+
+func (s *Server) toolQuery(args map[string]any) (any, error) {
+	filters := store.SearchFilters{
+		Project: stringArg(args, "project"),
+		Team:    stringArg(args, "team"),
+		Type:    store.ObservationType(stringArg(args, "type")),
+		Limit:   intArg(args, "limit", 20),
+	}
+	if filters.Limit > 100 {
+		filters.Limit = 100
+	}
+
+	if sinceStr := stringArg(args, "since"); sinceStr != "" {
+		if t, err := time.Parse(time.RFC3339, sinceStr); err == nil {
+			filters.Since = t
+		}
+	}
+	if untilStr := stringArg(args, "until"); untilStr != "" {
+		if t, err := time.Parse(time.RFC3339, untilStr); err == nil {
+			filters.Until = t
+		}
+	}
+
+	// vault_query uses the non-FTS path (empty query string = recent observations
+	// sorted by date, filtered by the struct fields including Since/Until).
+	results, err := s.store.Search("", filters)
+	if err != nil {
+		return nil, err
+	}
+	return map[string]any{"results": results, "count": len(results)}, nil
 }
 
 // --- write helpers ---

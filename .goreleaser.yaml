@@ -2,10 +2,16 @@ version: 2
 
 project_name: korva
 
+# Pre-release hooks: sync workspace, generate completions, generate any go:generate targets.
 before:
   hooks:
     - go work sync
     - go generate ./...
+    # Generate shell completion scripts that ship inside release archives.
+    - mkdir -p completions
+    - sh -c "go run ./cli/cmd/korva completion bash  > completions/korva.bash"
+    - sh -c "go run ./cli/cmd/korva completion zsh   > completions/korva.zsh"
+    - sh -c "go run ./cli/cmd/korva completion fish  > completions/korva.fish"
 
 builds:
   - id: korva
@@ -67,6 +73,9 @@ builds:
         goarch: arm64
     ldflags:
       - -s -w
+      - -X github.com/alcandev/korva/internal/version.Version={{.Version}}
+      - -X github.com/alcandev/korva/internal/version.Commit={{.Commit}}
+      - -X github.com/alcandev/korva/internal/version.Date={{.Date}}
 
 archives:
   - id: korva
@@ -74,16 +83,31 @@ archives:
     name_template: "korva_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     format_overrides:
       - goos: windows
-        format: zip
+        formats: [zip]
     files:
       - LICENSE
       - README.md
+      - install.sh
+      - install.ps1
+      - completions/korva.bash
+      - completions/korva.zsh
+      - completions/korva.fish
       - lore/curated/**
       - sentinel/rules/**
-      - forge/**
+      # NOTE: forge/ is intentionally excluded — it contains development keys
+      # and mock servers that must never ship in production archives.
 
 checksum:
   name_template: "korva_{{ .Version }}_checksums.txt"
+  algorithm: sha256
+
+signs:
+  - artifacts: checksum
+    args:
+      - "--batch"
+      - "--local-user={{ .Env.GPG_FINGERPRINT }}"
+      - "--output=${signature}"
+      - "--detach-sign=${artifact}"
 
 snapshot:
   version_template: "{{ .Tag }}-next"
@@ -91,6 +115,21 @@ snapshot:
 changelog:
   sort: asc
   use: github
+  groups:
+    - title: "🚀 Features"
+      regexp: "^feat"
+      order: 0
+    - title: "🐛 Bug Fixes"
+      regexp: "^fix"
+      order: 1
+    - title: "⚡ Performance"
+      regexp: "^perf"
+      order: 2
+    - title: "🔒 Security"
+      regexp: "^sec"
+      order: 3
+    - title: Other
+      order: 999
   filters:
     exclude:
       - "^docs:"
@@ -107,15 +146,32 @@ release:
   name_template: "Korva {{.Version}}"
   draft: false
   prerelease: auto
+  footer: |
+    ## Install
+
+    ```bash
+    curl -fsSL https://korva.dev/install | bash
+    ```
+
+    Or via Homebrew:
+    ```bash
+    brew install alcandev/tap/korva
+    ```
+
+    Full install docs: https://korva.dev/docs/install
 
 brews:
   - repository:
       owner: alcandev
       name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
     name: korva
     description: "AI ecosystem for enterprise development teams"
-    homepage: "https://github.com/alcandev/korva"
+    homepage: "https://korva.dev"
     license: "MIT"
+    commit_author:
+      name: korva-bot
+      email: bot@korva.dev
     install: |
       bin.install "korva"
       bin.install "korva-vault"

@@ -3,7 +3,6 @@ package admin
 import (
 	"crypto/hmac"
 	"crypto/sha256"
-	"errors"
 	"net/http"
 )
 
@@ -23,11 +22,9 @@ func Middleware(keyPath string) func(http.Handler) http.Handler {
 
 			cfg, err := Load(keyPath)
 			if err != nil {
-				if errors.Is(err, ErrNoAdminKey) {
-					http.Error(w, "admin operations are not available on this machine", http.StatusForbidden)
-					return
-				}
-				http.Error(w, "internal error", http.StatusInternalServerError)
+				// Both "key not found" and "key unreadable/corrupt" are treated as
+				// Forbidden — from the caller's perspective this machine has no valid key.
+				http.Error(w, "admin operations are not available on this machine", http.StatusForbidden)
 				return
 			}
 

@@ -89,8 +89,11 @@ func TestToolsList(t *testing.T) {
 	if !ok {
 		t.Fatal("tools should be an array")
 	}
-	if len(toolsArr) < 10 {
-		t.Errorf("expected at least 10 tools, got %d", len(toolsArr))
+	const wantTools = 13 // vault_save, vault_search, vault_context, vault_timeline,
+	// vault_get, vault_session_start, vault_session_end, vault_summary,
+	// vault_save_prompt, vault_stats, vault_delete, vault_query, vault_bulk_save
+	if len(toolsArr) != wantTools {
+		t.Errorf("expected exactly %d tools, got %d", wantTools, len(toolsArr))
 	}
 }
 

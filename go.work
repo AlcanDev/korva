@@ -2,6 +2,9 @@ go 1.26.1
 
 use (
 	./cli
+	./forge/hive-mock
+	./forge/licensing-mock
+	./forge/licensing-server
 	./internal
 	./sentinel/validator
 	./vault

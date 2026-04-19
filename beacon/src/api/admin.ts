@@ -86,12 +86,20 @@ export function useAdminStats() {
   })
 }
 
-export function useAdminSearch(query: string, project = '', type = '') {
+export interface SearchResponse {
+  results: Observation[]
+  count: number
+  total?: number   // present when query is empty (non-FTS path)
+  limit: number
+  offset: number
+}
+
+export function useAdminSearch(query: string, project = '', type = '', limit = 20, offset = 0) {
   return useQuery({
-    queryKey: ['admin', 'search', query, project, type],
+    queryKey: ['admin', 'search', query, project, type, limit, offset],
     queryFn: () =>
-      adminFetch<{ results: Observation[]; count: number }>(
-        `/api/v1/search?q=${encodeURIComponent(query)}&project=${encodeURIComponent(project)}&type=${encodeURIComponent(type)}`
+      adminFetch<SearchResponse>(
+        `/api/v1/search?q=${encodeURIComponent(query)}&project=${encodeURIComponent(project)}&type=${encodeURIComponent(type)}&limit=${limit}&offset=${offset}`
       ),
     enabled: true,
   })

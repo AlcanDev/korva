@@ -1,24 +1,71 @@
 package profile
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/alcandev/korva/internal/config"
+	"github.com/alcandev/korva/internal/license"
 )
 
 // Manager handles team profile lifecycle: clone, validate, apply, sync.
 type Manager struct {
-	paths *config.Paths
+	paths      *config.Paths
+	lic        *license.License
+	vaultAddr  string // base URL of local vault, e.g. "http://localhost:7437"
 }
 
 // NewManager creates a ProfileManager using the given platform paths.
-func NewManager(paths *config.Paths) *Manager {
-	return &Manager{paths: paths}
+// Pass nil for lic to operate at Community tier (no Teams-only features).
+// Pass an empty vaultAddr to skip the Beacon API check (Git-only).
+func NewManager(paths *config.Paths, lic *license.License) *Manager {
+	return &Manager{paths: paths, lic: lic, vaultAddr: "http://localhost:7437"}
+}
+
+// BeaconActiveProfile is the response from GET /admin/teams/profile/active.
+type BeaconActiveProfile struct {
+	Team    map[string]any   `json:"team"`
+	Members []map[string]any `json:"members"`
+}
+
+// FetchBeaconProfile queries the local Vault for the active team configuration.
+// Returns (nil, nil) when no team is configured — callers should fall back to Git.
+func (m *Manager) FetchBeaconProfile(ctx context.Context, adminKey string) (*BeaconActiveProfile, error) {
+	if m.vaultAddr == "" || adminKey == "" {
+		return nil, nil
+	}
+	req, err := http.NewRequestWithContext(ctx, "GET",
+		m.vaultAddr+"/admin/teams/profile/active", nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("X-Admin-Key", adminKey)
+
+	client := &http.Client{Timeout: 3 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusNoContent {
+		return nil, nil // no team configured — fall back to Git
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, nil // vault unreachable or unauthorized — fall back to Git silently
+	}
+	var p BeaconActiveProfile
+	if err := json.NewDecoder(resp.Body).Decode(&p); err != nil {
+		return nil, err
+	}
+	return &p, nil
 }
 
 // Clone clones a remote profile repository to the local profiles directory.
@@ -41,7 +88,7 @@ func (m *Manager) Clone(repoURL string) (string, error) {
 		return "", fmt.Errorf("reading team-profile.json from cloned repo: %w", err)
 	}
 
-	if err := Validate(profile); err != nil {
+	if err := Validate(profile, m.lic); err != nil {
 		return "", fmt.Errorf("invalid team profile: %w", err)
 	}
 
@@ -73,7 +120,7 @@ func (m *Manager) Apply(profileDir string, baseCfg config.KorvaConfig) (config.K
 		return config.KorvaConfig{}, fmt.Errorf("loading team profile: %w", err)
 	}
 
-	if err := Validate(profile); err != nil {
+	if err := Validate(profile, m.lic); err != nil {
 		return config.KorvaConfig{}, fmt.Errorf("validating team profile: %w", err)
 	}
 

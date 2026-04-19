@@ -5,24 +5,38 @@ import (
 	"strings"
 
 	"github.com/alcandev/korva/internal/config"
+	"github.com/alcandev/korva/internal/license"
 )
 
-// allowedOverrideKeys lists the top-level keys a team profile is allowed to override.
-// Any other key in the overrides section is rejected to prevent injection attacks.
-var allowedOverrideKeys = map[string]bool{
-	"vault":        true,
-	"sentinel":     true,
-	"lore":         true,
-	"instructions": true,
+// allowedKeys returns the set of override top-level keys permitted for the
+// given license tier. Community tier may only touch the four base keys.
+// Teams tier with FeatureCustomWhitelist unlocks additional keys.
+func allowedKeys(lic *license.License) map[string]bool {
+	keys := map[string]bool{
+		"vault":        true,
+		"sentinel":     true,
+		"lore":         true,
+		"instructions": true,
+	}
+	if lic.HasFeature(license.FeatureCustomWhitelist) {
+		keys["ai_model"] = true
+		keys["custom_skills"] = true
+		// sub-keys within existing overrides (validated per-struct)
+		keys["vault_retention_days"] = true
+		keys["cloud_sync_endpoint"] = true
+		keys["private_scrolls_dir"] = true
+	}
+	return keys
 }
 
 // Validate checks that a TeamProfile is well-formed and does not contain
 // disallowed fields or values.
-func Validate(profile config.TeamProfile) error {
+// Pass nil for lic to validate at Community tier (no Teams-only features).
+func Validate(profile config.TeamProfile, lic *license.License) error {
 	if err := validateMeta(profile.Profile); err != nil {
 		return err
 	}
-	if err := validateOverrides(profile.Overrides); err != nil {
+	if err := validateOverrides(profile.Overrides, lic); err != nil {
 		return err
 	}
 	return nil
@@ -38,22 +52,38 @@ func validateMeta(meta config.ProfileMeta) error {
 	if strings.TrimSpace(meta.Team) == "" {
 		return fmt.Errorf("team profile: profile.team is required")
 	}
-	// Ensure profile ID has no path traversal characters
 	if strings.Contains(meta.ID, "..") || strings.Contains(meta.ID, "/") || strings.Contains(meta.ID, "\\") {
 		return fmt.Errorf("team profile: profile.id contains invalid characters: %s", meta.ID)
 	}
 	return nil
 }
 
-func validateOverrides(overrides config.ProfileOverrides) error {
-	// Validate vault override
+func validateOverrides(overrides config.ProfileOverrides, lic *license.License) error {
+	allowed := allowedKeys(lic)
+
+	// Reject Teams-only top-level keys when license doesn't permit them.
+	if overrides.AIModel != nil && !allowed["ai_model"] {
+		return fmt.Errorf("team profile: ai_model override requires Korva for Teams license with custom_whitelist feature")
+	}
+	if overrides.CustomSkills != nil && !allowed["custom_skills"] {
+		return fmt.Errorf("team profile: custom_skills override requires Korva for Teams license with custom_whitelist feature")
+	}
+	// Reject Teams-only sub-fields within Vault when license doesn't permit them.
 	if o := overrides.Vault; o != nil {
-		// SyncRepo must not contain shell metacharacters to prevent injection
+		if (o.RetentionDays != nil || o.CloudEndpoint != "") && !allowed["vault_retention_days"] {
+			return fmt.Errorf("team profile: vault.vault_retention_days / cloud_sync_endpoint require Korva for Teams license")
+		}
 		if o.SyncRepo != "" && containsShellMetachars(o.SyncRepo) {
 			return fmt.Errorf("team profile: vault.sync_repo contains invalid characters")
 		}
 	}
-	// Validate instructions merge strategy
+	// Reject Teams-only sub-fields within Lore when license doesn't permit them.
+	if o := overrides.Lore; o != nil {
+		if o.PrivateScrollsDir != "" && !allowed["private_scrolls_dir"] {
+			return fmt.Errorf("team profile: lore.private_scrolls_dir requires Korva for Teams license")
+		}
+	}
+	// Validate instructions merge strategy.
 	if o := overrides.Instructions; o != nil {
 		valid := map[string]bool{"append": true, "replace": true, "": true}
 		if !valid[o.MergeStrategy] {
