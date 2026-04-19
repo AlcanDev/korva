@@ -129,5 +129,47 @@ func tools() []Tool {
 				Properties: map[string]Property{},
 			},
 		},
+		{
+			Name:        "vault_delete",
+			Description: "Delete a specific observation from the Vault by its ID. Use to remove incorrect, duplicate, or outdated entries.",
+			InputSchema: Schema{
+				Type: "object",
+				Properties: map[string]Property{
+					"id": {Type: "string", Description: "Observation ULID to delete"},
+				},
+				Required: []string{"id"},
+			},
+		},
+		{
+			Name:        "vault_bulk_save",
+			Description: "Save multiple knowledge observations in a single call. Ideal for session-end dumps where an AI agent has 3-10 learnings to persist. Returns the list of created IDs in order. Max 50 items per call.",
+			InputSchema: Schema{
+				Type: "object",
+				Properties: map[string]Property{
+					"observations": {
+						Type:        "array",
+						Description: "Array of observation objects. Each must have title, content, and type. Optional fields: project, team, country, author, tags, session_id.",
+					},
+				},
+				Required: []string{"observations"},
+			},
+		},
+		{
+			Name: "vault_query",
+			Description: "Structured query of the Vault with type, date-range, and project filters — no full-text search. " +
+				"Ideal for 'show me all decisions from the last month' or 'list every antipattern in project X'.",
+			InputSchema: Schema{
+				Type: "object",
+				Properties: map[string]Property{
+					"project": {Type: "string", Description: "Filter by project name"},
+					"team":    {Type: "string", Description: "Filter by team name"},
+					"type": {Type: "string", Description: "Filter by observation type",
+						Enum: []string{"decision", "pattern", "bugfix", "learning", "context", "antipattern", "task"}},
+					"since": {Type: "string", Description: "Return observations created at or after this RFC3339 timestamp"},
+					"until": {Type: "string", Description: "Return observations created at or before this RFC3339 timestamp"},
+					"limit": {Type: "number", Description: "Maximum results (default: 20, max: 100)"},
+				},
+			},
+		},
 	}
 }

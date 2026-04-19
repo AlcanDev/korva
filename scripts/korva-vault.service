@@ -1,0 +1,56 @@
+# korva-vault.service — systemd user service for the Korva Vault server
+#
+# Install (no root required — runs as the current user):
+#   mkdir -p ~/.config/systemd/user
+#   cp scripts/korva-vault.service ~/.config/systemd/user/korva-vault.service
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now korva-vault
+#
+# Status / logs:
+#   systemctl --user status korva-vault
+#   journalctl --user -u korva-vault -f
+#
+# Stop / disable:
+#   systemctl --user disable --now korva-vault
+#
+# NOTE: The binary must be in PATH or the full path provided in ExecStart.
+
+[Unit]
+Description=Korva Vault Server
+Documentation=https://korva.dev/docs/deployment
+# Restart after network is up; relevant only for team shared-vault deploys.
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/korva-vault --mode=http
+Restart=on-failure
+RestartSec=5s
+
+# Keep the process alive; abort if it crashes 5 times in 60 s.
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+# Redirect stdout/stderr to the systemd journal (available via journalctl).
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=korva-vault
+
+# Working directory — must exist; created by `korva init`.
+WorkingDirectory=%h/.korva
+
+# Environment overrides (uncomment to customise):
+# Environment="KORVA_HIVE_ENDPOINT=https://hive.internal.company.com"
+# Environment="KORVA_HIVE_DISABLE=0"
+
+# Minimal hardening — vault runs on localhost, so aggressive sandboxing
+# is not critical, but we follow the principle of least privilege.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=%h/.korva
+
+[Install]
+WantedBy=default.target

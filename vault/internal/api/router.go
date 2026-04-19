@@ -2,25 +2,65 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
+	"os"
+	"strconv"
 	"time"
 
 	"github.com/alcandev/korva/internal/admin"
+	"github.com/alcandev/korva/internal/hive"
+	"github.com/alcandev/korva/internal/license"
+	"github.com/alcandev/korva/vault/internal/email"
 	"github.com/alcandev/korva/vault/internal/store"
 )
 
+// RouterConfig holds all dependencies for the Vault HTTP router.
+// Using a config struct avoids positional argument churn as the router grows.
+type RouterConfig struct {
+	// AdminKeyPath is the filesystem path to the admin.key file.
+	AdminKeyPath string
+	// License is the active license; nil means Community tier.
+	License *license.License
+	// LicenseStatePath is the path to the persisted license heartbeat state.
+	LicenseStatePath string
+	// Mailer sends transactional emails (e.g. invite notifications).
+	// Use email.NewFromEnv() in production; a noopMailer is fine when unconfigured.
+	Mailer email.Mailer
+	// HiveClient enables hybrid cloud search when non-nil.
+	// Callers pass ?cloud=1 to GET /api/v1/search to merge Hive results.
+	HiveClient *hive.Client
+	// WebhookURL receives a POST for every saved observation (async, best-effort).
+	// Set from VaultConfig.WebhookURL. Empty = disabled.
+	WebhookURL string
+}
+
 // Router builds the HTTP mux for the Vault API.
-func Router(s *store.Store, adminKeyPath string) http.Handler {
+// Pass a zero-value RouterConfig for a minimal Community-tier server.
+//
+// All routes are wrapped with a per-IP rate limiter (120 req/min).
+func Router(s *store.Store, cfg RouterConfig) http.Handler {
 	mux := http.NewServeMux()
 
-	// Health check
+	// Resolve a nil mailer to the noop implementation so handlers never nil-check.
+	mailer := cfg.Mailer
+	if mailer == nil {
+		mailer = email.NewFromEnv()
+	}
+
+	lic := cfg.License
+
+	// --- Public endpoints ---
+
 	mux.HandleFunc("GET /healthz", healthz)
+	mux.HandleFunc("GET /api/v1/status", withCORS(statusHandler(s, lic)))
+	mux.HandleFunc("GET /api/v1/metrics", withCORS(metricsHandler(s)))
 
 	// Observations
-	mux.HandleFunc("POST /api/v1/observations", withCORS(saveObservation(s)))
+	mux.HandleFunc("POST /api/v1/observations", withCORS(saveObservation(s, cfg.WebhookURL)))
 	mux.HandleFunc("GET /api/v1/observations/{id}", withCORS(getObservation(s)))
-	mux.HandleFunc("GET /api/v1/search", withCORS(searchObservations(s)))
+	mux.HandleFunc("GET /api/v1/search", withCORS(searchObservations(s, cfg.HiveClient)))
 	mux.HandleFunc("GET /api/v1/context/{project}", withCORS(contextObservations(s)))
 	mux.HandleFunc("GET /api/v1/timeline/{project}", withCORS(timeline(s)))
 
@@ -38,13 +78,65 @@ func Router(s *store.Store, adminKeyPath string) http.Handler {
 	// Sessions — all (admin-level listing)
 	mux.HandleFunc("GET /api/v1/sessions/all", withCORS(listAllSessions(s)))
 
-	// Admin endpoints — protected by X-Admin-Key
-	adminMW := admin.Middleware(adminKeyPath)
-	mux.Handle("POST /admin/purge", adminMW(withCORS(adminPurge(s))))
+	// Auth — public; member redeems invite → session token
+	mux.HandleFunc("POST /auth/redeem", withCORS(authRedeem(s)))
+	mux.HandleFunc("GET /auth/me", withCORS(authMe(s)))
+	mux.HandleFunc("DELETE /auth/session", withCORS(authLogout(s)))
+
+	// --- Admin-protected endpoints (X-Admin-Key required) ---
+
+	adminMW := admin.Middleware(cfg.AdminKeyPath)
+	const actor = "admin"
+
+	mux.Handle("POST /admin/purge", adminMW(withCORS(adminPurgeHandler(s, actor))))
+	mux.Handle("GET /admin/export", adminMW(withCORS(adminExport(s, actor))))
 	mux.Handle("DELETE /admin/observations/{id}", adminMW(withCORS(adminDeleteObservation(s))))
 	mux.Handle("GET /admin/stats", adminMW(withCORS(adminFullStats(s))))
 
-	return mux
+	// License — available to all authenticated admin callers
+	mux.Handle("GET /admin/license/status", adminMW(withCORS(licenseStatusHandler(lic, cfg.LicenseStatePath))))
+
+	// --- Teams (feature-gated) ---
+
+	teamsFeat := requireFeature(lic, license.FeatureAdminSkills)
+
+	mux.Handle("GET /admin/teams/profile/active", adminMW(withCORS(adminActiveProfile(s))))
+	mux.Handle("GET /admin/teams", adminMW(withCORS(adminListTeams(s))))
+	mux.Handle("POST /admin/teams", adminMW(teamsFeat(withCORS(adminCreateTeam(s, actor)))))
+	mux.Handle("GET /admin/teams/{team_id}/members", adminMW(withCORS(adminListMembers(s))))
+	mux.Handle("POST /admin/teams/{team_id}/members", adminMW(teamsFeat(withCORS(adminAddMember(s, actor, lic)))))
+	mux.Handle("DELETE /admin/teams/{team_id}/members/{member_id}", adminMW(teamsFeat(withCORS(adminRemoveMember(s, actor)))))
+
+	// Member invites — email is sent when the mailer is configured
+	mux.Handle("GET /admin/teams/{team_id}/invites", adminMW(withCORS(adminListInvites(s))))
+	mux.Handle("POST /admin/teams/{team_id}/invites", adminMW(teamsFeat(withCORS(adminCreateInvite(s, actor, mailer)))))
+	mux.Handle("DELETE /admin/teams/{team_id}/invites/{invite_id}", adminMW(teamsFeat(withCORS(adminRevokeInvite(s, actor)))))
+
+	// Member sessions — list + force-revoke
+	mux.Handle("GET /admin/teams/{team_id}/sessions", adminMW(withCORS(adminListTeamSessions(s))))
+	mux.Handle("DELETE /admin/teams/{team_id}/sessions/{session_id}", adminMW(teamsFeat(withCORS(adminRevokeSession(s, actor)))))
+
+	// Audit log
+	auditFeat := requireFeature(lic, license.FeatureAuditLog)
+	mux.Handle("GET /admin/audit", adminMW(auditFeat(withCORS(adminListAudit(s)))))
+
+	// Skills
+	skillsFeat := requireFeature(lic, license.FeatureAdminSkills)
+	mux.Handle("GET /admin/skills", adminMW(skillsFeat(withCORS(adminListSkills(s)))))
+	mux.Handle("GET /admin/skills/{id}", adminMW(skillsFeat(withCORS(adminGetSkill(s)))))
+	mux.Handle("POST /admin/skills", adminMW(skillsFeat(withCORS(adminSaveSkill(s, actor)))))
+	mux.Handle("DELETE /admin/skills/{id}", adminMW(skillsFeat(withCORS(adminDeleteSkill(s, actor)))))
+
+	// Private Scrolls
+	scrollsFeat := requireFeature(lic, license.FeaturePrivateScrolls)
+	mux.Handle("GET /admin/scrolls/private", adminMW(scrollsFeat(withCORS(adminListPrivateScrolls(s)))))
+	mux.Handle("POST /admin/scrolls/private", adminMW(scrollsFeat(withCORS(adminSavePrivateScroll(s, actor)))))
+	mux.Handle("DELETE /admin/scrolls/private/{scroll_id}", adminMW(scrollsFeat(withCORS(adminDeletePrivateScroll(s, actor)))))
+
+	// Wrap the entire mux with a per-IP fixed-window rate limiter.
+	// 120 req/min is generous for AI editor usage; prevents runaway loops.
+	limiter := NewRateLimiter(120, time.Minute)
+	return limiter.Middleware(mux)
 }
 
 // --- handlers ---
@@ -53,7 +145,7 @@ func healthz(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok", "service": "korva-vault"})
 }
 
-func saveObservation(s *store.Store) http.HandlerFunc {
+func saveObservation(s *store.Store, webhookURL string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var obs store.Observation
 		if err := json.NewDecoder(r.Body).Decode(&obs); err != nil {
@@ -65,6 +157,8 @@ func saveObservation(s *store.Store) http.HandlerFunc {
 			writeError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
+		obs.ID = id
+		notifyWebhook(webhookURL, obs)
 		writeJSON(w, http.StatusCreated, map[string]string{"id": id})
 	}
 }
@@ -85,21 +179,98 @@ func getObservation(s *store.Store) http.HandlerFunc {
 	}
 }
 
-func searchObservations(s *store.Store) http.HandlerFunc {
+// searchHit wraps a local Observation with an explicit source tag so callers
+// can distinguish local results from cloud results in a single response.
+type searchHit struct {
+	store.Observation
+	Source string `json:"source"`
+}
+
+func searchObservations(s *store.Store, hiveClient *hive.Client) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		q := r.URL.Query()
-		results, err := s.Search(q.Get("q"), store.SearchFilters{
+
+		limit := 20
+		if lStr := q.Get("limit"); lStr != "" {
+			if n, err := strconv.Atoi(lStr); err == nil && n > 0 && n <= 200 {
+				limit = n
+			}
+		}
+		offset := 0
+		if oStr := q.Get("offset"); oStr != "" {
+			if n, err := strconv.Atoi(oStr); err == nil && n >= 0 {
+				offset = n
+			}
+		}
+
+		filters := store.SearchFilters{
 			Project: q.Get("project"),
 			Team:    q.Get("team"),
 			Country: q.Get("country"),
 			Type:    store.ObservationType(q.Get("type")),
-			Limit:   20,
-		})
+			Limit:   limit,
+			Offset:  offset,
+		}
+
+		localObs, err := s.Search(q.Get("q"), filters)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"results": results, "count": len(results)})
+
+		// Total count for pagination — use filter without Limit/Offset.
+		// Skip the expensive COUNT for FTS queries (non-empty q).
+		var total int
+		if q.Get("q") == "" {
+			total, _ = s.CountObservations(filters)
+		} else {
+			total = -1 // FTS: total unavailable
+		}
+
+		hits := make([]searchHit, 0, len(localObs))
+		for _, obs := range localObs {
+			hits = append(hits, searchHit{obs, "local"})
+		}
+
+		// Optional Hive cloud results — only when ?cloud=1 and the client is wired.
+		if q.Get("cloud") == "1" && hiveClient != nil {
+			cloudCtx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+			defer cancel()
+
+			cloudResults, cloudErr := hiveClient.Search(cloudCtx, q.Get("q"), 20)
+			if cloudErr == nil && len(cloudResults) > 0 {
+				// Deduplicate: skip Hive entries whose ID already appears locally.
+				localIDs := make(map[string]bool, len(localObs))
+				for _, obs := range localObs {
+					localIDs[obs.ID] = true
+				}
+				for _, cr := range cloudResults {
+					if localIDs[cr.ID] {
+						continue
+					}
+					hits = append(hits, searchHit{
+						Observation: store.Observation{
+							ID:      cr.ID,
+							Type:    store.ObservationType(cr.Type),
+							Title:   cr.Title,
+							Content: cr.Content,
+						},
+						Source: "hive",
+					})
+				}
+			}
+		}
+
+		resp := map[string]any{
+			"results": hits,
+			"count":   len(hits),
+			"limit":   limit,
+			"offset":  offset,
+		}
+		if total >= 0 {
+			resp["total"] = total
+		}
+		writeJSON(w, http.StatusOK, resp)
 	}
 }
 
@@ -171,7 +342,7 @@ func endSession(s *store.Store) http.HandlerFunc {
 		var body struct {
 			Summary string `json:"summary"`
 		}
-		json.NewDecoder(r.Body).Decode(&body)
+		json.NewDecoder(r.Body).Decode(&body) //nolint:errcheck
 		if err := s.SessionEnd(id, body.Summary); err != nil {
 			writeError(w, http.StatusInternalServerError, err.Error())
 			return
@@ -235,16 +406,23 @@ func listAllSessions(s *store.Store) http.HandlerFunc {
 
 // --- admin handlers ---
 
-func adminPurge(s *store.Store) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		// Intentionally minimal — purge is destructive
-		writeJSON(w, http.StatusOK, map[string]string{"status": "purge not implemented in v1"})
-	}
-}
-
 func adminDeleteObservation(s *store.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		writeJSON(w, http.StatusOK, map[string]string{"status": "delete not implemented in v1"})
+		id := r.PathValue("id")
+		if id == "" {
+			writeError(w, http.StatusBadRequest, "missing observation id")
+			return
+		}
+		deleted, err := s.Delete(id)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "delete failed")
+			return
+		}
+		if !deleted {
+			writeError(w, http.StatusNotFound, "observation not found")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]string{"status": "deleted", "id": id})
 	}
 }
 
@@ -257,22 +435,29 @@ func adminFullStats(s *store.Store) http.HandlerFunc {
 func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(v)
+	json.NewEncoder(w).Encode(v) //nolint:errcheck
 }
 
 func writeError(w http.ResponseWriter, status int, msg string) {
 	writeJSON(w, status, map[string]string{"error": msg})
 }
 
-func withCORS(h http.HandlerFunc) http.HandlerFunc {
+func corsOrigin() string {
+	if v := os.Getenv("KORVA_CORS_ORIGIN"); v != "" {
+		return v
+	}
+	return "http://localhost:5173"
+}
+
+func withCORS(h http.Handler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "http://localhost:5173")
+		w.Header().Set("Access-Control-Allow-Origin", corsOrigin())
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-Admin-Key")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-Admin-Key, X-Session-Token")
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)
 			return
 		}
-		h(w, r)
+		h.ServeHTTP(w, r)
 	}
 }

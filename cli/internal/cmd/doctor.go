@@ -1,7 +1,9 @@
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"os/exec"
@@ -12,6 +14,8 @@ import (
 
 	"github.com/alcandev/korva/internal/admin"
 	"github.com/alcandev/korva/internal/config"
+	"github.com/alcandev/korva/internal/identity"
+	"github.com/alcandev/korva/internal/license"
 	"github.com/alcandev/korva/internal/version"
 )
 
@@ -67,6 +71,30 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 		check("Vault server running", false, fmt.Sprintf("start with: korva-vault  (port %d)", cfg.Vault.Port))
 	}
 
+	// Check install identity
+	installID, idErr := identity.LoadInstallID(paths.InstallID)
+	if idErr != nil {
+		check("Install ID", false, "run 'korva init' to generate ~/.korva/install.id")
+	} else {
+		check(fmt.Sprintf("Install ID (%s…)", installID[:8]), true, "")
+	}
+
+	_, hkErr := identity.LoadHiveKey(paths.HiveKey)
+	check("Hive key", hkErr == nil, "run 'korva init' to generate ~/.korva/hive.key")
+
+	// Check license
+	lic, licErr := license.Load(paths.LicenseFile)
+	switch {
+	case licErr == license.ErrMissing:
+		fmt.Printf("  ○ License: community tier (korva license activate <key> to upgrade)\n")
+	case licErr != nil:
+		check("License", false, licErr.Error())
+	default:
+		state, _ := license.LoadState(paths.LicenseStateFile)
+		tier := lic.CurrentTier(state)
+		check(fmt.Sprintf("License: %s (expires %s)", tier, lic.ExpiresAt.Format("2006-01-02")), true, "")
+	}
+
 	// Check admin key
 	_, err = admin.Load(paths.AdminKey)
 	if err == admin.ErrNoAdminKey {
@@ -86,6 +114,43 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 	// Check korva.config.json in current project
 	_, err = os.Stat("korva.config.json")
 	check("korva.config.json in current dir", err == nil, "run 'korva init' in your project directory")
+
+	// Check Teams session (optional — only shown if session file exists)
+	sessionToken, sessErr := readSessionToken(paths.SessionTokenFile)
+	if sessErr == nil && sessionToken != "" {
+		fmt.Println("")
+		fmt.Println("  Teams session:")
+		sessClient := &http.Client{Timeout: 2 * time.Second}
+		req, _ := http.NewRequest("GET", fmt.Sprintf("http://127.0.0.1:%d/auth/me", cfg.Vault.Port), nil)
+		req.Header.Set("X-Session-Token", sessionToken)
+		if r, err := sessClient.Do(req); err == nil {
+			defer r.Body.Close()
+			raw, _ := io.ReadAll(r.Body)
+			if r.StatusCode == http.StatusOK {
+				var me struct {
+					Email     string `json:"email"`
+					Team      string `json:"team"`
+					ExpiresAt string `json:"expires_at"`
+				}
+				json.Unmarshal(raw, &me)
+				fmt.Printf("  ✓ Active — %s (%s)\n", me.Email, me.Team)
+				if t, err := time.Parse(time.RFC3339, me.ExpiresAt); err == nil {
+					remaining := time.Until(t)
+					if remaining < 7*24*time.Hour {
+						days := int(remaining.Hours() / 24)
+						fmt.Printf("  ⚠  Expires in %d day(s) — run 'korva auth redeem' to renew\n", days)
+					} else {
+						fmt.Printf("  ✓ Valid until %s\n", t.Local().Format("2006-01-02"))
+					}
+				}
+			} else if r.StatusCode == http.StatusUnauthorized {
+				fmt.Printf("  ✗ Session expired — run 'korva auth redeem <invite-token>'\n")
+				allGood = false
+			}
+		} else {
+			fmt.Printf("  ○ Session file found but vault unreachable (skipping check)\n")
+		}
+	}
 
 	fmt.Println("")
 	if allGood {

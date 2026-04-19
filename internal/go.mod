@@ -2,7 +2,10 @@ module github.com/alcandev/korva/internal
 
 go 1.26.1
 
-require modernc.org/sqlite v1.48.2
+require (
+	github.com/oklog/ulid/v2 v2.1.1
+	modernc.org/sqlite v1.48.2
+)
 
 require (
 	github.com/dustin/go-humanize v1.0.1 // indirect

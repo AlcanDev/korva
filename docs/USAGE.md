@@ -764,6 +764,46 @@ korva sync --profile
 korva sync --vault
 ```
 
+### Vault server management
+
+Use `korva vault` to manage the vault server process without opening a terminal.
+
+```bash
+# Start the vault server in the background (auto-detaches, writes ~/.korva/vault/vault.pid)
+korva vault start
+
+# Check if the vault is running and responsive
+korva vault status
+
+# Stop the vault server gracefully
+korva vault stop
+
+# Show the path to the vault log file (for tail -f, etc.)
+korva vault logs
+```
+
+The `start` command:
+1. Locates the `korva-vault` binary on your PATH
+2. Opens `~/.korva/logs/vault.log` for stdout/stderr
+3. Starts the process detached from the terminal (survives terminal close)
+4. Polls `/healthz` up to 5 s to confirm the server is up
+5. Writes the PID to `~/.korva/vault/vault.pid`
+
+### License management (Korva for Teams)
+
+```bash
+# Activate a license key (requires internet — contacts licensing.korva.dev once)
+korva license activate KORVA-XXXX-XXXX-XXXX-XXXX
+
+# Show current license status, tier, features, and expiry
+korva license status
+
+# Deactivate this install and free the seat
+korva license deactivate
+```
+
+After activation, the JWS is stored at `~/.korva/license.key`. Validation is fully offline — no network call needed on every vault start. A heartbeat is sent every 24 h; if the server is unreachable for more than 7 days, the install degrades to Community tier with a banner in Beacon.
+
 ### Admin operations
 
 ```bash
@@ -949,8 +989,13 @@ korva init                           Initialize Korva (local)
 korva init --profile <url>           Initialize with a team profile
 korva init --admin --owner=<email>   Initialize as admin (generates admin.key)
 
-VAULT SERVER
+VAULT SERVER MANAGEMENT
 ─────────────────────────────────────────────────────
+korva vault start                    Start vault server (background, auto-detach)
+korva vault stop                     Stop vault server gracefully
+korva vault status                   Check if vault is running + responsive
+korva vault logs                     Print path to vault.log
+
 korva-vault --mode=both              Start MCP + HTTP server (recommended)
 korva-vault --mode=mcp               MCP only (for editor integration)
 korva-vault --mode=http              HTTP only (for REST API / Beacon)
@@ -976,6 +1021,12 @@ korva doctor                         Full diagnostic
 korva sync                           Sync vault + profile
 korva sync --profile                 Sync team profile only
 korva sync --vault                   Sync vault with remote server
+
+LICENSE (Korva for Teams)
+─────────────────────────────────────────────────────
+korva license activate <key>         Activate a Teams license key
+korva license status                 Show tier, features, expiry, grace period
+korva license deactivate             Free this install's seat
 
 ADMIN
 ─────────────────────────────────────────────────────

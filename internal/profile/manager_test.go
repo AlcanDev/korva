@@ -1,12 +1,18 @@
 package profile
 
 import (
+	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/alcandev/korva/internal/config"
+	"github.com/alcandev/korva/internal/license"
 )
 
 // ---------------------------------------------------------------------------
@@ -39,7 +45,7 @@ func TestMergeInstructions_AppendsCopilotExtensions(t *testing.T) {
 	os.WriteFile(copilotFile, []byte(base), 0644)
 
 	paths := &config.Paths{HomeDir: dir}
-	mgr := NewManager(paths)
+	mgr := NewManager(paths, nil)
 
 	profile := validProfile()
 	profile.Overrides.Instructions = &config.InstructionsOverride{
@@ -101,7 +107,7 @@ func TestMergeInstructions_Idempotent(t *testing.T) {
 	os.WriteFile(filepath.Join(profileDir, "team-profile.json"), []byte(profileJSON), 0644)
 
 	paths := &config.Paths{HomeDir: dir}
-	mgr := NewManager(paths)
+	mgr := NewManager(paths, nil)
 
 	// Run twice
 	if err := mgr.MergeInstructions(profileDir, projectDir); err != nil {
@@ -134,7 +140,7 @@ func TestMergeInstructions_NoExtensions(t *testing.T) {
 	os.WriteFile(filepath.Join(profileDir, "team-profile.json"), []byte(profileJSON), 0644)
 
 	paths := &config.Paths{HomeDir: dir}
-	mgr := NewManager(paths)
+	mgr := NewManager(paths, nil)
 
 	// Should return nil — nothing to do
 	if err := mgr.MergeInstructions(profileDir, projectDir); err != nil {
@@ -156,7 +162,7 @@ func TestMergeInstructions_MissingExtensionFile(t *testing.T) {
 	os.WriteFile(filepath.Join(profileDir, "team-profile.json"), []byte(profileJSON), 0644)
 
 	paths := &config.Paths{HomeDir: dir}
-	mgr := NewManager(paths)
+	mgr := NewManager(paths, nil)
 
 	if err := mgr.MergeInstructions(profileDir, projectDir); err != nil {
 		t.Fatalf("should gracefully skip missing extension file, got: %v", err)
@@ -170,7 +176,7 @@ func TestMergeInstructions_MissingExtensionFile(t *testing.T) {
 func TestActiveProfileID_NoConfigFile(t *testing.T) {
 	dir := t.TempDir()
 	paths := &config.Paths{HomeDir: dir, ConfigFile: filepath.Join(dir, "config.json")}
-	mgr := NewManager(paths)
+	mgr := NewManager(paths, nil)
 
 	id, err := mgr.ActiveProfileID()
 	if err != nil {
@@ -187,7 +193,7 @@ func TestActiveProfileID_WithConfig(t *testing.T) {
 	os.WriteFile(configFile, []byte(`{"_active_profile_id": "my-team"}`), 0644)
 
 	paths := &config.Paths{HomeDir: dir, ConfigFile: configFile}
-	mgr := NewManager(paths)
+	mgr := NewManager(paths, nil)
 
 	id, err := mgr.ActiveProfileID()
 	if err != nil {
@@ -221,7 +227,7 @@ func TestApply_MergesAndSavesConfig(t *testing.T) {
 		HomeDir:    dir,
 		ConfigFile: configFile,
 	}
-	mgr := NewManager(paths)
+	mgr := NewManager(paths, nil)
 
 	base := config.DefaultConfig()
 	merged, err := mgr.Apply(profileDir, base)
@@ -248,7 +254,7 @@ func TestApply_InvalidProfile(t *testing.T) {
 	os.WriteFile(filepath.Join(profileDir, "team-profile.json"), []byte(`{}`), 0644)
 
 	paths := &config.Paths{HomeDir: dir, ConfigFile: filepath.Join(dir, "config.json")}
-	mgr := NewManager(paths)
+	mgr := NewManager(paths, nil)
 
 	_, err := mgr.Apply(profileDir, config.DefaultConfig())
 	if err == nil {
@@ -273,7 +279,7 @@ func TestInstallScrolls_CopiesScrolls(t *testing.T) {
 		HomeDir: dir,
 		LoreDir: loreDir,
 	}
-	mgr := NewManager(paths)
+	mgr := NewManager(paths, nil)
 
 	if err := mgr.InstallScrolls(profileDir); err != nil {
 		t.Fatalf("InstallScrolls: %v", err)
@@ -292,7 +298,7 @@ func TestInstallScrolls_NoScrollsDir(t *testing.T) {
 	// No scrolls/ subdir
 
 	paths := &config.Paths{HomeDir: dir, LoreDir: filepath.Join(dir, "lore")}
-	mgr := NewManager(paths)
+	mgr := NewManager(paths, nil)
 
 	// Should not error — gracefully skip
 	if err := mgr.InstallScrolls(profileDir); err != nil {
@@ -311,7 +317,7 @@ func TestSync_ProfileNotFound(t *testing.T) {
 		ProfilesDir: filepath.Join(dir, "profiles"),
 		ConfigFile:  filepath.Join(dir, "config.json"),
 	}
-	mgr := NewManager(paths)
+	mgr := NewManager(paths, nil)
 
 	_, err := mgr.Sync("nonexistent-profile", config.DefaultConfig())
 	if err == nil {
@@ -323,13 +329,39 @@ func TestSync_ProfileNotFound(t *testing.T) {
 // Clone — error path (invalid URL)
 // ---------------------------------------------------------------------------
 
+func TestSync_GitPullFails(t *testing.T) {
+	dir := t.TempDir()
+	profileID := "test-team"
+	// Create a profile directory that exists but is NOT a git repo
+	// sanitizeProfileID replaces "-" with "_" so "test-team" → "test_team"
+	profileDir := filepath.Join(dir, "profiles", "test_team")
+	os.MkdirAll(profileDir, 0755)
+	os.WriteFile(filepath.Join(profileDir, "team-profile.json"), []byte(`{
+		"profile": {"id": "test-team", "version": "1.0.0", "team": "Test Team"},
+		"overrides": {}
+	}`), 0644)
+
+	paths := &config.Paths{
+		HomeDir:     dir,
+		ProfilesDir: filepath.Join(dir, "profiles"),
+		ConfigFile:  filepath.Join(dir, "config.json"),
+	}
+	mgr := NewManager(paths, nil)
+
+	// git pull on a non-git directory must fail
+	_, err := mgr.Sync(profileID, config.DefaultConfig())
+	if err == nil {
+		t.Error("expected error when git pull fails on non-git dir")
+	}
+}
+
 func TestClone_InvalidURL(t *testing.T) {
 	dir := t.TempDir()
 	paths := &config.Paths{
 		HomeDir:     dir,
 		ProfilesDir: filepath.Join(dir, "profiles"),
 	}
-	mgr := NewManager(paths)
+	mgr := NewManager(paths, nil)
 
 	// Non-existent git URL should fail fast
 	_, err := mgr.Clone("https://github.com/nonexistent-999999/no-such-repo-xyz.git")
@@ -359,5 +391,169 @@ func TestCopyDir_CopiesFilesRecursively(t *testing.T) {
 		if _, err := os.Stat(filepath.Join(dst, rel)); os.IsNotExist(err) {
 			t.Errorf("expected %s to be copied to dst", rel)
 		}
+	}
+}
+
+// ---------------------------------------------------------------------------
+// FetchBeaconProfile
+// ---------------------------------------------------------------------------
+
+func TestFetchBeaconProfile_NoContent(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer srv.Close()
+
+	mgr := &Manager{
+		paths:     &config.Paths{},
+		lic:       nil,
+		vaultAddr: srv.URL,
+	}
+	p, err := mgr.FetchBeaconProfile(context.Background(), "key")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if p != nil {
+		t.Error("expected nil on 204")
+	}
+}
+
+func TestFetchBeaconProfile_OK(t *testing.T) {
+	payload := map[string]any{
+		"team":    map[string]any{"name": "Prod Team"},
+		"members": []map[string]any{{"email": "alice@example.com", "role": "admin"}},
+	}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("X-Admin-Key") != "secret" {
+			w.WriteHeader(http.StatusForbidden)
+			return
+		}
+		json.NewEncoder(w).Encode(payload)
+	}))
+	defer srv.Close()
+
+	mgr := &Manager{paths: &config.Paths{}, lic: nil, vaultAddr: srv.URL}
+	p, err := mgr.FetchBeaconProfile(context.Background(), "secret")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if p == nil {
+		t.Fatal("expected non-nil profile")
+	}
+	if p.Team["name"] != "Prod Team" {
+		t.Errorf("team name = %v", p.Team["name"])
+	}
+	if len(p.Members) != 1 {
+		t.Errorf("members count = %d, want 1", len(p.Members))
+	}
+}
+
+func TestFetchBeaconProfile_Unreachable(t *testing.T) {
+	mgr := &Manager{paths: &config.Paths{}, vaultAddr: "http://127.0.0.1:1"}
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cancel()
+	p, err := mgr.FetchBeaconProfile(ctx, "key")
+	// unreachable: returns non-nil error; caller treats as fallback
+	if err == nil && p != nil {
+		t.Error("expected error or nil profile for unreachable vault")
+	}
+}
+
+func TestFetchBeaconProfile_EmptyAdminKey(t *testing.T) {
+	mgr := &Manager{paths: &config.Paths{}, vaultAddr: "http://127.0.0.1:7437"}
+	p, err := mgr.FetchBeaconProfile(context.Background(), "")
+	if err != nil || p != nil {
+		t.Errorf("empty key: expected (nil,nil), got (%v,%v)", p, err)
+	}
+}
+
+func TestFetchBeaconProfile_EmptyVaultAddr(t *testing.T) {
+	mgr := &Manager{paths: &config.Paths{}, vaultAddr: ""}
+	p, err := mgr.FetchBeaconProfile(context.Background(), "key")
+	if err != nil || p != nil {
+		t.Errorf("empty vaultAddr: expected (nil,nil), got (%v,%v)", p, err)
+	}
+}
+
+func TestFetchBeaconProfile_Non200Non204(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+	}))
+	defer srv.Close()
+
+	mgr := &Manager{paths: &config.Paths{}, vaultAddr: srv.URL}
+	p, err := mgr.FetchBeaconProfile(context.Background(), "key")
+	// 401 → silently fall back (nil, nil)
+	if err != nil || p != nil {
+		t.Errorf("non-200/204: expected (nil,nil), got (%v,%v)", p, err)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// allowedKeys
+// ---------------------------------------------------------------------------
+
+func TestAllowedKeys_CommunityTier(t *testing.T) {
+	keys := allowedKeys(nil)
+	required := []string{"vault", "sentinel", "lore", "instructions"}
+	for _, k := range required {
+		if !keys[k] {
+			t.Errorf("community key %q missing from allowedKeys", k)
+		}
+	}
+	teamsOnly := []string{"ai_model", "custom_skills", "vault_retention_days", "cloud_sync_endpoint", "private_scrolls_dir"}
+	for _, k := range teamsOnly {
+		if keys[k] {
+			t.Errorf("teams-only key %q should NOT be in community allowedKeys", k)
+		}
+	}
+}
+
+func TestAllowedKeys_TeamsTierWithFeature(t *testing.T) {
+	lic := &license.License{
+		Tier:      license.TierTeams,
+		Features:  []string{license.FeatureCustomWhitelist},
+		ExpiresAt: time.Now().Add(365 * 24 * time.Hour),
+	}
+	keys := allowedKeys(lic)
+	teamsKeys := []string{"ai_model", "custom_skills", "vault_retention_days"}
+	for _, k := range teamsKeys {
+		if !keys[k] {
+			t.Errorf("teams key %q missing when FeatureCustomWhitelist active", k)
+		}
+	}
+}
+
+func TestAllowedKeys_TeamsTierWithoutFeature(t *testing.T) {
+	lic := &license.License{
+		Tier:      license.TierTeams,
+		Features:  []string{license.FeatureAdminSkills}, // not FeatureCustomWhitelist
+		ExpiresAt: time.Now().Add(365 * 24 * time.Hour),
+	}
+	keys := allowedKeys(lic)
+	if keys["ai_model"] {
+		t.Error("ai_model should not be allowed without FeatureCustomWhitelist")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// validateOverrides — teams-only fields
+// ---------------------------------------------------------------------------
+
+func TestValidateOverrides_AIModelRequiresTeams(t *testing.T) {
+	profile := validProfile()
+	profile.Overrides.AIModel = &config.AIModelOverride{Provider: "openai", Model: "gpt-4o"}
+
+	if err := Validate(profile, nil); err == nil {
+		t.Error("expected error for ai_model without Teams license")
+	}
+}
+
+func TestValidateOverrides_CustomSkillsRequiresTeams(t *testing.T) {
+	profile := validProfile()
+	profile.Overrides.CustomSkills = &config.CustomSkillsOverride{Path: "skills/"}
+
+	if err := Validate(profile, nil); err == nil {
+		t.Error("expected error for custom_skills without Teams license")
 	}
 }

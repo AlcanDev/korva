@@ -18,8 +18,8 @@ func newTestRouter(t *testing.T) http.Handler {
 		t.Fatalf("store.NewMemory: %v", err)
 	}
 	t.Cleanup(func() { s.Close() })
-	// No admin key file — admin endpoints will 403
-	return Router(s, "/nonexistent/admin.key")
+	// No admin key file — admin endpoints will 403; nil license = community tier
+	return Router(s, RouterConfig{AdminKeyPath: "/nonexistent/admin.key"})
 }
 
 func TestHealthz(t *testing.T) {
@@ -293,5 +293,44 @@ func TestAdminPurge_Forbidden_NoKey(t *testing.T) {
 
 	if rec.Code != http.StatusUnauthorized && rec.Code != http.StatusForbidden {
 		t.Errorf("POST /admin/purge without key = %d, want 401 or 403", rec.Code)
+	}
+}
+
+func TestListAllSessions_ReturnsOK(t *testing.T) {
+	h := newTestRouter(t)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/sessions/all", nil)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("GET /api/v1/sessions/all = %d, want 200", rec.Code)
+	}
+	var resp map[string]any
+	json.NewDecoder(rec.Body).Decode(&resp)
+	if _, ok := resp["sessions"]; !ok {
+		t.Error("response missing 'sessions' key")
+	}
+}
+
+func TestTimeline_WithDateRange(t *testing.T) {
+	h := newTestRouter(t)
+	req := httptest.NewRequest(http.MethodGet,
+		"/api/v1/timeline/home-api?from=2025-01-01T00:00:00Z&to=2025-12-31T23:59:59Z", nil)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("GET /api/v1/timeline with date range = %d, want 200", rec.Code)
+	}
+}
+
+func TestAdminDeleteObservation_Forbidden(t *testing.T) {
+	h := newTestRouter(t)
+	req := httptest.NewRequest(http.MethodDelete, "/admin/observations/obs-123", nil)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnauthorized && rec.Code != http.StatusForbidden {
+		t.Errorf("DELETE /admin/observations without key = %d, want 401 or 403", rec.Code)
 	}
 }

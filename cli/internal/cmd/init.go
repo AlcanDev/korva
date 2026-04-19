@@ -10,6 +10,8 @@ import (
 
 	"github.com/alcandev/korva/internal/admin"
 	"github.com/alcandev/korva/internal/config"
+	"github.com/alcandev/korva/internal/identity"
+	"github.com/alcandev/korva/internal/license"
 	"github.com/alcandev/korva/internal/profile"
 )
 
@@ -65,6 +67,14 @@ func runInit(cmd *cobra.Command, args []string) error {
 	}
 	printSuccess(fmt.Sprintf("Created %s", paths.HomeDir))
 
+	if _, err := identity.EnsureInstallID(paths.InstallID); err != nil {
+		return fmt.Errorf("provisioning install id: %w", err)
+	}
+	if _, err := identity.EnsureHiveKey(paths.HiveKey); err != nil {
+		return fmt.Errorf("provisioning hive key: %w", err)
+	}
+	printSuccess("Provisioned install identity (install.id, hive.key)")
+
 	// 2. Generate admin key if requested
 	if initAdmin {
 		if initOwner == "" {
@@ -98,7 +108,8 @@ func runInit(cmd *cobra.Command, args []string) error {
 	// 5. Apply team profile if specified
 	if initProfile != "" {
 		printInfo(fmt.Sprintf("Cloning team profile from %s ...", initProfile))
-		mgr := profile.NewManager(paths)
+		lic, _ := license.Load(paths.LicenseFile) // nil on community tier — safe
+		mgr := profile.NewManager(paths, lic)
 
 		profileDir, err := mgr.Clone(initProfile)
 		if err != nil {
