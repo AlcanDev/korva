@@ -3,13 +3,22 @@ package db
 import (
 	"database/sql"
 	"fmt"
+	"strings"
 )
 
 // Migrate applies all schema migrations to the database.
 // It is idempotent — safe to call on every startup.
+//
+// SQLite does not support ALTER TABLE ADD COLUMN IF NOT EXISTS, so we ignore
+// "duplicate column name" errors to keep migrations append-only and idempotent.
 func Migrate(db *sql.DB) error {
 	for _, m := range migrations {
 		if _, err := db.Exec(m); err != nil {
+			// ALTER TABLE ADD COLUMN fails with "duplicate column name: <X>" when the
+			// column already exists. Treat it as a no-op so the list stays idempotent.
+			if strings.Contains(err.Error(), "duplicate column name") {
+				continue
+			}
 			return fmt.Errorf("applying migration: %w", err)
 		}
 	}
@@ -195,15 +204,24 @@ var migrations = []string{
 	`CREATE INDEX IF NOT EXISTS idx_sessions_token   ON member_sessions(token_hash)`,
 
 	// --- private_scrolls: team-managed knowledge documents served via Beacon ---
-	// Scoped globally (admin-managed); name is the unique human identifier.
+	// Scoped per-team via team_id ('' = global/admin-managed).
+	// name is unique within a (team_id, name) pair.
 	// NEVER synced to Hive (same isolation policy as skills).
 	`CREATE TABLE IF NOT EXISTS private_scrolls (
 		id         TEXT PRIMARY KEY,
-		name       TEXT NOT NULL UNIQUE,
+		name       TEXT NOT NULL,
 		content    TEXT NOT NULL,
+		team_id    TEXT NOT NULL DEFAULT '',
 		created_by TEXT NOT NULL DEFAULT '',
 		created_at TEXT NOT NULL DEFAULT (datetime('now')),
 		updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 	)`,
 	`CREATE INDEX IF NOT EXISTS idx_private_scrolls_name ON private_scrolls(name)`,
+	`CREATE UNIQUE INDEX IF NOT EXISTS uq_private_scrolls_team_name ON private_scrolls(team_id, name)`,
+
+	// --- private_scrolls migration: add team_id for per-team scoping ---
+	// For installs where the table was created before team_id existed.
+	// Migrate() ignores "duplicate column name" so this is safe to apply repeatedly.
+	`ALTER TABLE private_scrolls ADD COLUMN team_id TEXT NOT NULL DEFAULT ''`,
+	`CREATE INDEX IF NOT EXISTS idx_private_scrolls_team ON private_scrolls(team_id)`,
 }

@@ -5,6 +5,8 @@ package mcp
 
 import (
 	"bufio"
+	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -17,12 +19,21 @@ import (
 	"github.com/alcandev/korva/vault/internal/store"
 )
 
+// mcpSession holds the team identity resolved from the session token passed
+// in the initialize params. Nil when the client is unauthenticated.
+type mcpSession struct {
+	teamID string
+	email  string
+	role   string // "admin" or "member"
+}
+
 // Server is the MCP stdio server.
 type Server struct {
-	store  *store.Store
-	reader *bufio.Reader
-	writer io.Writer
-	logger *log.Logger
+	store   *store.Store
+	reader  *bufio.Reader
+	writer  io.Writer
+	logger  *log.Logger
+	session *mcpSession // nil = anonymous; set during handleInitialize if valid token
 }
 
 // New creates an MCP server reading from stdin and writing to stdout.
@@ -80,6 +91,18 @@ func (s *Server) handleRequest(req Request) {
 }
 
 func (s *Server) handleInitialize(req Request) {
+	// Attempt to resolve an optional session token from the initialize params.
+	// Clients that have a ~/.korva/session.token should pass it here so that
+	// MCP tools automatically carry team context.
+	if req.Params != nil {
+		var params struct {
+			SessionToken string `json:"session_token"`
+		}
+		if json.Unmarshal(req.Params, &params) == nil && params.SessionToken != "" {
+			s.resolveSession(params.SessionToken)
+		}
+	}
+
 	s.writeResult(req.ID, InitializeResult{
 		ProtocolVersion: "2024-11-05",
 		Capabilities:    Capabilities{Tools: &ToolsCapability{}},
@@ -88,6 +111,61 @@ func (s *Server) handleInitialize(req Request) {
 			Version: version.Version,
 		},
 	})
+}
+
+// resolveSession validates the plaintext session token against the DB and
+// stores the resulting identity in s.session. Errors are silently discarded
+// so that an invalid token degrades gracefully to anonymous mode.
+func (s *Server) resolveSession(token string) {
+	hash := fmt.Sprintf("%x", sha256.Sum256([]byte(token)))
+	var sess mcpSession
+	err := s.store.DB().QueryRowContext(context.Background(),
+		`SELECT ms.team_id, ms.email, COALESCE(tm.role, 'member')
+		   FROM member_sessions ms
+		   LEFT JOIN team_members tm
+		          ON tm.team_id = ms.team_id AND tm.email = ms.email
+		  WHERE ms.token_hash = ? AND ms.expires_at > datetime('now')`, hash).
+		Scan(&sess.teamID, &sess.email, &sess.role)
+	if err == nil {
+		s.session = &sess
+		s.logger.Printf("MCP session: %s role=%s team=%s", sess.email, sess.role, sess.teamID)
+	}
+}
+
+// fetchTeamContext queries the team's skills and private scrolls from the DB.
+// Returns empty slices when there is no data or no active session.
+func (s *Server) fetchTeamContext() (skills, scrolls []map[string]any) {
+	if s.session == nil {
+		return nil, nil
+	}
+	ctx := context.Background()
+
+	skillRows, err := s.store.DB().QueryContext(ctx,
+		`SELECT name, body FROM skills WHERE team_id = ? ORDER BY name ASC`,
+		s.session.teamID)
+	if err == nil {
+		defer skillRows.Close()
+		for skillRows.Next() {
+			var name, body string
+			if skillRows.Scan(&name, &body) == nil {
+				skills = append(skills, map[string]any{"name": name, "body": body})
+			}
+		}
+	}
+
+	scrollRows, err := s.store.DB().QueryContext(ctx,
+		`SELECT name, content FROM private_scrolls WHERE team_id = ? ORDER BY name ASC`,
+		s.session.teamID)
+	if err == nil {
+		defer scrollRows.Close()
+		for scrollRows.Next() {
+			var name, content string
+			if scrollRows.Scan(&name, &content) == nil {
+				scrolls = append(scrolls, map[string]any{"name": name, "content": content})
+			}
+		}
+	}
+	return
 }
 
 func (s *Server) handleToolsList(req Request) {
@@ -142,6 +220,8 @@ func (s *Server) dispatch(tool string, args map[string]any) (any, error) {
 		return s.toolBulkSave(args)
 	case "vault_query":
 		return s.toolQuery(args)
+	case "vault_team_context":
+		return s.toolTeamContext(args)
 	default:
 		return nil, fmt.Errorf("unknown tool: %s", tool)
 	}
@@ -159,6 +239,10 @@ func (s *Server) toolSave(args map[string]any) (any, error) {
 		Content: stringArg(args, "content"),
 		Author:  stringArg(args, "author"),
 		Tags:    stringSliceArg(args, "tags"),
+	}
+	// Auto-fill team from the active session so members don't have to pass it explicitly.
+	if obs.Team == "" && s.session != nil {
+		obs.Team = s.session.teamID
 	}
 	if obs.Type == "" {
 		obs.Type = store.TypeContext
@@ -207,6 +291,9 @@ func (s *Server) toolBulkSave(args map[string]any) (any, error) {
 			Author:  stringArg(m, "author"),
 			Tags:    stringSliceArg(m, "tags"),
 		}
+		if obs.Team == "" && s.session != nil {
+			obs.Team = s.session.teamID
+		}
 		if obs.Type == "" {
 			obs.Type = store.TypeContext
 		}
@@ -253,7 +340,55 @@ func (s *Server) toolContext(args map[string]any) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	return map[string]any{"context": results, "project": project}, nil
+
+	resp := map[string]any{"context": results, "project": project}
+
+	// When a session is active, enrich the context with the team's custom
+	// skills and private scrolls so the AI carries all team knowledge.
+	if s.session != nil {
+		skills, scrolls := s.fetchTeamContext()
+		if len(skills) > 0 {
+			resp["team_skills"] = skills
+		}
+		if len(scrolls) > 0 {
+			resp["team_scrolls"] = scrolls
+		}
+		resp["team_id"] = s.session.teamID
+	}
+
+	return resp, nil
+}
+
+// toolTeamContext returns the team's custom skills and private scrolls.
+// It works with or without a session: without a session it returns an empty
+// result with a hint about how to authenticate.
+func (s *Server) toolTeamContext(_ map[string]any) (any, error) {
+	if s.session == nil {
+		return map[string]any{
+			"team_id": "",
+			"skills":  []any{},
+			"scrolls": []any{},
+			"note":    "no active session — pass session_token in initialize params to load team context",
+		}, nil
+	}
+
+	skills, scrolls := s.fetchTeamContext()
+
+	// Return empty slices, not null, for consistent JSON handling.
+	if skills == nil {
+		skills = []map[string]any{}
+	}
+	if scrolls == nil {
+		scrolls = []map[string]any{}
+	}
+
+	return map[string]any{
+		"team_id": s.session.teamID,
+		"email":   s.session.email,
+		"role":    s.session.role,
+		"skills":  skills,
+		"scrolls": scrolls,
+	}, nil
 }
 
 func (s *Server) toolTimeline(args map[string]any) (any, error) {

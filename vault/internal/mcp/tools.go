@@ -1,6 +1,6 @@
 package mcp
 
-// tools returns the list of all 10 MCP tools exposed by Vault.
+// tools returns the list of all MCP tools exposed by Vault.
 func tools() []Tool {
 	return []Tool{
 		{
@@ -169,6 +169,17 @@ func tools() []Tool {
 					"until": {Type: "string", Description: "Return observations created at or before this RFC3339 timestamp"},
 					"limit": {Type: "number", Description: "Maximum results (default: 20, max: 100)"},
 				},
+			},
+		},
+		{
+			Name: "vault_team_context",
+			Description: "Fetch your team's custom skills and private scrolls. " +
+				"Returns team architecture guides, custom AI instructions, and internal knowledge docs. " +
+				"Requires a session token passed as session_token in initialize params. " +
+				"Call at the start of work on a team project to load all team-specific context.",
+			InputSchema: Schema{
+				Type:       "object",
+				Properties: map[string]Property{},
 			},
 		},
 	}
