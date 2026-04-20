@@ -34,10 +34,10 @@ function usePrivateScrolls() {
 function useSavePrivateScroll() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (data: { name: string; content: string }) =>
+    mutationFn: (data: { name: string; content: string; team_id?: string }) =>
       adminFetch<{ id: string }>('/admin/scrolls/private', {
         method: 'POST',
-        body: JSON.stringify(data),
+        body: JSON.stringify({ team_id: '', ...data }),
       }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['admin', 'scrolls', 'private'] }),
   })
