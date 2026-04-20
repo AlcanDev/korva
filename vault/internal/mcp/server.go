@@ -12,6 +12,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -37,13 +38,43 @@ type Server struct {
 }
 
 // New creates an MCP server reading from stdin and writing to stdout.
+//
+// On startup it auto-loads a session token (team identity) from:
+//  1. KORVA_SESSION_TOKEN environment variable
+//  2. ~/.korva/session.token file (written by `korva auth redeem`)
+//
+// This is editor-agnostic: Claude Code, Cursor, Copilot, and any other
+// MCP host automatically get team context without extra configuration.
+// The session can also be overridden via initialize.params.session_token.
 func New(s *store.Store) *Server {
-	return &Server{
+	srv := &Server{
 		store:  s,
 		reader: bufio.NewReader(os.Stdin),
 		writer: os.Stdout,
 		logger: log.New(os.Stderr, "[vault-mcp] ", log.LstdFlags),
 	}
+	if token := loadSessionToken(); token != "" {
+		srv.resolveSession(token)
+	}
+	return srv
+}
+
+// loadSessionToken reads the session token from the environment variable
+// KORVA_SESSION_TOKEN or, if unset, from ~/.korva/session.token.
+// Returns an empty string when neither source is available.
+func loadSessionToken() string {
+	if t := os.Getenv("KORVA_SESSION_TOKEN"); t != "" {
+		return strings.TrimSpace(t)
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return ""
+	}
+	data, err := os.ReadFile(filepath.Join(home, ".korva", "session.token"))
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(data))
 }
 
 // Run starts the MCP server loop. It blocks until stdin is closed or an
