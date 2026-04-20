@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
@@ -112,7 +113,7 @@ func authRedeem(s *store.Store) http.HandlerFunc {
 }
 
 // authMe validates the session token and returns the member's current context:
-// team, features available, session expiry. Used by the CLI on every `korva` run.
+// team, role, features available, session expiry. Used by the CLI on every `korva` run.
 // Requires X-Session-Token header.
 func authMe(s *store.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -122,21 +123,19 @@ func authMe(s *store.Store) http.HandlerFunc {
 		}
 
 		// Touch last_seen
-		s.DB().ExecContext(r.Context(),
+		s.DB().ExecContext(r.Context(), //nolint:errcheck
 			`UPDATE member_sessions SET last_seen=datetime('now') WHERE id=?`, sess.id)
 
-		// Fetch team + member role
-		var teamName, role string
-		s.DB().QueryRowContext(r.Context(),
-			`SELECT t.name, m.role FROM teams t
-			  JOIN team_members m ON m.team_id=t.id AND m.email=?
-			 WHERE t.id=?`, sess.email, sess.teamID).Scan(&teamName, &role)
+		// Fetch team name (role is already in sess via requireSession JOIN)
+		var teamName string
+		s.DB().QueryRowContext(r.Context(), //nolint:errcheck
+			`SELECT name FROM teams WHERE id=?`, sess.teamID).Scan(&teamName)
 
 		writeJSON(w, http.StatusOK, map[string]any{
 			"email":      sess.email,
 			"team_id":    sess.teamID,
 			"team":       teamName,
-			"role":       role,
+			"role":       sess.role,
 			"expires_at": sess.expiresAt,
 		})
 	}
@@ -161,11 +160,13 @@ type sessionInfo struct {
 	id        string
 	teamID    string
 	email     string
+	role      string // "admin" or "member"
 	expiresAt string
 }
 
 // requireSession extracts and validates X-Session-Token. Returns false and writes
 // an error response when the session is missing, invalid, or expired.
+// The member's role is fetched in the same query via a LEFT JOIN on team_members.
 func requireSession(s *store.Store, w http.ResponseWriter, r *http.Request) (sessionInfo, bool) {
 	plain := r.Header.Get("X-Session-Token")
 	if plain == "" {
@@ -176,9 +177,13 @@ func requireSession(s *store.Store, w http.ResponseWriter, r *http.Request) (ses
 	hash := fmt.Sprintf("%x", sha256.Sum256([]byte(plain)))
 	var sess sessionInfo
 	err := s.DB().QueryRowContext(r.Context(),
-		`SELECT id, team_id, email, expires_at
-		   FROM member_sessions WHERE token_hash=?`, hash).
-		Scan(&sess.id, &sess.teamID, &sess.email, &sess.expiresAt)
+		`SELECT ms.id, ms.team_id, ms.email, ms.expires_at,
+		        COALESCE(tm.role, 'member')
+		   FROM member_sessions ms
+		   LEFT JOIN team_members tm
+		          ON tm.team_id = ms.team_id AND tm.email = ms.email
+		  WHERE ms.token_hash = ?`, hash).
+		Scan(&sess.id, &sess.teamID, &sess.email, &sess.expiresAt, &sess.role)
 	if err != nil {
 		writeError(w, http.StatusUnauthorized, "invalid session token")
 		return sessionInfo{}, false
@@ -188,4 +193,41 @@ func requireSession(s *store.Store, w http.ResponseWriter, r *http.Request) (ses
 		return sessionInfo{}, false
 	}
 	return sess, true
+}
+
+// ── Session context injection ─────────────────────────────────────────────────
+
+// sessionCtxKey is the unexported context key for injected sessionInfo.
+type sessionCtxKey struct{}
+
+// withSession returns middleware that validates X-Session-Token and injects
+// the resulting sessionInfo into the request context. The handler is only
+// called when authentication succeeds.
+func withSession(s *store.Store) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			sess, ok := requireSession(s, w, r)
+			if !ok {
+				return
+			}
+			ctx := context.WithValue(r.Context(), sessionCtxKey{}, sess)
+			next.ServeHTTP(w, r.WithContext(ctx))
+		})
+	}
+}
+
+// sessionFromCtx retrieves the sessionInfo injected by withSession.
+// Panics if called from a handler that is not behind withSession.
+func sessionFromCtx(r *http.Request) sessionInfo {
+	return r.Context().Value(sessionCtxKey{}).(sessionInfo)
+}
+
+// requireAdmin writes 403 and returns false when the session role is not "admin".
+// Use for write/delete operations that team members should not perform.
+func requireAdmin(sess sessionInfo, w http.ResponseWriter) bool {
+	if sess.role != "admin" {
+		writeError(w, http.StatusForbidden, "team admin role required")
+		return false
+	}
+	return true
 }

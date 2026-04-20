@@ -1,5 +1,15 @@
 package api
 
+// team_scrolls.go — session-token authenticated CRUD for team private scrolls.
+//
+// Any team member can list and save scrolls scoped to their team.
+// Only team admins can delete.
+//
+// Routes (all behind withSession middleware):
+//   GET    /team/scrolls        — list team's private scrolls
+//   POST   /team/scrolls        — create or update a scroll (upsert by name)
+//   DELETE /team/scrolls/{id}   — delete a scroll (admin only)
+
 import (
 	"database/sql"
 	"encoding/json"
@@ -10,8 +20,7 @@ import (
 	"github.com/alcandev/korva/vault/internal/store"
 )
 
-// privateScrollRow is the wire type returned to the admin UI.
-type privateScrollRow struct {
+type teamScrollRow struct {
 	ID        string `json:"id"`
 	Name      string `json:"name"`
 	Content   string `json:"content"`
@@ -19,36 +28,25 @@ type privateScrollRow struct {
 	UpdatedAt string `json:"updated_at"`
 }
 
-// adminListPrivateScrolls returns private scrolls ordered by name.
-// Accepts an optional ?team_id= query param to filter by team.
-// GET /admin/scrolls/private
-func adminListPrivateScrolls(s *store.Store) http.HandlerFunc {
+// teamListScrolls returns all private scrolls owned by the authenticated member's team.
+// GET /team/scrolls
+func teamListScrolls(s *store.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		teamID := r.URL.Query().Get("team_id")
-
-		var rows *sql.Rows
-		var err error
-		if teamID != "" {
-			rows, err = s.DB().QueryContext(r.Context(),
-				`SELECT id, name, content, created_at, updated_at
-				   FROM private_scrolls
-				  WHERE team_id = ?
-				  ORDER BY name ASC`, teamID)
-		} else {
-			rows, err = s.DB().QueryContext(r.Context(),
-				`SELECT id, name, content, created_at, updated_at
-				   FROM private_scrolls
-				  ORDER BY name ASC`)
-		}
+		sess := sessionFromCtx(r)
+		rows, err := s.DB().QueryContext(r.Context(),
+			`SELECT id, name, content, created_at, updated_at
+			   FROM private_scrolls
+			  WHERE team_id = ?
+			  ORDER BY name ASC`, sess.teamID)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
 		defer rows.Close()
 
-		scrolls := make([]privateScrollRow, 0)
+		scrolls := make([]teamScrollRow, 0)
 		for rows.Next() {
-			var sc privateScrollRow
+			var sc teamScrollRow
 			if err := rows.Scan(&sc.ID, &sc.Name, &sc.Content, &sc.CreatedAt, &sc.UpdatedAt); err != nil {
 				continue
 			}
@@ -58,17 +56,15 @@ func adminListPrivateScrolls(s *store.Store) http.HandlerFunc {
 	}
 }
 
-// adminSavePrivateScroll creates a new scroll or updates an existing one by (team_id, name).
-// POST /admin/scrolls/private — body: {"name": "...", "content": "...", "team_id": "..."}
-//
-// team_id defaults to "" (global, accessible to all teams).
-// Using (team_id, name) as the upsert key keeps the frontend simple.
-func adminSavePrivateScroll(s *store.Store, actor string) http.HandlerFunc {
+// teamSaveScroll creates or updates a private scroll for the authenticated member's team.
+// Any member can add/edit; only admins can delete (see teamDeleteScroll).
+// POST /team/scrolls  — body: {"name":"...", "content":"..."}
+func teamSaveScroll(s *store.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		sess := sessionFromCtx(r)
 		var body struct {
 			Name    string `json:"name"`
 			Content string `json:"content"`
-			TeamID  string `json:"team_id"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Name == "" {
 			writeError(w, http.StatusBadRequest, "name is required")
@@ -78,11 +74,11 @@ func adminSavePrivateScroll(s *store.Store, actor string) http.HandlerFunc {
 		ctx := r.Context()
 		now := time.Now().UTC().Format(time.RFC3339)
 
-		// Check for an existing scroll with this (team_id, name) pair.
+		// Check if a scroll with this name already exists for this team.
 		var existingID string
 		err := s.DB().QueryRowContext(ctx,
 			`SELECT id FROM private_scrolls WHERE team_id = ? AND name = ?`,
-			body.TeamID, body.Name).Scan(&existingID)
+			sess.teamID, body.Name).Scan(&existingID)
 
 		switch {
 		case err == nil:
@@ -93,7 +89,7 @@ func adminSavePrivateScroll(s *store.Store, actor string) http.HandlerFunc {
 				writeError(w, http.StatusInternalServerError, err.Error())
 				return
 			}
-			writeAudit(s, actor, "update_private_scroll", existingID, hashStr(existingID), hashStr(body.Content))
+			writeAudit(s, sess.email, "team_update_scroll", existingID, hashStr(existingID), hashStr(body.Content))
 			writeJSON(w, http.StatusOK, map[string]string{"id": existingID, "status": "updated"})
 
 		case errors.Is(err, sql.ErrNoRows):
@@ -102,11 +98,11 @@ func adminSavePrivateScroll(s *store.Store, actor string) http.HandlerFunc {
 			if _, err := s.DB().ExecContext(ctx,
 				`INSERT INTO private_scrolls(id, name, content, team_id, created_by, created_at, updated_at)
 				 VALUES (?, ?, ?, ?, ?, ?, ?)`,
-				id, body.Name, body.Content, body.TeamID, actor, now, now); err != nil {
+				id, body.Name, body.Content, sess.teamID, sess.email, now, now); err != nil {
 				writeError(w, http.StatusInternalServerError, err.Error())
 				return
 			}
-			writeAudit(s, actor, "create_private_scroll", id, "", hashStr(body.Content))
+			writeAudit(s, sess.email, "team_create_scroll", id, "", hashStr(body.Content))
 			writeJSON(w, http.StatusCreated, map[string]string{"id": id, "status": "created"})
 
 		default:
@@ -115,24 +111,26 @@ func adminSavePrivateScroll(s *store.Store, actor string) http.HandlerFunc {
 	}
 }
 
-// adminDeletePrivateScroll removes a private scroll by ID.
-// DELETE /admin/scrolls/private/{scroll_id}
-func adminDeletePrivateScroll(s *store.Store, actor string) http.HandlerFunc {
+// teamDeleteScroll removes a private scroll. Only team admins may delete.
+// DELETE /team/scrolls/{id}
+func teamDeleteScroll(s *store.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		scrollID := r.PathValue("scroll_id")
-
-		res, err := s.DB().ExecContext(r.Context(),
-			`DELETE FROM private_scrolls WHERE id = ?`, scrollID)
-		if err != nil {
-			writeError(w, http.StatusInternalServerError, err.Error())
+		sess := sessionFromCtx(r)
+		if !requireAdmin(sess, w) {
 			return
 		}
-		n, _ := res.RowsAffected()
-		if n == 0 {
+		scrollID := r.PathValue("id")
+
+		// Verify the scroll belongs to the session's team before deleting.
+		var teamID string
+		if err := s.DB().QueryRowContext(r.Context(),
+			`SELECT team_id FROM private_scrolls WHERE id = ?`, scrollID).Scan(&teamID); err != nil || teamID != sess.teamID {
 			writeError(w, http.StatusNotFound, "scroll not found")
 			return
 		}
-		writeAudit(s, actor, "delete_private_scroll", scrollID, "", "")
+
+		s.DB().ExecContext(r.Context(), `DELETE FROM private_scrolls WHERE id = ?`, scrollID) //nolint:errcheck
+		writeAudit(s, sess.email, "team_delete_scroll", scrollID, "", "")
 		writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
 	}
 }
