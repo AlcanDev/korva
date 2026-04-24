@@ -48,9 +48,14 @@ func teamListScrolls(s *store.Store) http.HandlerFunc {
 		for rows.Next() {
 			var sc teamScrollRow
 			if err := rows.Scan(&sc.ID, &sc.Name, &sc.Content, &sc.CreatedAt, &sc.UpdatedAt); err != nil {
-				continue
+				writeError(w, http.StatusInternalServerError, "reading scroll row: "+err.Error())
+				return
 			}
 			scrolls = append(scrolls, sc)
+		}
+		if err := rows.Err(); err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"scrolls": scrolls, "count": len(scrolls)})
 	}
@@ -120,16 +125,23 @@ func teamDeleteScroll(s *store.Store) http.HandlerFunc {
 			return
 		}
 		scrollID := r.PathValue("id")
-
-		// Verify the scroll belongs to the session's team before deleting.
-		var teamID string
-		if err := s.DB().QueryRowContext(r.Context(),
-			`SELECT team_id FROM private_scrolls WHERE id = ?`, scrollID).Scan(&teamID); err != nil || teamID != sess.teamID {
-			writeError(w, http.StatusNotFound, "scroll not found")
+		if scrollID == "" {
+			writeError(w, http.StatusBadRequest, "scroll id is required")
 			return
 		}
 
-		s.DB().ExecContext(r.Context(), `DELETE FROM private_scrolls WHERE id = ?`, scrollID) //nolint:errcheck
+		// Atomic verify + delete: WHERE id=? AND team_id=? prevents TOCTOU and
+		// ensures team isolation in a single round-trip.
+		res, err := s.DB().ExecContext(r.Context(),
+			`DELETE FROM private_scrolls WHERE id = ? AND team_id = ?`, scrollID, sess.teamID)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		if n, _ := res.RowsAffected(); n == 0 {
+			writeError(w, http.StatusNotFound, "scroll not found")
+			return
+		}
 		writeAudit(s, sess.email, "team_delete_scroll", scrollID, "", "")
 		writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
 	}

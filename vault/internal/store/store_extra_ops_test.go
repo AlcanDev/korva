@@ -209,6 +209,146 @@ func TestDedup_DifferentTypesNotDuplicates(t *testing.T) {
 	}
 }
 
+// --- Content-hash deduplication (claude-mem) ---
+
+func TestSave_GhostDetection(t *testing.T) {
+	s := newTestStore(t)
+	_, err := s.Save(Observation{Project: "p", Type: "pattern"})
+	if err == nil {
+		t.Fatal("expected error for empty title and content, got nil")
+	}
+}
+
+func TestSave_ContentHashDedup_WithinSession(t *testing.T) {
+	s := newTestStore(t)
+	// Create a real session so the FK constraint is satisfied.
+	sessID, err := s.SessionStart("home-api", "", "", "test-agent", "dedup test")
+	if err != nil {
+		t.Fatalf("SessionStart: %v", err)
+	}
+	obs := Observation{
+		SessionID: sessID,
+		Project:   "home-api",
+		Type:      TypeDecision,
+		Title:     "Use ULID for IDs",
+		Content:   "ULIDs are sortable and URL-safe",
+	}
+	id1, err := s.Save(obs)
+	if err != nil {
+		t.Fatalf("first save: %v", err)
+	}
+	// Second save of identical obs within same session → must return same ID.
+	id2, err := s.Save(obs)
+	if err != nil {
+		t.Fatalf("second save: %v", err)
+	}
+	if id1 != id2 {
+		t.Errorf("within-session dedup: want same ID, got %q vs %q", id1, id2)
+	}
+	// Only one row in DB.
+	all, _ := s.Search("", SearchFilters{Project: "home-api", Limit: 10})
+	if len(all) != 1 {
+		t.Errorf("dedup: want 1 row, got %d", len(all))
+	}
+}
+
+func TestSave_ContentHashDedup_CrossSession_NotDeduped(t *testing.T) {
+	s := newTestStore(t)
+	obs := Observation{
+		Project: "home-api",
+		Type:    TypeDecision,
+		Title:   "Same knowledge, different sessions",
+		Content: "This should be stored twice across different sessions",
+	}
+	// No session_id → not deduplicated.
+	id1, _ := s.Save(obs)
+	id2, _ := s.Save(obs)
+	if id1 == id2 {
+		t.Error("cross-session (no session_id) saves must NOT be deduplicated")
+	}
+}
+
+// --- SDD phase (internal-pattern) ---
+
+func TestSDDPhase_DefaultExplore(t *testing.T) {
+	s := newTestStore(t)
+	state, err := s.GetSDDPhase("my-project")
+	if err != nil {
+		t.Fatalf("GetSDDPhase: %v", err)
+	}
+	if state.Phase != SDDExplore {
+		t.Errorf("default phase = %q, want %q", state.Phase, SDDExplore)
+	}
+}
+
+func TestSDDPhase_SetAndGet(t *testing.T) {
+	s := newTestStore(t)
+	if err := s.SetSDDPhase("api-v2", SDDApply); err != nil {
+		t.Fatalf("SetSDDPhase: %v", err)
+	}
+	state, err := s.GetSDDPhase("api-v2")
+	if err != nil {
+		t.Fatalf("GetSDDPhase: %v", err)
+	}
+	if state.Phase != SDDApply {
+		t.Errorf("got phase %q, want %q", state.Phase, SDDApply)
+	}
+	if state.Project != "api-v2" {
+		t.Errorf("project = %q, want api-v2", state.Project)
+	}
+}
+
+func TestSDDPhase_Update(t *testing.T) {
+	s := newTestStore(t)
+	_ = s.SetSDDPhase("proj", SDDSpec)
+	_ = s.SetSDDPhase("proj", SDDVerify) // advance
+	state, _ := s.GetSDDPhase("proj")
+	if state.Phase != SDDVerify {
+		t.Errorf("updated phase = %q, want %q", state.Phase, SDDVerify)
+	}
+}
+
+// --- OpenSpec (internal-pattern) ---
+
+func TestOpenSpec_EmptyByDefault(t *testing.T) {
+	s := newTestStore(t)
+	spec, err := s.GetOpenSpec("new-project")
+	if err != nil {
+		t.Fatalf("GetOpenSpec: %v", err)
+	}
+	if spec.Content != "" {
+		t.Errorf("new project should have empty OpenSpec, got %q", spec.Content)
+	}
+}
+
+func TestOpenSpec_SaveAndGet(t *testing.T) {
+	s := newTestStore(t)
+	conventions := "Stack: Go 1.22\nArchitecture: hexagonal\nTesting: table-driven"
+	if err := s.SaveOpenSpec("korva", conventions); err != nil {
+		t.Fatalf("SaveOpenSpec: %v", err)
+	}
+	spec, err := s.GetOpenSpec("korva")
+	if err != nil {
+		t.Fatalf("GetOpenSpec: %v", err)
+	}
+	if spec.Content != conventions {
+		t.Errorf("content mismatch: got %q", spec.Content)
+	}
+	if spec.Project != "korva" {
+		t.Errorf("project = %q, want korva", spec.Project)
+	}
+}
+
+func TestOpenSpec_Update(t *testing.T) {
+	s := newTestStore(t)
+	_ = s.SaveOpenSpec("proj", "v1")
+	_ = s.SaveOpenSpec("proj", "v2")
+	spec, _ := s.GetOpenSpec("proj")
+	if spec.Content != "v2" {
+		t.Errorf("want updated content v2, got %q", spec.Content)
+	}
+}
+
 // --- SearchFilters Since/Until ---
 
 func TestSearch_SinceUntil(t *testing.T) {

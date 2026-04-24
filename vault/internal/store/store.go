@@ -1,6 +1,7 @@
 package store
 
 import (
+	"crypto/sha256"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -66,17 +67,46 @@ func (s *Store) DB() *sql.DB {
 // --- vault_save ---
 
 // Save stores an observation after running the privacy filter.
+//
+// Two guards run before the INSERT:
+//  1. Ghost detection (claude-mem): observations with no title AND no content are
+//     silently dropped — they carry zero information and pollute search results.
+//  2. Content-hash deduplication (claude-mem): if an identical observation already
+//     exists (same title, content, and project) the existing ID is returned without
+//     a new row, preventing observation loops in multi-turn sessions.
 func (s *Store) Save(obs Observation) (string, error) {
+	// 1. Ghost detection: at least one of title/content must be non-empty.
+	if strings.TrimSpace(obs.Title) == "" && strings.TrimSpace(obs.Content) == "" {
+		return "", fmt.Errorf("vault_save: observation has neither title nor content")
+	}
+
 	if obs.ID == "" {
 		obs.ID = newID()
 	}
 
-	// Apply privacy filter to both title and content
+	// Apply privacy filter to both title and content.
 	obs.Title = privacy.Filter(obs.Title, s.privatePatterns)
 	obs.Content = privacy.Filter(obs.Content, s.privatePatterns)
 
 	if obs.CreatedAt.IsZero() {
 		obs.CreatedAt = time.Now().UTC()
+	}
+
+	// 2. Content-hash deduplication (claude-mem pattern).
+	//    Prevents observation LOOPS: when an AI agent re-processes the same tool output
+	//    within the same session it would otherwise create identical duplicates.
+	//    Scoped to the active session_id to avoid rejecting deliberate re-saves across
+	//    different sessions (those are intentional and should always be stored).
+	hash := obsContentHash(obs.Title, obs.Content, obs.Project)
+	if obs.SessionID != "" {
+		var existingID string
+		if err := s.db.QueryRow(
+			`SELECT id FROM observations WHERE content_hash = ? AND session_id = ? LIMIT 1`,
+			hash, obs.SessionID,
+		).Scan(&existingID); err == nil {
+			// Identical observation already exists in this session — return its ID silently.
+			return existingID, nil
+		}
 	}
 
 	tags, err := json.Marshal(obs.Tags)
@@ -85,11 +115,11 @@ func (s *Store) Save(obs Observation) (string, error) {
 	}
 
 	_, err = s.db.Exec(`
-		INSERT INTO observations (id, session_id, project, team, country, type, title, content, tags, author, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		INSERT INTO observations (id, session_id, project, team, country, type, title, content, tags, author, created_at, content_hash)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		obs.ID, nullString(obs.SessionID), obs.Project, obs.Team, obs.Country,
 		string(obs.Type), obs.Title, obs.Content, string(tags), obs.Author,
-		obs.CreatedAt.UTC().Format(time.RFC3339),
+		obs.CreatedAt.UTC().Format(time.RFC3339), hash,
 	)
 	if err != nil {
 		return "", fmt.Errorf("inserting observation: %w", err)
@@ -103,6 +133,13 @@ func (s *Store) Save(obs Observation) (string, error) {
 	}
 
 	return obs.ID, nil
+}
+
+// obsContentHash returns a stable 32-hex-char fingerprint for an observation.
+// Scoped by project so identical text in different projects does not deduplicate.
+func obsContentHash(title, content, project string) string {
+	h := sha256.Sum256([]byte(title + "|" + content + "|" + project))
+	return fmt.Sprintf("%x", h)[:32]
 }
 
 // --- vault_get ---
@@ -636,13 +673,261 @@ func (s *Store) Dedup(project string, dryRun bool) (DedupResult, error) {
 		return result, nil
 	}
 
-	res, err := s.db.Exec(deleteQuery, qArgs...)
+	// Wrap delete in a transaction so concurrent inserts don't cause
+	// inconsistent counts between the COUNT query and the DELETE.
+	tx, err := s.db.Begin()
+	if err != nil {
+		return result, fmt.Errorf("dedup begin tx: %w", err)
+	}
+	defer tx.Rollback() //nolint:errcheck
+
+	res, err := tx.Exec(deleteQuery, qArgs...)
 	if err != nil {
 		return result, fmt.Errorf("dedup delete: %w", err)
 	}
 	n, _ := res.RowsAffected()
 	result.Removed = int(n)
+
+	if err := tx.Commit(); err != nil {
+		return result, fmt.Errorf("dedup commit: %w", err)
+	}
 	return result, nil
+}
+
+// ── SDD phase (internal-pattern) ─────────────────────────────────────────────────────
+
+// GetSDDPhase returns the current SDD phase for a project.
+// Returns SDDExplore as default when no phase has been set.
+func (s *Store) GetSDDPhase(project string) (*SDDState, error) {
+	var st SDDState
+	var updatedAt string
+	err := s.db.QueryRow(
+		`SELECT project, phase, updated_at FROM sdd_state WHERE project = ?`, project,
+	).Scan(&st.Project, &st.Phase, &updatedAt)
+	if err == sql.ErrNoRows {
+		return &SDDState{Project: project, Phase: SDDExplore, UpdatedAt: time.Now()}, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get sdd phase: %w", err)
+	}
+	st.UpdatedAt, _ = time.Parse(time.RFC3339, updatedAt)
+	return &st, nil
+}
+
+// SetSDDPhase updates (or inserts) the SDD phase for a project.
+// Returns an error if phase is not a valid SDD phase name.
+func (s *Store) SetSDDPhase(project string, phase SDDPhase) error {
+	valid := false
+	for _, p := range AllSDDPhases {
+		if p == string(phase) {
+			valid = true
+			break
+		}
+	}
+	if !valid {
+		return fmt.Errorf("invalid SDD phase %q — valid phases: %s",
+			phase, strings.Join(AllSDDPhases, ", "))
+	}
+	now := time.Now().UTC().Format(time.RFC3339)
+	_, err := s.db.Exec(`
+		INSERT INTO sdd_state(project, phase, updated_at) VALUES(?,?,?)
+		ON CONFLICT(project) DO UPDATE SET phase=excluded.phase, updated_at=excluded.updated_at`,
+		project, string(phase), now)
+	return err
+}
+
+// ── OpenSpec (internal-pattern project conventions) ─────────────────────────────────
+
+// GetOpenSpec returns the project conventions stored for project.
+// Returns an empty OpenSpec (no error) when nothing has been set yet.
+func (s *Store) GetOpenSpec(project string) (*OpenSpec, error) {
+	var sp OpenSpec
+	var updatedAt string
+	err := s.db.QueryRow(
+		`SELECT project, content, updated_at FROM openspec WHERE project = ?`, project,
+	).Scan(&sp.Project, &sp.Content, &updatedAt)
+	if err == sql.ErrNoRows {
+		return &OpenSpec{Project: project}, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get openspec: %w", err)
+	}
+	sp.UpdatedAt, _ = time.Parse(time.RFC3339, updatedAt)
+	return &sp, nil
+}
+
+// SaveOpenSpec writes (or replaces) the project conventions.
+func (s *Store) SaveOpenSpec(project, content string) error {
+	now := time.Now().UTC().Format(time.RFC3339)
+	_, err := s.db.Exec(`
+		INSERT INTO openspec(project, content, updated_at) VALUES(?,?,?)
+		ON CONFLICT(project) DO UPDATE SET content=excluded.content, updated_at=excluded.updated_at`,
+		project, content, now)
+	return err
+}
+
+// ── Quality gate checkpoints ─────────────────────────────────────────────────
+
+// SaveQualityCheckpoint persists a QA assessment result.
+// If cp.ID is empty a new ULID is generated.
+func (s *Store) SaveQualityCheckpoint(cp QualityCheckpoint) (string, error) {
+	if cp.ID == "" {
+		cp.ID = newID()
+	}
+	if cp.CreatedAt.IsZero() {
+		cp.CreatedAt = time.Now().UTC()
+	}
+
+	findings, err := json.Marshal(cp.Findings)
+	if err != nil {
+		return "", fmt.Errorf("serializing findings: %w", err)
+	}
+
+	gatePassed := 0
+	if cp.GatePassed {
+		gatePassed = 1
+	}
+
+	_, err = s.db.Exec(`
+		INSERT INTO quality_checkpoints
+		(id, project, session_id, phase, language, status, score, findings, notes, gate_passed, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		cp.ID, cp.Project, cp.SessionID, cp.Phase, cp.Language,
+		string(cp.Status), cp.Score, string(findings), cp.Notes,
+		gatePassed, cp.CreatedAt.UTC().Format(time.RFC3339),
+	)
+	if err != nil {
+		return "", fmt.Errorf("inserting quality checkpoint: %w", err)
+	}
+	return cp.ID, nil
+}
+
+// GetQualityCheckpoints returns the most recent quality checkpoints for a project.
+func (s *Store) GetQualityCheckpoints(project string, limit int) ([]QualityCheckpoint, error) {
+	if limit <= 0 {
+		limit = 10
+	}
+	rows, err := s.db.Query(`
+		SELECT id, project, COALESCE(session_id,''), phase, COALESCE(language,''),
+		       status, score, findings, COALESCE(notes,''), gate_passed, created_at
+		FROM quality_checkpoints
+		WHERE project = ?
+		ORDER BY created_at DESC
+		LIMIT ?`, project, limit)
+	if err != nil {
+		return nil, fmt.Errorf("querying checkpoints: %w", err)
+	}
+	defer rows.Close()
+	return scanCheckpoints(rows)
+}
+
+// GetLatestCheckpointForPhase returns the most recent checkpoint for the given project+phase.
+// Returns (nil, nil) when none exists.
+func (s *Store) GetLatestCheckpointForPhase(project, phase string) (*QualityCheckpoint, error) {
+	row := s.db.QueryRow(`
+		SELECT id, project, COALESCE(session_id,''), phase, COALESCE(language,''),
+		       status, score, findings, COALESCE(notes,''), gate_passed, created_at
+		FROM quality_checkpoints
+		WHERE project = ? AND phase = ?
+		ORDER BY created_at DESC
+		LIMIT 1`, project, phase)
+	cp, err := scanCheckpoint(row)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	return cp, err
+}
+
+// GetProjectQualityScore computes a quality score summary for the project.
+func (s *Store) GetProjectQualityScore(project string) (*ProjectQualityScore, error) {
+	ps := &ProjectQualityScore{Project: project}
+
+	rows, err := s.db.Query(`
+		SELECT score, gate_passed, phase, created_at
+		FROM quality_checkpoints
+		WHERE project = ?
+		ORDER BY created_at DESC`, project)
+	if err != nil {
+		return nil, fmt.Errorf("querying quality score: %w", err)
+	}
+	defer rows.Close()
+
+	var total, sum, passed int
+	var latest int
+	var latestPhase string
+	var latestAt time.Time
+	first := true
+
+	for rows.Next() {
+		var score, gatePassed int
+		var phase, createdAt string
+		if err := rows.Scan(&score, &gatePassed, &phase, &createdAt); err != nil {
+			return nil, err
+		}
+		total++
+		sum += score
+		if gatePassed == 1 {
+			passed++
+		}
+		if first {
+			latest = score
+			latestPhase = phase
+			latestAt, _ = time.Parse(time.RFC3339, createdAt)
+			first = false
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	ps.TotalChecks = total
+	ps.PassedGates = passed
+	if total > 0 {
+		ps.LatestScore = latest
+		ps.AverageScore = sum / total
+		ps.LastCheckPhase = latestPhase
+		ps.LastCheckedAt = latestAt
+	}
+	return ps, nil
+}
+
+func scanCheckpoints(rows *sql.Rows) ([]QualityCheckpoint, error) {
+	var result []QualityCheckpoint
+	for rows.Next() {
+		cp, err := scanCheckpoint(rows)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, *cp)
+	}
+	return result, rows.Err()
+}
+
+type cpScanner interface {
+	Scan(dest ...any) error
+}
+
+func scanCheckpoint(sc cpScanner) (*QualityCheckpoint, error) {
+	var cp QualityCheckpoint
+	var gatePassed int
+	var findingsJSON, createdAt string
+
+	err := sc.Scan(
+		&cp.ID, &cp.Project, &cp.SessionID, &cp.Phase, &cp.Language,
+		(*string)(&cp.Status), &cp.Score, &findingsJSON, &cp.Notes,
+		&gatePassed, &createdAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	cp.GatePassed = gatePassed == 1
+	json.Unmarshal([]byte(findingsJSON), &cp.Findings) //nolint:errcheck
+	if cp.Findings == nil {
+		cp.Findings = []QualityFinding{}
+	}
+	cp.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
+	return &cp, nil
 }
 
 func scanObservations(rows *sql.Rows) ([]Observation, error) {

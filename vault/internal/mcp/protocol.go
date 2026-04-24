@@ -26,10 +26,14 @@ type RPCError struct {
 }
 
 // InitializeResult is the response body for the "initialize" method.
+// Instructions is injected as background system context (hermes-agent pattern):
+// the AI receives a compact recall of recent vault observations without having
+// to call vault_context explicitly, enabling zero-friction context loading.
 type InitializeResult struct {
 	ProtocolVersion string       `json:"protocolVersion"`
 	Capabilities    Capabilities `json:"capabilities"`
 	ServerInfo      ServerInfo   `json:"serverInfo"`
+	Instructions    string       `json:"instructions,omitempty"`
 }
 
 // Capabilities describes what the server supports.

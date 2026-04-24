@@ -72,6 +72,11 @@ func Router(s *store.Store, cfg RouterConfig) http.Handler {
 	mux.HandleFunc("GET /api/v1/summary/{project}", withCORS(summary(s)))
 	mux.HandleFunc("GET /api/v1/stats", withCORS(stats(s)))
 
+	// OpenSpec — project conventions (GET public, no auth needed)
+	mux.HandleFunc("GET /api/v1/openspec/{project}", withCORS(getOpenSpec(s)))
+	// SDD phase — (GET public, no auth needed)
+	mux.HandleFunc("GET /api/v1/sdd/{project}", withCORS(getSDDPhase(s)))
+
 	// Prompts
 	mux.HandleFunc("POST /api/v1/prompts", withCORS(savePrompt(s)))
 
@@ -87,6 +92,10 @@ func Router(s *store.Store, cfg RouterConfig) http.Handler {
 
 	adminMW := admin.Middleware(cfg.AdminKeyPath)
 	const actor = "admin"
+
+	// OpenSpec PUT + SDD PUT (write requires admin key)
+	mux.Handle("PUT /api/v1/openspec/{project}", adminMW(withCORS(putOpenSpec(s))))
+	mux.Handle("PUT /api/v1/sdd/{project}", adminMW(withCORS(putSDDPhase(s))))
 
 	mux.Handle("POST /admin/purge", adminMW(withCORS(adminPurgeHandler(s, actor))))
 	mux.Handle("GET /admin/export", adminMW(withCORS(adminExport(s, actor))))
@@ -138,7 +147,7 @@ func Router(s *store.Store, cfg RouterConfig) http.Handler {
 	// existence in the DB implies the vault admin created it with a Teams license.
 	// No separate feature gate is needed here; the gate lives on the admin-side
 	// invite/create routes that bootstrap the team.
-	sessMW := withSession(s)
+	sessMW := withSession(s, lic)
 
 	mux.Handle("GET /team/skills", sessMW(withCORS(teamListSkills(s))))
 	mux.Handle("POST /team/skills", sessMW(withCORS(teamSaveSkill(s))))
