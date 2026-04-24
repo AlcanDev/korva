@@ -19,8 +19,21 @@ export interface Skill {
   name: string
   body: string
   tags: string
+  version: number
+  updated_by: string
+  scope: string
   created_at: string
   updated_at: string
+}
+
+export interface SkillHistoryEntry {
+  id: string
+  skill_id: string
+  version: number
+  body: string
+  changed_by: string
+  summary: string
+  changed_at: string
 }
 
 export function useSkills(teamId?: string) {
@@ -34,11 +47,30 @@ export function useSkills(teamId?: string) {
   })
 }
 
+export function useSkillHistory(skillId: string | null) {
+  return useQuery({
+    queryKey: ['admin', 'skills', skillId, 'history'],
+    queryFn: () =>
+      adminFetch<{ history: SkillHistoryEntry[]; skill_id: string; count: number }>(
+        `/admin/skills/${skillId}/history`
+      ),
+    enabled: !!skillId,
+    retry: false,
+  })
+}
+
 export function useSaveSkill() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (data: { team_id: string; name: string; body: string; tags?: string }) =>
-      adminFetch<{ status: string; id: string }>('/admin/skills', {
+    mutationFn: (data: {
+      team_id: string
+      name: string
+      body: string
+      tags?: string
+      scope?: string
+      summary?: string
+    }) =>
+      adminFetch<{ status: string; id: string; version: number }>('/admin/skills', {
         method: 'POST',
         body: JSON.stringify(data),
       }),
@@ -52,5 +84,25 @@ export function useDeleteSkill() {
     mutationFn: (id: string) =>
       adminFetch<void>(`/admin/skills/${id}`, { method: 'DELETE' }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['admin', 'skills'] }),
+  })
+}
+
+export interface SyncStatusEntry {
+  user_email: string
+  last_sync: string
+  skills_count: number
+  target: string
+  is_up_to_date: boolean
+}
+
+export function useSyncStatus(teamId?: string) {
+  return useQuery({
+    queryKey: ['admin', 'skills', 'sync-status', teamId],
+    queryFn: () =>
+      adminFetch<{ entries: SyncStatusEntry[]; latest_skill_at: string; count: number }>(
+        `/admin/skills/sync-status${teamId ? `?team_id=${teamId}` : ''}`
+      ),
+    retry: false,
+    refetchInterval: 30_000,
   })
 }

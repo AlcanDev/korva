@@ -131,8 +131,11 @@ func Router(s *store.Store, cfg RouterConfig) http.Handler {
 
 	// Skills
 	skillsFeat := requireFeature(lic, license.FeatureAdminSkills)
+	mux.Handle("GET /admin/code-health", adminMW(withCORS(adminCodeHealth(s))))
 	mux.Handle("GET /admin/skills", adminMW(skillsFeat(withCORS(adminListSkills(s)))))
+	mux.Handle("GET /admin/skills/sync-status", adminMW(skillsFeat(withCORS(adminSkillsSyncStatus(s)))))
 	mux.Handle("GET /admin/skills/{id}", adminMW(skillsFeat(withCORS(adminGetSkill(s)))))
+	mux.Handle("GET /admin/skills/{id}/history", adminMW(skillsFeat(withCORS(adminListSkillHistory(s)))))
 	mux.Handle("POST /admin/skills", adminMW(skillsFeat(withCORS(adminSaveSkill(s, actor)))))
 	mux.Handle("DELETE /admin/skills/{id}", adminMW(skillsFeat(withCORS(adminDeleteSkill(s, actor)))))
 
@@ -150,7 +153,10 @@ func Router(s *store.Store, cfg RouterConfig) http.Handler {
 	sessMW := withSession(s, lic)
 
 	mux.Handle("GET /team/skills", sessMW(withCORS(teamListSkills(s))))
+	mux.Handle("GET /team/skills/sync", sessMW(withCORS(teamSyncSkills(s))))
+	mux.Handle("POST /team/skills/sync/report", sessMW(withCORS(teamReportSkillSync(s))))
 	mux.Handle("POST /team/skills", sessMW(withCORS(teamSaveSkill(s))))
+	mux.Handle("GET /team/skills/{id}/history", sessMW(withCORS(teamGetSkillHistory(s))))
 	mux.Handle("DELETE /team/skills/{id}", sessMW(withCORS(teamDeleteSkill(s))))
 
 	mux.Handle("GET /team/scrolls", sessMW(withCORS(teamListScrolls(s))))

@@ -1,4 +1,6 @@
 import { BrowserRouter, Routes, Route, NavLink, Navigate } from 'react-router'
+import { I18nProvider } from '@/contexts/i18n'
+import { ErrorBoundary } from '@/components/ErrorBoundary'
 import {
   LayoutDashboard, Database, Clock, BookOpen, Settings, Activity, Shield
 } from 'lucide-react'
@@ -13,6 +15,8 @@ import Admin from '@/pages/admin/Admin'
 
 export default function App() {
   return (
+    <ErrorBoundary>
+    <I18nProvider>
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<LandingPage />} />
@@ -38,6 +42,8 @@ export default function App() {
         />
       </Routes>
     </BrowserRouter>
+    </I18nProvider>
+    </ErrorBoundary>
   )
 }
 
