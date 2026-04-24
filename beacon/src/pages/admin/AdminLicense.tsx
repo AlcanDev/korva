@@ -1,14 +1,16 @@
 import _React, { useState } from 'react'
-import { ShieldCheck, ShieldOff, RefreshCw, KeyRound } from 'lucide-react'
-import { useLicenseStatus, useLicenseActivate } from '@/api/license'
+import { ShieldCheck, ShieldOff, RefreshCw, KeyRound, ShieldX, AlertTriangle } from 'lucide-react'
+import { useLicenseStatus, useLicenseActivate, useLicenseDeactivate } from '@/api/license'
 import { PageHeader, InfoCallout } from '@/components/PageHeader'
 import { useI18n } from '@/contexts/i18n'
 
 export default function AdminLicense() {
   const { data, isLoading, error, refetch } = useLicenseStatus()
   const activate = useLicenseActivate()
+  const deactivate = useLicenseDeactivate()
   const [keyInput, setKeyInput] = useState('')
   const [msg, setMsg] = useState('')
+  const [confirmDeactivate, setConfirmDeactivate] = useState(false)
   const { t } = useI18n()
 
   const handleActivate = async () => {
@@ -20,6 +22,18 @@ export default function AdminLicense() {
       setKeyInput('')
     } catch {
       setMsg(t.license.activateFailed)
+    }
+  }
+
+  const handleDeactivate = async () => {
+    setMsg('')
+    try {
+      await deactivate.mutateAsync()
+      setMsg(t.license.deactivateSuccess)
+      setConfirmDeactivate(false)
+    } catch {
+      setMsg(t.license.deactivateFailed)
+      setConfirmDeactivate(false)
     }
   }
 
@@ -88,7 +102,7 @@ export default function AdminLicense() {
         )}
       </div>
 
-      {/* Activate form */}
+      {/* Activate form — community tier only */}
       {!isTeams && (
         <div className="rounded-lg border border-[#21262d] bg-[#161b22] p-5">
           <div className="flex items-center gap-2 mb-4">
@@ -118,6 +132,53 @@ export default function AdminLicense() {
           )}
           {error && (
             <p className="mt-2 text-xs text-[#f85149]">{t.license.loadError}</p>
+          )}
+        </div>
+      )}
+
+      {/* Deactivate — teams tier only */}
+      {isTeams && (
+        <div className="rounded-lg border border-[#f8514920] bg-[#f8514906] p-5 mt-2">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex items-start gap-2">
+              <ShieldX size={15} className="text-[#f85149] mt-0.5 flex-shrink-0" />
+              <div>
+                <p className="text-[#e6edf3] text-sm font-medium">{t.license.deactivateTitle}</p>
+                <p className="text-[10px] text-[#8b949e] mt-0.5 max-w-sm">{t.license.deactivateDesc}</p>
+              </div>
+            </div>
+            <div className="flex-shrink-0">
+              {!confirmDeactivate ? (
+                <button
+                  onClick={() => setConfirmDeactivate(true)}
+                  className="px-3 py-1.5 rounded-md text-xs border border-[#f8514930] text-[#f85149] hover:bg-[#f8514915] transition-colors"
+                >
+                  {t.license.deactivate}
+                </button>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setConfirmDeactivate(false)}
+                    className="px-3 py-1.5 rounded-md text-xs border border-[#30363d] text-[#8b949e] hover:bg-[#21262d] transition-colors"
+                  >
+                    {t.common.cancel}
+                  </button>
+                  <button
+                    onClick={handleDeactivate}
+                    disabled={deactivate.isPending}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs bg-[#f85149] text-white hover:bg-[#da3633] disabled:opacity-50 transition-colors"
+                  >
+                    <AlertTriangle size={11} />
+                    {deactivate.isPending ? t.common.saving : t.license.confirmDeactivate}
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+          {msg && (
+            <p className={`mt-3 text-xs ${msg === t.license.deactivateSuccess ? 'text-[#3fb950]' : 'text-[#f85149]'}`}>
+              {msg}
+            </p>
           )}
         </div>
       )}

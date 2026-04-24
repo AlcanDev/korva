@@ -23,8 +23,14 @@ type RouterConfig struct {
 	AdminKeyPath string
 	// License is the active license; nil means Community tier.
 	License *license.License
+	// LicensePath is the filesystem path to the JWS license file.
+	LicensePath string
 	// LicenseStatePath is the path to the persisted license heartbeat state.
 	LicenseStatePath string
+	// ActivationURL is the licensing server endpoint for key exchange.
+	ActivationURL string
+	// InstallID uniquely identifies this vault installation.
+	InstallID string
 	// Mailer sends transactional emails (e.g. invite notifications).
 	// Use email.NewFromEnv() in production; a noopMailer is fine when unconfigured.
 	Mailer email.Mailer
@@ -104,6 +110,8 @@ func Router(s *store.Store, cfg RouterConfig) http.Handler {
 
 	// License — available to all authenticated admin callers
 	mux.Handle("GET /admin/license/status", adminMW(withCORS(licenseStatusHandler(lic, cfg.LicenseStatePath))))
+	mux.Handle("POST /admin/license/activate", adminMW(withCORS(licenseActivateHandler(cfg.ActivationURL, cfg.InstallID, cfg.LicensePath, cfg.LicenseStatePath))))
+	mux.Handle("POST /admin/license/deactivate", adminMW(withCORS(licenseDeactivateHandler(cfg.LicensePath, cfg.LicenseStatePath))))
 
 	// --- Teams (feature-gated) ---
 
