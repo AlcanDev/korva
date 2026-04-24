@@ -12,10 +12,15 @@ import (
 
 // server holds shared dependencies injected at startup.
 type server struct {
-	db      *sql.DB
-	privKey *rsa.PrivateKey
-	kid     string   // JWS key id embedded in client binaries
-	secret  string   // KORVA_LICENSING_ADMIN_SECRET — protects /v1/issue
+	db            *sql.DB
+	privKey       *rsa.PrivateKey
+	kid           string // JWS key id embedded in client binaries
+	secret        string // KORVA_LICENSING_ADMIN_SECRET — programmatic Bearer token
+	adminEmail    string // KORVA_ADMIN_EMAIL — single allowed admin
+	adminPassword string // KORVA_ADMIN_PASSWORD — web UI login password
+	sessionSecret string // KORVA_SESSION_SECRET — HMAC key for session tokens
+	corsOrigin    string // KORVA_ADMIN_CORS_ORIGIN — allowed CORS origin
+	limiter       *rateLimiter
 }
 
 // ─── Health ──────────────────────────────────────────────────────────────────
@@ -124,7 +129,7 @@ func (s *server) handleActivate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+		writeError(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
 	if lic.RevokedAt != nil {
@@ -140,7 +145,7 @@ func (s *server) handleActivate(w http.ResponseWriter, r *http.Request) {
 	// reject new installs over the seat limit.
 	existing, err := countActivations(s.db, lic.ID)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+		writeError(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
 	// Check if this install_id already has an activation (renewal is always allowed).
@@ -156,7 +161,7 @@ func (s *server) handleActivate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := upsertActivation(s.db, lic.ID, req.InstallID); err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+		writeError(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
 
@@ -194,7 +199,7 @@ func (s *server) handleHeartbeat(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+		writeError(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
 	if lic.RevokedAt != nil {
@@ -233,7 +238,7 @@ func (s *server) handleDeactivate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := deleteActivation(s.db, req.LicenseID, req.InstallID); err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+		writeError(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})

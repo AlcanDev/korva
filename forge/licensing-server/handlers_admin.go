@@ -8,11 +8,6 @@ import (
 	"time"
 )
 
-// adminAuth checks the Bearer token — same secret used by POST /v1/issue.
-func (s *server) adminAuth(r *http.Request) bool {
-	return s.secret != "" && r.Header.Get("Authorization") == "Bearer "+s.secret
-}
-
 // GET /v1/admin/licenses?email=&limit=50&offset=0
 //
 // Lists all licenses with active seat counts. Optional ?email= filter.
