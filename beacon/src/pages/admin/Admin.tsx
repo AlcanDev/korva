@@ -1,11 +1,13 @@
 import _React, { useState } from 'react'
 import { NavLink, Routes, Route, Navigate } from 'react-router'
 import {
-  LayoutDashboard, Database, BookOpen, Shield, LogOut,
-  Users, Wand2, Lock, ClipboardList, KeyRound, Menu, X
+  LayoutDashboard, Database, BookOpen, LogOut,
+  Users, Wand2, Lock, ClipboardList, KeyRound, Menu, X, Activity
 } from 'lucide-react'
+import { KorvaLogo } from '@/components/KorvaLogo'
 import { useAdminStore } from '@/stores/admin'
 import { useLicenseStatus } from '@/api/license'
+import { useI18n, type EditorKey, EDITOR_INTEGRATION } from '@/contexts/i18n'
 import AdminLogin from './AdminLogin'
 import AdminDashboard from './AdminDashboard'
 import AdminVault from './AdminVault'
@@ -15,6 +17,7 @@ import AdminTeams from './AdminTeams'
 import AdminSkills from './AdminSkills'
 import AdminScrollsPrivate from './AdminScrollsPrivate'
 import AdminAudit from './AdminAudit'
+import AdminCodeHealth from './AdminCodeHealth'
 
 export default function Admin() {
   const { isAuthenticated, logout } = useAdminStore()
@@ -55,9 +58,7 @@ export default function Admin() {
             <Menu size={20} />
           </button>
           <div className="flex items-center gap-2">
-            <div className="w-5 h-5 rounded bg-[#f0883e30] border border-[#f0883e50] flex items-center justify-center">
-              <Shield size={11} className="text-[#f0883e]" />
-            </div>
+            <KorvaLogo size={20} />
             <span className="font-semibold text-[#e6edf3] text-sm">Korva Admin</span>
           </div>
         </div>
@@ -73,6 +74,7 @@ export default function Admin() {
             <Route path="skills" element={<TeamsGate><AdminSkills /></TeamsGate>} />
             <Route path="scrolls-private" element={<TeamsGate><AdminScrollsPrivate /></TeamsGate>} />
             <Route path="audit" element={<TeamsGate><AdminAudit /></TeamsGate>} />
+            <Route path="code-health" element={<AdminCodeHealth />} />
           </Routes>
         </main>
       </div>
@@ -80,14 +82,15 @@ export default function Admin() {
   )
 }
 
-/** TeamsGate redirects to /admin/license when the license tier is community. */
+/** Shows upgrade prompt when not on Teams tier. */
 function TeamsGate({ children }: { children: React.ReactNode }) {
   const { data, isLoading } = useLicenseStatus()
+  const { t } = useI18n()
 
   if (isLoading) {
     return (
       <div className="p-6">
-        <p className="text-[#8b949e] text-sm">Checking license…</p>
+        <p className="text-[#8b949e] text-sm">{t.license.checkingLicense}</p>
       </div>
     )
   }
@@ -98,11 +101,10 @@ function TeamsGate({ children }: { children: React.ReactNode }) {
         <div className="rounded-lg border border-[#d29922] bg-[#d2992215] p-5">
           <div className="flex items-center gap-3 mb-3">
             <KeyRound size={18} className="text-[#d29922]" />
-            <p className="text-[#e6edf3] font-medium text-sm">Korva for Teams required</p>
+            <p className="text-[#e6edf3] font-medium text-sm">{t.license.teamsRequiredTitle}</p>
           </div>
           <p className="text-[#8b949e] text-xs mb-4">
-            This section requires an active Korva for Teams license.
-            Activate your license key to unlock Teams features.
+            {t.license.teamsRequiredDesc}
           </p>
           <NavLink
             to="/admin/license"
@@ -110,7 +112,7 @@ function TeamsGate({ children }: { children: React.ReactNode }) {
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs bg-[#238636] text-white hover:bg-[#2ea043] transition-colors"
           >
             <KeyRound size={12} />
-            Go to License
+            {t.license.goToLicense}
           </NavLink>
         </div>
       </div>
@@ -120,67 +122,83 @@ function TeamsGate({ children }: { children: React.ReactNode }) {
   return <>{children}</>
 }
 
+const EDITOR_LABELS: Record<EditorKey, string> = Object.fromEntries(
+  Object.entries(EDITOR_INTEGRATION).map(([k, v]) => [k, v.name])
+) as Record<EditorKey, string>
+
 function AdminSidebar({ onLogout, onNavigate }: { onLogout: () => void; onNavigate: () => void }) {
   const { data: lic } = useLicenseStatus()
+  const { t, lang, setLang, editor, setEditor } = useI18n()
   const isTeams = lic?.tier === 'teams'
 
   const communityItems = [
-    { to: 'dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-    { to: 'vault', icon: Database, label: 'Vault Browser' },
-    { to: 'scrolls', icon: BookOpen, label: 'Scrolls' },
-    { to: 'license', icon: KeyRound, label: 'License' },
+    { to: 'dashboard',   icon: LayoutDashboard, label: t.nav.dashboard },
+    { to: 'vault',       icon: Database,        label: t.nav.vaultBrowser,  subtitle: t.nav.vaultSubtitle },
+    { to: 'scrolls',     icon: BookOpen,        label: t.nav.scrolls,       subtitle: t.nav.scrollsSubtitle },
+    { to: 'code-health', icon: Activity,        label: t.nav.codeHealth,    subtitle: t.nav.codeHealthSubtitle },
+    { to: 'license',     icon: KeyRound,        label: t.nav.license },
   ]
 
   const teamsItems = [
-    { to: 'teams', icon: Users, label: 'Teams' },
-    { to: 'skills', icon: Wand2, label: 'Skills' },
-    { to: 'scrolls-private', icon: Lock, label: 'Private Scrolls' },
-    { to: 'audit', icon: ClipboardList, label: 'Audit Log' },
+    { to: 'teams',           icon: Users,         label: t.nav.teams,          subtitle: t.nav.teamsSubtitle },
+    { to: 'skills',          icon: Wand2,         label: t.nav.skills,         subtitle: t.nav.skillsSubtitle },
+    { to: 'scrolls-private', icon: Lock,          label: t.nav.privateScrolls, subtitle: t.nav.privateScrollsSubtitle },
+    { to: 'audit',           icon: ClipboardList, label: t.nav.auditLog },
   ]
 
   return (
     <aside className="w-56 h-full flex-shrink-0 border-r border-[#21262d] flex flex-col bg-[#161b22]">
-      {/* Logo */}
+      {/* Logo + language toggle */}
       <div className="px-4 py-5 border-b border-[#21262d] flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <div className="w-6 h-6 rounded bg-[#f0883e30] border border-[#f0883e50] flex items-center justify-center">
-            <Shield size={13} className="text-[#f0883e]" />
-          </div>
-          <div>
-            <span className="font-semibold text-[#e6edf3] text-sm">Korva Admin</span>
-            <div className="text-[10px] text-[#f0883e]">Private access</div>
+        <div className="flex items-center gap-2 min-w-0">
+          <KorvaLogo size={24} className="flex-shrink-0" />
+          <div className="min-w-0">
+            <span className="font-semibold text-[#e6edf3] text-sm block truncate">{t.nav.korvaAdmin}</span>
+            <div className="text-[10px] text-[#f0883e]">{t.nav.privateAccess}</div>
           </div>
         </div>
-        {/* Close button — mobile only */}
-        <button
-          onClick={onNavigate}
-          className="md:hidden text-[#8b949e] hover:text-[#e6edf3] transition-colors"
-          aria-label="Close menu"
-        >
-          <X size={16} />
-        </button>
+        <div className="flex items-center gap-1 flex-shrink-0">
+          {/* Close button — mobile only */}
+          <button
+            onClick={onNavigate}
+            className="md:hidden text-[#8b949e] hover:text-[#e6edf3] transition-colors"
+            aria-label={t.common.closeMenu}
+          >
+            <X size={16} />
+          </button>
+          {/* Language toggle */}
+          <button
+            onClick={() => setLang(lang === 'en' ? 'es' : 'en')}
+            className="text-[10px] font-mono text-[#484f58] hover:text-[#8b949e] border border-[#30363d] hover:border-[#484f58] rounded px-1.5 py-0.5 transition-colors"
+            title={lang === 'en' ? 'Cambiar a Español' : 'Switch to English'}
+          >
+            {lang === 'en' ? 'ES' : 'EN'}
+          </button>
+        </div>
       </div>
 
       {/* Nav */}
       <nav className="flex-1 py-3 px-2 space-y-0.5 overflow-y-auto">
-        {communityItems.map(({ to, icon: Icon, label }) => (
-          <SidebarLink key={to} to={to} icon={Icon} label={label} onClick={onNavigate} />
+        {communityItems.map(({ to, icon: Icon, label, subtitle }) => (
+          <SidebarLink key={to} to={to} icon={Icon} label={label} subtitle={subtitle} onClick={onNavigate} />
         ))}
 
-        {isTeams && (
-          <>
-            <div className="px-3 pt-3 pb-1">
-              <p className="text-[10px] text-[#484f58] uppercase tracking-wider">Teams</p>
-            </div>
-            {teamsItems.map(({ to, icon: Icon, label }) => (
-              <SidebarLink key={to} to={to} icon={Icon} label={label} onClick={onNavigate} />
-            ))}
-          </>
-        )}
+        {/* Teams section — always visible, locked when Community */}
+        <div className="px-3 pt-3 pb-1">
+          <div className="flex items-center gap-1.5">
+            <p className="text-[10px] text-[#484f58] uppercase tracking-wider">{t.nav.teamsSection}</p>
+            {!isTeams && <Lock size={9} className="text-[#484f58]" />}
+          </div>
+        </div>
+        {teamsItems.map(({ to, icon: Icon, label, subtitle }) => (
+          isTeams
+            ? <SidebarLink key={to} to={to} icon={Icon} label={label} subtitle={subtitle} onClick={onNavigate} />
+            : <LockedSidebarLink key={to} to={to} icon={Icon} label={label} subtitle={subtitle} onClick={onNavigate} />
+        ))}
       </nav>
 
-      {/* Tier badge */}
-      <div className="px-4 py-2 border-t border-[#21262d]">
+      {/* Tier badge + version */}
+      <div className="px-4 py-2 border-t border-[#21262d] flex items-center justify-between">
         <span className={`text-[10px] px-2 py-0.5 rounded-full border ${
           isTeams
             ? 'bg-[#388bfd20] text-[#388bfd] border-[#388bfd30]'
@@ -188,6 +206,21 @@ function AdminSidebar({ onLogout, onNavigate }: { onLogout: () => void; onNaviga
         }`}>
           {isTeams ? 'Teams' : 'Community'}
         </span>
+        <span className="text-[9px] text-[#30363d] font-mono">v1.0.0</span>
+      </div>
+
+      {/* Editor preference */}
+      <div className="px-4 py-2 border-t border-[#21262d]">
+        <p className="text-[9px] text-[#484f58] uppercase tracking-wider mb-1">{t.editor.label}</p>
+        <select
+          value={editor}
+          onChange={e => setEditor(e.target.value as EditorKey)}
+          className="w-full bg-[#0d1117] border border-[#30363d] rounded px-2 py-1 text-[10px] text-[#8b949e] focus:outline-none focus:border-[#388bfd] transition-colors"
+        >
+          {(Object.entries(EDITOR_LABELS) as [EditorKey, string][]).map(([key, label]) => (
+            <option key={key} value={key}>{label}</option>
+          ))}
+        </select>
       </div>
 
       {/* Logout */}
@@ -197,28 +230,67 @@ function AdminSidebar({ onLogout, onNavigate }: { onLogout: () => void; onNaviga
           className="flex items-center gap-2.5 w-full px-3 py-2 rounded-md text-sm text-[#8b949e] hover:text-[#f85149] hover:bg-[#f8514910] transition-colors"
         >
           <LogOut size={15} />
-          Sign out
+          {t.nav.signOut}
         </button>
       </div>
     </aside>
   )
 }
 
-function SidebarLink({ to, icon: Icon, label, onClick }: { to: string; icon: React.ElementType; label: string; onClick: () => void }) {
+function SidebarLink({ to, icon: Icon, label, subtitle, onClick }: {
+  to: string
+  icon: React.ElementType
+  label: string
+  subtitle?: string
+  onClick: () => void
+}) {
   return (
     <NavLink
       to={`/admin/${to}`}
       onClick={onClick}
       className={({ isActive }) =>
-        `flex items-center gap-2.5 px-3 py-2 rounded-md text-sm transition-colors ${
+        `flex items-center gap-2.5 px-3 py-2 rounded-md transition-colors ${
           isActive
             ? 'bg-[#21262d] text-[#e6edf3]'
             : 'text-[#8b949e] hover:text-[#e6edf3] hover:bg-[#21262d]'
         }`
       }
     >
-      <Icon size={15} />
-      {label}
+      <Icon size={15} className="flex-shrink-0" />
+      <div className="flex-1 min-w-0">
+        <span className="block text-sm truncate leading-tight">{label}</span>
+        {subtitle && <span className="block text-[9px] text-[#484f58] truncate leading-tight mt-px">{subtitle}</span>}
+      </div>
+    </NavLink>
+  )
+}
+
+/** Navigates to the page but shows lock icon — TeamsGate handles the upgrade prompt. */
+function LockedSidebarLink({ to, icon: Icon, label, subtitle, onClick }: {
+  to: string
+  icon: React.ElementType
+  label: string
+  subtitle?: string
+  onClick: () => void
+}) {
+  return (
+    <NavLink
+      to={`/admin/${to}`}
+      onClick={onClick}
+      className={({ isActive }) =>
+        `flex items-center gap-2.5 px-3 py-2 rounded-md transition-colors ${
+          isActive
+            ? 'bg-[#21262d] text-[#8b949e]'
+            : 'text-[#484f58] hover:text-[#8b949e] hover:bg-[#21262d]'
+        }`
+      }
+    >
+      <Icon size={15} className="flex-shrink-0" />
+      <div className="flex-1 min-w-0">
+        <span className="block text-sm truncate leading-tight">{label}</span>
+        {subtitle && <span className="block text-[9px] truncate leading-tight mt-px opacity-60">{subtitle}</span>}
+      </div>
+      <Lock size={11} className="flex-shrink-0 opacity-60" />
     </NavLink>
   )
 }

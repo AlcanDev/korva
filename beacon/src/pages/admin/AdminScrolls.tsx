@@ -1,8 +1,8 @@
 import { useState } from 'react'
-import { BookOpen, Plus, Save, RefreshCw, CheckCircle, AlertTriangle } from 'lucide-react'
-
-// Scroll management — this page lets you view and edit the AI instructions
-// that get injected into projects via korva init --profile
+import { BookOpen, Plus, Save, RefreshCw, CheckCircle, AlertTriangle, Info } from 'lucide-react'
+import { PageHeader, InfoCallout } from '@/components/PageHeader'
+import { GlossaryCallout, TermTooltip } from '@/components/Glossary'
+import { useI18n, EDITOR_INTEGRATION } from '@/contexts/i18n'
 
 interface ScrollEntry {
   id: string
@@ -11,7 +11,6 @@ interface ScrollEntry {
   path: string
 }
 
-// Default scrolls matching the team profile
 const DEFAULT_SCROLLS: ScrollEntry[] = [
   { id: 'nestjs-hexagonal', title: 'NestJS Hexagonal Architecture', active: true, path: 'scrolls/nestjs-hexagonal/SCROLL.md' },
   { id: 'nestjs-bff', title: 'NestJS BFF Pattern', active: true, path: 'scrolls/nestjs-bff/SCROLL.md' },
@@ -45,13 +44,14 @@ export default function AdminScrolls() {
   const [editingInstruction, setEditingInstruction] = useState<'copilot' | 'claude' | null>(null)
   const [instructionText, setInstructionText] = useState('')
   const [saved, setSaved] = useState(false)
+  const { t, editor } = useI18n()
+  const editorInfo = EDITOR_INTEGRATION[editor]
 
   function toggleScroll(id: string) {
     setScrolls(prev => prev.map(s => s.id === id ? { ...s, active: !s.active } : s))
   }
 
   function handleSaveScrolls() {
-    // In production: PATCH /admin/scrolls with the active list
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
   }
@@ -60,37 +60,74 @@ export default function AdminScrolls() {
 
   return (
     <div className="p-4 sm:p-6 space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-lg font-semibold text-[#e6edf3]">Scrolls & Instructions</h2>
-          <p className="text-sm text-[#8b949e] mt-0.5">
-            Manage the knowledge loaded into your AI assistants
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        icon={<BookOpen size={17} />}
+        iconColor="#a371f7"
+        title={t.scrolls.title}
+        description={t.scrolls.description}
+        hint={{ command: 'korva lore list', label: t.scrolls.hintLabel }}
+      />
+      <InfoCallout
+        icon={<Info size={12} />}
+        title={t.scrolls.howItWorksTitle}
+        variant="info"
+        collapsible
+        id="scrolls-how-it-works"
+      >
+        <p>{t.scrolls.howItWorksBody}</p>
+        <p className="mt-1">
+          {t.scrolls.instructionsBody}{' '}
+          <span className="text-[#8b949e]">{t.editor.label}:</span>{' '}
+          <code className="font-mono bg-[#0d1117] border border-[#30363d] px-1 py-0.5 rounded text-[#a371f7]">
+            {editorInfo.instructionFile}
+          </code>
+        </p>
+        <p className="mt-2 pt-2 border-t border-[#388bfd15]">
+          <TermTooltip term={t.glossary.scrollTerm} definition={t.glossary.scrollDef}>
+            {t.glossary.scrollTerm}
+          </TermTooltip>
+          {' · '}
+          <TermTooltip term={t.glossary.hiveTerm} definition={t.glossary.hiveDef}>
+            {t.glossary.hiveTerm}
+          </TermTooltip>
+          {' · '}
+          <TermTooltip term={t.glossary.mcpTerm} definition={t.glossary.mcpDef}>
+            {t.glossary.mcpTerm}
+          </TermTooltip>
+          <span className="text-[#484f58]">{t.glossary.hoverHint}</span>
+        </p>
+      </InfoCallout>
+      <GlossaryCallout />
 
       {/* Tabs */}
       <div className="flex border-b border-[#21262d]">
-        {(['scrolls', 'instructions'] as const).map(tab => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className={`px-4 py-2 text-sm font-medium capitalize transition-colors border-b-2 -mb-px ${
-              activeTab === tab
-                ? 'border-[#388bfd] text-[#e6edf3]'
-                : 'border-transparent text-[#8b949e] hover:text-[#e6edf3]'
-            }`}
-          >
-            {tab}
-          </button>
-        ))}
+        <button
+          onClick={() => setActiveTab('scrolls')}
+          className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
+            activeTab === 'scrolls'
+              ? 'border-[#388bfd] text-[#e6edf3]'
+              : 'border-transparent text-[#8b949e] hover:text-[#e6edf3]'
+          }`}
+        >
+          {t.scrolls.tabScrolls}
+        </button>
+        <button
+          onClick={() => setActiveTab('instructions')}
+          className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
+            activeTab === 'instructions'
+              ? 'border-[#388bfd] text-[#e6edf3]'
+              : 'border-transparent text-[#8b949e] hover:text-[#e6edf3]'
+          }`}
+        >
+          {t.scrolls.tabInstructions}
+        </button>
       </div>
 
       {activeTab === 'scrolls' && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <p className="text-xs text-[#8b949e]">
-              {activeCount} of {scrolls.length} scrolls active — loaded by AI on each session
+              {t.scrolls.activeCountLabel(activeCount, scrolls.length)}
             </p>
             <button
               onClick={handleSaveScrolls}
@@ -101,7 +138,7 @@ export default function AdminScrolls() {
               }`}
             >
               {saved ? <CheckCircle size={13} /> : <Save size={13} />}
-              {saved ? 'Saved!' : 'Save changes'}
+              {saved ? t.scrolls.savedOk : t.scrolls.saveChanges}
             </button>
           </div>
 
@@ -135,19 +172,14 @@ export default function AdminScrolls() {
 
           <div className="bg-[#388bfd12] border border-[#388bfd30] rounded-lg p-4 flex gap-3">
             <AlertTriangle size={14} className="text-[#388bfd] flex-shrink-0 mt-0.5" />
-            <p className="text-xs text-[#8b949e]">
-              Changes here update the active scroll list in <code className="text-[#79c0ff]">~/.korva/config.json</code>.
-              Run <code className="text-[#79c0ff]">korva sync --profile</code> to push changes to the team.
-            </p>
+            <p className="text-xs text-[#8b949e]">{t.scrolls.syncHint}</p>
           </div>
         </div>
       )}
 
       {activeTab === 'instructions' && (
         <div className="space-y-4">
-          <p className="text-xs text-[#8b949e]">
-            These files get injected into project AI instruction files via <code className="text-[#79c0ff]">korva init --profile</code>
-          </p>
+          <p className="text-xs text-[#8b949e]">{t.scrolls.instructionNote}</p>
 
           {editingInstruction ? (
             <div className="space-y-3">
@@ -160,7 +192,7 @@ export default function AdminScrolls() {
                     onClick={() => setEditingInstruction(null)}
                     className="px-3 py-1.5 text-xs text-[#8b949e] border border-[#30363d] rounded-lg hover:bg-[#21262d]"
                   >
-                    Cancel
+                    {t.common.cancel}
                   </button>
                   <button
                     onClick={() => {
@@ -170,7 +202,7 @@ export default function AdminScrolls() {
                     }}
                     className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-[#238636] hover:bg-[#2ea043] text-white rounded-lg"
                   >
-                    <Save size={12} /> Save
+                    <Save size={12} /> {t.common.save}
                   </button>
                 </div>
               </div>
@@ -198,7 +230,7 @@ export default function AdminScrolls() {
                         }}
                         className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-[#8b949e] border border-[#30363d] rounded-lg hover:bg-[#21262d] hover:text-[#e6edf3] transition-colors"
                       >
-                        <RefreshCw size={12} /> Edit
+                        <RefreshCw size={12} /> {t.common.edit}
                       </button>
                       <button
                         onClick={() => {
@@ -207,7 +239,7 @@ export default function AdminScrolls() {
                         }}
                         className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-[#21262d] hover:bg-[#30363d] text-[#e6edf3] rounded-lg transition-colors"
                       >
-                        <Plus size={12} /> New
+                        <Plus size={12} /> {t.common.new}
                       </button>
                     </div>
                   </div>
