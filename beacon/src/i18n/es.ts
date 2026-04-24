@@ -88,6 +88,12 @@ export const es = {
     teamsRequiredTitle: 'Se requiere Korva for Teams',
     teamsRequiredDesc: 'Esta sección requiere una licencia activa de Korva for Teams. Activa tu licencia para desbloquear las funciones de equipos.',
     goToLicense: 'Ir a Licencia',
+    deactivateTitle: 'Desactivar licencia',
+    deactivateDesc: 'Elimina los archivos locales de licencia y estado. El vault volverá al tier Community. El seat queda libre en el servidor de licencias.',
+    deactivate: 'Desactivar',
+    confirmDeactivate: 'Confirmar desactivación',
+    deactivateSuccess: 'Licencia desactivada — el vault ahora está en tier Community.',
+    deactivateFailed: 'No se pudo desactivar.',
   },
   dashboard: {
     title: 'Resumen del Sistema',
