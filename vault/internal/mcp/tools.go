@@ -1,6 +1,12 @@
 package mcp
 
-// tools returns the list of all 10 MCP tools exposed by Vault.
+// obsTypeEnum lists all valid observation types (used in tool schemas).
+var obsTypeEnum = []string{
+	"decision", "pattern", "bugfix", "learning", "context",
+	"antipattern", "task", "feature", "refactor", "discovery",
+}
+
+// tools returns the list of all MCP tools exposed by Vault.
 func tools() []Tool {
 	return []Tool{
 		{
@@ -12,20 +18,22 @@ func tools() []Tool {
 					"title":   {Type: "string", Description: "Short descriptive title (max 100 chars)"},
 					"content": {Type: "string", Description: "Full content of the observation"},
 					"type": {Type: "string", Description: "Observation type",
-						Enum: []string{"decision", "pattern", "bugfix", "learning", "context", "antipattern", "task"}},
-					"tags":      {Type: "array", Description: "List of relevant tags"},
-					"project":   {Type: "string", Description: "Project name (e.g., 'home-api')"},
-					"team":      {Type: "string", Description: "Team name (e.g., 'backend-seguros')"},
-					"country":   {Type: "string", Description: "Country code: CL, PE, CO, or ALL"},
-					"author":    {Type: "string", Description: "Author (developer username or AI agent name)"},
+						Enum: obsTypeEnum},
+					"tags":       {Type: "array", Description: "List of relevant tags"},
+					"project":    {Type: "string", Description: "Project name (e.g., 'home-api')"},
+					"team":       {Type: "string", Description: "Team name (e.g., 'backend-seguros')"},
+					"country":    {Type: "string", Description: "Country code: CL, PE, CO, or ALL"},
+					"author":     {Type: "string", Description: "Author (developer username or AI agent name)"},
 					"session_id": {Type: "string", Description: "Active session ID (optional)"},
 				},
 				Required: []string{"title", "content", "type"},
 			},
 		},
 		{
-			Name:        "vault_search",
-			Description: "Search the Vault using full-text search. Use BEFORE proposing solutions to check for prior decisions and patterns.",
+			Name: "vault_search",
+			Description: "Search the Vault using full-text search. Use BEFORE proposing solutions to check for prior decisions and patterns. " +
+				"Pass compact=true for a lightweight index (IDs + titles only) that costs far fewer tokens — " +
+				"then call vault_get for the full text of specific entries.",
 			InputSchema: Schema{
 				Type: "object",
 				Properties: map[string]Property{
@@ -35,6 +43,7 @@ func tools() []Tool {
 					"country": {Type: "string", Description: "Filter by country code"},
 					"type":    {Type: "string", Description: "Filter by observation type"},
 					"limit":   {Type: "number", Description: "Max results (default: 20)"},
+					"compact": {Type: "boolean", Description: "Return compact index (id + type + title + project only). Default: false"},
 				},
 			},
 		},
@@ -163,12 +172,78 @@ func tools() []Tool {
 				Properties: map[string]Property{
 					"project": {Type: "string", Description: "Filter by project name"},
 					"team":    {Type: "string", Description: "Filter by team name"},
-					"type": {Type: "string", Description: "Filter by observation type",
-						Enum: []string{"decision", "pattern", "bugfix", "learning", "context", "antipattern", "task"}},
-					"since": {Type: "string", Description: "Return observations created at or after this RFC3339 timestamp"},
-					"until": {Type: "string", Description: "Return observations created at or before this RFC3339 timestamp"},
-					"limit": {Type: "number", Description: "Maximum results (default: 20, max: 100)"},
+					"type":    {Type: "string", Description: "Filter by observation type", Enum: obsTypeEnum},
+					"since":   {Type: "string", Description: "Return observations created at or after this RFC3339 timestamp"},
+					"until":   {Type: "string", Description: "Return observations created at or before this RFC3339 timestamp"},
+					"limit":   {Type: "number", Description: "Maximum results (default: 20, max: 100)"},
 				},
+			},
+		},
+		{
+			Name: "vault_sdd_phase",
+			Description: "Read or update the Spec-Driven Development (SDD) phase for a project. " +
+				"SDD phases: explore → propose → spec → design → tasks → apply → verify → archive → onboard. " +
+				"Call with only 'project' to GET the current phase. Include 'phase' to SET a new phase. " +
+				"The active phase is automatically included in vault_context responses so the AI always knows where development stands.",
+			InputSchema: Schema{
+				Type: "object",
+				Properties: map[string]Property{
+					"project": {Type: "string", Description: "Project name (required)"},
+					"phase": {Type: "string", Description: "New phase to set (omit to just read)",
+						Enum: []string{"explore", "propose", "spec", "design", "tasks", "apply", "verify", "archive", "onboard"}},
+				},
+				Required: []string{"project"},
+			},
+		},
+		{
+			Name: "vault_qa_checklist",
+			Description: "Get the quality checklist for a specific SDD phase and optional language. " +
+				"Returns criteria with IDs, categories, severity levels, and guidance. " +
+				"Call before starting an implementation or review to know exactly what to check. " +
+				"Use the criterion IDs (e.g. APP-001, GO-APP-001) as 'rule' values in vault_qa_checkpoint findings.",
+			InputSchema: Schema{
+				Type: "object",
+				Properties: map[string]Property{
+					"phase": {Type: "string", Description: "SDD phase to get checklist for",
+						Enum: []string{"explore", "propose", "spec", "design", "tasks", "apply", "verify", "archive", "onboard"}},
+					"language": {Type: "string",
+						Description: "Programming language for additional language-specific criteria: go, typescript, react. Omit for general criteria only."},
+				},
+				Required: []string{"phase"},
+			},
+		},
+		{
+			Name: "vault_qa_checkpoint",
+			Description: "Record a QA assessment result for the current SDD phase. " +
+				"The AI performs the assessment against vault_qa_checklist criteria and calls this to persist findings. " +
+				"For gated transitions (apply→verify, verify→archive) a checkpoint with gate_passed=true is required before vault_sdd_phase will allow the advance. " +
+				"Include one finding per criterion ID evaluated.",
+			InputSchema: Schema{
+				Type: "object",
+				Properties: map[string]Property{
+					"project":  {Type: "string", Description: "Project name (required)"},
+					"phase":    {Type: "string", Description: "SDD phase that was assessed (required)"},
+					"language": {Type: "string", Description: "Language evaluated: go, typescript, react (optional)"},
+					"status": {Type: "string", Description: "Overall assessment status",
+						Enum: []string{"pass", "fail", "partial", "skip"}},
+					"score":      {Type: "number", Description: "Quality score 0–100. gate_passed=true requires score ≥ 70"},
+					"findings":   {Type: "array", Description: "Array of {rule, status, notes} objects — one per criterion evaluated. rule = criterion ID (e.g. APP-001)"},
+					"notes":      {Type: "string", Description: "General notes about the checkpoint (optional)"},
+					"gate_passed": {Type: "boolean", Description: "true when ALL required criteria pass and score ≥ 70. Unlocks gated phase transitions."},
+					"session_id": {Type: "string", Description: "Active session ID (optional)"},
+				},
+				Required: []string{"project", "phase", "status", "score"},
+			},
+		},
+		{
+			Name: "vault_team_context",
+			Description: "Fetch your team's custom skills and private scrolls. " +
+				"Returns team architecture guides, custom AI instructions, and internal knowledge docs. " +
+				"Requires a session token passed as session_token in initialize params. " +
+				"Call at the start of work on a team project to load all team-specific context.",
+			InputSchema: Schema{
+				Type:       "object",
+				Properties: map[string]Property{},
 			},
 		},
 	}

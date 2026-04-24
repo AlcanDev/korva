@@ -3,7 +3,9 @@ package mcp
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 	"strings"
 	"testing"
@@ -89,9 +91,10 @@ func TestToolsList(t *testing.T) {
 	if !ok {
 		t.Fatal("tools should be an array")
 	}
-	const wantTools = 13 // vault_save, vault_search, vault_context, vault_timeline,
+	const wantTools = 17 // vault_save, vault_search, vault_context, vault_timeline,
 	// vault_get, vault_session_start, vault_session_end, vault_summary,
-	// vault_save_prompt, vault_stats, vault_delete, vault_query, vault_bulk_save
+	// vault_save_prompt, vault_stats, vault_delete, vault_query, vault_bulk_save,
+	// vault_sdd_phase, vault_qa_checklist, vault_qa_checkpoint, vault_team_context
 	if len(toolsArr) != wantTools {
 		t.Errorf("expected exactly %d tools, got %d", wantTools, len(toolsArr))
 	}
@@ -334,6 +337,190 @@ func TestEmptyLineIgnored(t *testing.T) {
 	}
 }
 
+// ─── vault_qa_checklist ───────────────────────────────────────────────────────
+
+func TestToolCall_VaultQAChecklist_ReturnsGeneral(t *testing.T) {
+	req := `{"jsonrpc":"2.0","id":20,"method":"tools/call","params":{"name":"vault_qa_checklist","arguments":{"phase":"apply"}}}`
+	resp := sendAndReceive(t, req)
+
+	if resp.Error != nil {
+		t.Fatalf("vault_qa_checklist error: %v", resp.Error)
+	}
+	raw, _ := json.Marshal(resp.Result)
+	var result ToolCallResult
+	json.Unmarshal(raw, &result)
+	if len(result.Content) == 0 {
+		t.Fatal("expected content in response")
+	}
+	text := result.Content[0].Text
+	if !strings.Contains(text, "APP-001") {
+		t.Errorf("apply checklist should contain APP-001, got: %s", text)
+	}
+}
+
+func TestToolCall_VaultQAChecklist_WithLanguage(t *testing.T) {
+	req := `{"jsonrpc":"2.0","id":21,"method":"tools/call","params":{"name":"vault_qa_checklist","arguments":{"phase":"apply","language":"go"}}}`
+	resp := sendAndReceive(t, req)
+
+	if resp.Error != nil {
+		t.Fatalf("vault_qa_checklist error: %v", resp.Error)
+	}
+	raw, _ := json.Marshal(resp.Result)
+	var result ToolCallResult
+	json.Unmarshal(raw, &result)
+	text := result.Content[0].Text
+	// Should include both general and Go-specific criteria.
+	if !strings.Contains(text, "APP-001") {
+		t.Errorf("expected APP-001 in go/apply checklist")
+	}
+	if !strings.Contains(text, "GO-APP-001") {
+		t.Errorf("expected GO-APP-001 in go/apply checklist")
+	}
+}
+
+func TestToolCall_VaultQAChecklist_MissingPhase(t *testing.T) {
+	req := `{"jsonrpc":"2.0","id":22,"method":"tools/call","params":{"name":"vault_qa_checklist","arguments":{}}}`
+	resp := sendAndReceive(t, req)
+
+	if resp.Error != nil {
+		t.Fatalf("unexpected RPC error: %v", resp.Error)
+	}
+	raw, _ := json.Marshal(resp.Result)
+	var result ToolCallResult
+	json.Unmarshal(raw, &result)
+	if !result.IsError {
+		t.Error("missing phase should return isError=true")
+	}
+}
+
+// ─── vault_qa_checkpoint ──────────────────────────────────────────────────────
+
+func TestToolCall_VaultQACheckpoint_Save(t *testing.T) {
+	req := `{"jsonrpc":"2.0","id":23,"method":"tools/call","params":{"name":"vault_qa_checkpoint","arguments":{"project":"p","phase":"apply","status":"pass","score":85,"gate_passed":true,"findings":[{"rule":"APP-001","status":"pass","notes":"all tests present"}]}}}`
+	resp := sendAndReceive(t, req)
+
+	if resp.Error != nil {
+		t.Fatalf("vault_qa_checkpoint error: %v", resp.Error)
+	}
+	raw, _ := json.Marshal(resp.Result)
+	var result ToolCallResult
+	json.Unmarshal(raw, &result)
+	if len(result.Content) == 0 {
+		t.Fatal("expected content in response")
+	}
+	text := result.Content[0].Text
+	if !strings.Contains(text, `"id"`) {
+		t.Errorf("response should contain checkpoint id, got: %s", text)
+	}
+	if !strings.Contains(text, "gate_unlocked") {
+		t.Errorf("passing gate should include gate_unlocked message, got: %s", text)
+	}
+}
+
+func TestToolCall_VaultQACheckpoint_Fail_HasGateNote(t *testing.T) {
+	req := `{"jsonrpc":"2.0","id":24,"method":"tools/call","params":{"name":"vault_qa_checkpoint","arguments":{"project":"p","phase":"apply","status":"fail","score":40,"gate_passed":false}}}`
+	resp := sendAndReceive(t, req)
+
+	if resp.Error != nil {
+		t.Fatalf("vault_qa_checkpoint error: %v", resp.Error)
+	}
+	raw, _ := json.Marshal(resp.Result)
+	var result ToolCallResult
+	json.Unmarshal(raw, &result)
+	text := result.Content[0].Text
+	if !strings.Contains(text, "gate_note") {
+		t.Errorf("failing gate should include gate_note, got: %s", text)
+	}
+}
+
+// ─── vault_sdd_phase gate enforcement ────────────────────────────────────────
+
+func TestToolCall_SDDPhase_GatedTransition_Blocked(t *testing.T) {
+	// Try to advance from apply → verify without a passing checkpoint.
+	// The server should reject the transition.
+	srv, out := newTestServer(t, "")
+	srv.reader = bufio.NewReader(strings.NewReader(
+		// Set phase to apply first.
+		`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"vault_sdd_phase","arguments":{"project":"proj","phase":"apply"}}}` + "\n" +
+			// Now try to advance to verify — should fail.
+			`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"vault_sdd_phase","arguments":{"project":"proj","phase":"verify"}}}` + "\n",
+	))
+	_ = srv.Run()
+
+	dec := json.NewDecoder(out)
+	var r1, r2 Response
+	dec.Decode(&r1)
+	dec.Decode(&r2)
+
+	if r1.Error != nil {
+		t.Fatalf("set apply phase error: %v", r1.Error)
+	}
+
+	// r2 result should be isError=true (gate blocked).
+	raw, _ := json.Marshal(r2.Result)
+	var result ToolCallResult
+	json.Unmarshal(raw, &result)
+	if !result.IsError {
+		t.Error("advancing apply→verify without checkpoint should be blocked (isError=true)")
+	}
+	if !strings.Contains(result.Content[0].Text, "quality gate") {
+		t.Errorf("error message should mention quality gate, got: %s", result.Content[0].Text)
+	}
+}
+
+func TestToolCall_SDDPhase_GatedTransition_Unlocked(t *testing.T) {
+	// Save a passing checkpoint then advance the phase — should succeed.
+	srv, out := newTestServer(t, "")
+	srv.reader = bufio.NewReader(strings.NewReader(
+		// Set phase to apply.
+		`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"vault_sdd_phase","arguments":{"project":"proj2","phase":"apply"}}}` + "\n" +
+			// Submit passing checkpoint.
+			`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"vault_qa_checkpoint","arguments":{"project":"proj2","phase":"apply","status":"pass","score":90,"gate_passed":true}}}` + "\n" +
+			// Now advance to verify — should succeed.
+			`{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"vault_sdd_phase","arguments":{"project":"proj2","phase":"verify"}}}` + "\n",
+	))
+	_ = srv.Run()
+
+	dec := json.NewDecoder(out)
+	var r1, r2, r3 Response
+	dec.Decode(&r1)
+	dec.Decode(&r2)
+	dec.Decode(&r3)
+
+	if r1.Error != nil {
+		t.Fatalf("set apply: %v", r1.Error)
+	}
+	if r2.Error != nil {
+		t.Fatalf("qa_checkpoint: %v", r2.Error)
+	}
+
+	raw, _ := json.Marshal(r3.Result)
+	var result ToolCallResult
+	json.Unmarshal(raw, &result)
+	if result.IsError {
+		t.Errorf("advance to verify should succeed after passing checkpoint, got: %s", result.Content[0].Text)
+	}
+	if !strings.Contains(result.Content[0].Text, "verify") {
+		t.Errorf("response should confirm verify phase, got: %s", result.Content[0].Text)
+	}
+}
+
+func TestToolCall_SDDPhase_UngatedTransition_AlwaysAllowed(t *testing.T) {
+	// explore → propose is not gated, should always work.
+	req := `{"jsonrpc":"2.0","id":30,"method":"tools/call","params":{"name":"vault_sdd_phase","arguments":{"project":"free-proj","phase":"propose"}}}`
+	resp := sendAndReceive(t, req)
+
+	if resp.Error != nil {
+		t.Fatalf("RPC error: %v", resp.Error)
+	}
+	raw, _ := json.Marshal(resp.Result)
+	var result ToolCallResult
+	json.Unmarshal(raw, &result)
+	if result.IsError {
+		t.Errorf("ungated transition should succeed, got: %s", result.Content[0].Text)
+	}
+}
+
 // ─── unknown tool ─────────────────────────────────────────────────────────────
 
 func TestToolCall_UnknownTool(t *testing.T) {
@@ -352,3 +539,112 @@ func TestToolCall_UnknownTool(t *testing.T) {
 		t.Error("unknown tool should return isError=true in result")
 	}
 }
+
+// ─── hybrid context (CloudSearcher) ──────────────────────────────────────────
+
+// stubCloud is an in-test CloudSearcher.
+type stubCloud struct {
+	hits []CloudHit
+	err  error
+}
+
+func (sc *stubCloud) Search(_ context.Context, _ string, _ int) ([]CloudHit, error) {
+	return sc.hits, sc.err
+}
+
+func TestToolContext_HiveDisabled(t *testing.T) {
+	// No CloudSearcher attached → hive_status must be "disabled".
+	req := `{"jsonrpc":"2.0","id":40,"method":"tools/call","params":{"name":"vault_context","arguments":{"project":"proj1"}}}`
+	resp := sendAndReceive(t, req)
+
+	if resp.Error != nil {
+		t.Fatalf("RPC error: %v", resp.Error)
+	}
+	raw, _ := json.Marshal(resp.Result)
+	var result ToolCallResult
+	json.Unmarshal(raw, &result)
+	if result.IsError {
+		t.Fatalf("unexpected tool error: %s", result.Content[0].Text)
+	}
+	text := result.Content[0].Text
+	if !strings.Contains(text, `"hive_status"`) || !strings.Contains(text, "disabled") {
+		t.Errorf("hive_status should be 'disabled' when no CloudSearcher, got: %s", text)
+	}
+}
+
+func TestToolContext_HiveAvailable(t *testing.T) {
+	// Attach a stubCloud that returns one hit → hive_context + hive_status="ok".
+	s, err := store.NewMemory(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+
+	var out bytes.Buffer
+	req := `{"jsonrpc":"2.0","id":41,"method":"tools/call","params":{"name":"vault_context","arguments":{"project":"proj1"}}}` + "\n"
+	srv := &Server{
+		store:  s,
+		reader: bufio.NewReader(strings.NewReader(req)),
+		writer: &out,
+		logger: log.New(bytes.NewBuffer(nil), "", 0),
+		cloud: &stubCloud{hits: []CloudHit{
+			{ID: "h1", Type: "pattern", Title: "Hive hit", Content: "from cloud", Source: "hive"},
+		}},
+	}
+	_ = srv.Run()
+
+	var resp Response
+	if err := json.NewDecoder(&out).Decode(&resp); err != nil {
+		t.Fatalf("decode: %v — output: %s", err, out.String())
+	}
+	raw, _ := json.Marshal(resp.Result)
+	var result ToolCallResult
+	json.Unmarshal(raw, &result)
+	text := result.Content[0].Text
+	if !strings.Contains(text, `"hive_status"`) || !strings.Contains(text, "ok") {
+		t.Errorf("hive_status should be ok, got: %s", text)
+	}
+	if !strings.Contains(text, "Hive hit") {
+		t.Errorf("hive_context should contain the cloud hit, got: %s", text)
+	}
+}
+
+func TestToolContext_HiveUnavailable(t *testing.T) {
+	// Attach a stubCloud that returns an error → hive_status="unavailable",
+	// but the tool must still succeed (local context returned).
+	s, err := store.NewMemory(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+
+	var out bytes.Buffer
+	req := `{"jsonrpc":"2.0","id":42,"method":"tools/call","params":{"name":"vault_context","arguments":{"project":"proj1"}}}` + "\n"
+	srv := &Server{
+		store:  s,
+		reader: bufio.NewReader(strings.NewReader(req)),
+		writer: &out,
+		logger: log.New(bytes.NewBuffer(nil), "", 0),
+		cloud:  &stubCloud{err: fmt.Errorf("hive unreachable")},
+	}
+	_ = srv.Run()
+
+	var resp Response
+	if err := json.NewDecoder(&out).Decode(&resp); err != nil {
+		t.Fatalf("decode: %v — output: %s", err, out.String())
+	}
+	if resp.Error != nil {
+		t.Fatalf("RPC level error — hive failure should not surface as RPC error: %v", resp.Error)
+	}
+	raw, _ := json.Marshal(resp.Result)
+	var result ToolCallResult
+	json.Unmarshal(raw, &result)
+	text := result.Content[0].Text
+	if result.IsError {
+		t.Errorf("tool should succeed even when hive is down: %s", text)
+	}
+	if !strings.Contains(text, "unavailable") {
+		t.Errorf("hive_status should be 'unavailable', got: %s", text)
+	}
+}
+

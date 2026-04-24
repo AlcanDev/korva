@@ -52,6 +52,7 @@ func init() {
 	obsSearchCmd.Flags().String("project", "", "Filter by project name")
 	obsSearchCmd.Flags().String("type", "", "Filter by type")
 	obsSearchCmd.Flags().Int("limit", 20, "Max results (1-200)")
+	obsSearchCmd.Flags().Bool("cloud", false, "Include Hive community results alongside local ones")
 }
 
 // --- handlers ---
@@ -86,6 +87,7 @@ func runObsSearch(cmd *cobra.Command, args []string) error {
 	project, _ := cmd.Flags().GetString("project")
 	obsType, _ := cmd.Flags().GetString("type")
 	limit, _ := cmd.Flags().GetInt("limit")
+	cloud, _ := cmd.Flags().GetBool("cloud")
 
 	params := url.Values{}
 	params.Set("q", args[0])
@@ -96,6 +98,9 @@ func runObsSearch(cmd *cobra.Command, args []string) error {
 		params.Set("type", obsType)
 	}
 	params.Set("limit", fmt.Sprintf("%d", limit))
+	if cloud {
+		params.Set("cloud", "1")
+	}
 
 	apiURL := fmt.Sprintf("http://127.0.0.1:%d/api/v1/search?%s", port, params.Encode())
 	return doObsSearch(apiURL, args[0])
@@ -201,7 +206,11 @@ func printObsSummary(obs obsRow) {
 		project = "(no project)"
 	}
 	ts := formatObsDate(obs.CreatedAt)
-	fmt.Printf("  %s  %-18s  %s\n", typeLabel, padRight(project, 18), ts)
+	sourceTag := ""
+	if obs.Source == "hive" {
+		sourceTag = "  " + dimText("[hive]")
+	}
+	fmt.Printf("  %s  %-18s  %s%s\n", typeLabel, padRight(project, 18), ts, sourceTag)
 	fmt.Printf("    %s\n", obs.Title)
 	if obs.ID != "" {
 		fmt.Printf("    %s\n", dimText(obs.ID))
