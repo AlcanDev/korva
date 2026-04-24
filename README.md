@@ -3,8 +3,10 @@
 > Give your AI agents persistent memory, architecture guardrails, knowledge injection, and structured workflows — all in a single local system. Free. Open source. Zero cloud.
 
 [![MIT License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Go 1.22+](https://img.shields.io/badge/go-1.22%2B-blue.svg)](https://golang.org)
-[![MCP Protocol](https://img.shields.io/badge/MCP-compatible-cyan.svg)](https://modelcontextprotocol.io)
+[![Go 1.26+](https://img.shields.io/badge/go-1.26%2B-blue.svg)](https://golang.org)
+[![MCP Protocol](https://img.shields.io/badge/MCP-2024--11--05-cyan.svg)](https://modelcontextprotocol.io)
+[![Tests](https://img.shields.io/badge/tests-passing-brightgreen.svg)](#build-from-source)
+[![Version](https://img.shields.io/badge/version-1.0-orange.svg)](CHANGELOG.md)
 
 ---
 
@@ -104,10 +106,16 @@ Clones your team's private scrolls, Sentinel rules, and AI instructions into you
 In any AI session, your agent now has access to:
 
 ```
-vault_save   — save a decision, bug fix, or pattern
-vault_context — load relevant context for the current project
-vault_search  — full-text search across everything saved
-vault_why    — explain why a past decision was made (coming v0.2)
+vault_save         — save a decision, bug fix, or pattern
+vault_context      — load relevant context (local + cloud hybrid)
+vault_search       — full-text search across everything saved
+vault_sdd_phase    — track/advance the 9-phase SDD workflow
+vault_qa_checklist — get quality criteria for the current phase
+vault_qa_checkpoint — record a QA assessment and unlock phase gates
+vault_team_context — load team skills and private scrolls
+vault_bulk_save    — save up to 50 observations in one call
+vault_timeline     — show a project's observation history over time
+vault_stats        — vault usage statistics
 ```
 
 ---
@@ -169,25 +177,37 @@ Running Korva Sentinel...
 
 > **60+ community skills**: Install curated community skills from [skills.sh](https://skills.sh) to give your AI best practices for every library in your stack — alongside Korva's team scrolls. See [docs/COMMUNITY-SKILLS.md](docs/COMMUNITY-SKILLS.md).
 
-### Forge — Structured AI development
+### Forge — 9-Phase Spec-Driven Development (SDD)
 
-```markdown
-# Building: Real-time notifications system
+```
+Phase       Gate?  Description
+──────────────────────────────────────────────────────
+explore     —      Map the problem space. No code.
+propose     —      Define approach options + trade-offs
+spec        —      Write the formal specification
+architect   —      Design system/module structure
+apply       ✅ QA  Write the code
+verify      ✅ QA  Tests, coverage, Sentinel rules
+archive     —      Commit learnings to vault
+retrospect  —      Team review and process notes
+close       —      Final sign-off
 
-◆ Phase 1: Exploration (no code yet)
-  "Map all mutation paths before designing conflict resolution"
+✅ = quality gate required (vault_qa_checkpoint with gate_passed=true)
+    before the phase can advance. Prevents shipping untested code.
+```
 
-◆ Phase 2: Specification  
-  "WebSocket vs SSE? Define the contract before implementation."
+Example — advancing past the quality gate:
+```
+vault_qa_checklist({ phase: "apply", language: "go" })
+// → 12 criteria for Go implementation quality
 
-◆ Phase 3: Architecture (vault-aware)
-  "Team uses Redis pub/sub (23 vault observations). 
-   Design topology respecting that constraint."
+vault_qa_checkpoint({ project: "payments", phase: "apply",
+  status: "pass", score: 87, gate_passed: true,
+  findings: [{ rule: "GO-APP-001", status: "pass" }] })
+// → "Gate unlocked. Transition apply → verify is now allowed."
 
-◆ Phase 4: Implementation — step by step, guided
-
-◆ Phase 5: Sentinel validates
-  ✓ 10/10 architecture rules pass
+vault_sdd_phase({ project: "payments", phase: "verify" })
+// → Phase advanced ✓
 ```
 
 ---
@@ -231,6 +251,27 @@ korva sync --remote https://korva.your-company.internal
 ```
 
 This is **always opt-in**. Korva never connects to our servers. You control what syncs.
+
+---
+
+## Hybrid Context: Local + Cloud Brain
+
+By default Korva is **100% local** — your vault lives in `~/.korva/vault/observations.db` and never leaves your machine. When Korva Hive (the optional community cloud) is enabled, `vault_context` and `vault_search` query **both sources in parallel** and merge the results:
+
+```
+vault_context({ project: "payments" })
+
+→ {
+    context:      [...],          // local SQLite — your team's history
+    hive_context: [...],          // community brain — patterns from the ecosystem
+    hive_status:  "ok",           // "ok" | "unavailable" | "disabled"
+    sdd_phase:    "apply"
+  }
+```
+
+**If Hive is unreachable, the tool succeeds with `hive_status: "unavailable"`.** Local context is always returned regardless — cloud failure never blocks your workflow.
+
+The cloud privacy filter enforces a **default-deny** policy before any data leaves your machine: PII, file paths, secrets, and JWT tokens are stripped before upload. `KORVA_HIVE_DISABLE=1` is a kill-switch that disables the entire outbound pipeline without touching config.
 
 ---
 
@@ -300,20 +341,23 @@ If `korva setup --all` doesn't cover your editor, configure manually:
 
 ```
 korva/
-├── vault/       → Vault server — SQLite FTS5 + MCP (stdio) + REST :7437
-├── cli/         → korva CLI — init, setup, sync, sentinel, forge
+├── internal/    → shared Go packages (db, config, privacy, admin, license, hive)
+├── vault/       → Vault server — SQLite FTS5 + 17 MCP tools (stdio) + REST :7437
+├── cli/         → korva CLI — init, setup, sync, teams, license, hive
 ├── sentinel/    → Architecture validator — 10 built-in rules + custom YAML
 ├── lore/
-│   └── curated/ → 13 knowledge scrolls (NestJS, TypeScript, Docker, CI/CD...)
-├── forge/       → SDD workflow — 5-phase structured development
-└── beacon/      → Web dashboard — React 19 + Vite (explore vault history)
+│   └── curated/ → 13+ knowledge scrolls (NestJS, TypeScript, Docker, CI/CD...)
+├── forge/       → SDD workflow — 9-phase structured development + QA gates
+│   ├── hive-mock/        → local Hive server for development (:7438)
+│   └── licensing-mock/   → local licensing server for development (:7439)
+└── beacon/      → Web dashboard — React 19 + Vite (vault explorer + admin panel)
 ```
 
 ---
 
 ## Build from Source
 
-Requires **Go 1.22+**.
+Requires **Go 1.26+**.
 
 ```bash
 git clone https://github.com/AlcanDev/korva.git
@@ -414,5 +458,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the full guide.
 ## License
 
 [MIT](LICENSE) — © 2025 AlcanDev
+
+---
 
 *Build with intent. Ship with confidence.*

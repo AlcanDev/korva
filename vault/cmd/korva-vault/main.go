@@ -91,14 +91,14 @@ func main() {
 
 	switch *mode {
 	case "mcp":
-		runMCP(s)
+		runMCP(s, hiveClient)
 	case "http":
 		runHTTP(ctx, s, routerCfg, *port)
 	case "tui":
 		runTUI(s)
 	case "both":
 		go runHTTP(ctx, s, routerCfg, *port)
-		runMCP(s)
+		runMCP(s, hiveClient)
 		// MCP exited (stdin closed) — trigger HTTP shutdown.
 		stop()
 	default:
@@ -227,8 +227,35 @@ func bootRetention(ctx context.Context, s *store.Store, cfg config.KorvaConfig) 
 	}()
 }
 
-func runMCP(s *store.Store) {
+// hiveSearchAdapter bridges hive.Client to mcp.CloudSearcher.
+// It converts hive.SearchResult into mcp.CloudHit so the vault mcp package
+// never needs to import the internal/hive package (avoiding circular deps).
+type hiveSearchAdapter struct{ c *hive.Client }
+
+func (a *hiveSearchAdapter) Search(ctx context.Context, query string, limit int) ([]mcp.CloudHit, error) {
+	results, err := a.c.Search(ctx, query, limit)
+	if err != nil {
+		return nil, err
+	}
+	hits := make([]mcp.CloudHit, len(results))
+	for i, r := range results {
+		hits[i] = mcp.CloudHit{
+			ID:      r.ID,
+			Type:    r.Type,
+			Title:   r.Title,
+			Content: r.Content,
+			Source:  r.Source,
+		}
+	}
+	return hits, nil
+}
+
+func runMCP(s *store.Store, hiveClient *hive.Client) {
 	server := mcp.New(s)
+	if hiveClient != nil {
+		server.WithCloudSearch(&hiveSearchAdapter{c: hiveClient})
+		log.Printf("MCP: hybrid search enabled (local + hive)")
+	}
 	if err := server.Run(); err != nil {
 		log.Fatalf("MCP server error: %v", err)
 	}

@@ -47,9 +47,14 @@ func teamListSkills(s *store.Store) http.HandlerFunc {
 		for rows.Next() {
 			var sk teamSkillRow
 			if err := rows.Scan(&sk.ID, &sk.Name, &sk.Body, &sk.Tags, &sk.CreatedAt, &sk.UpdatedAt); err != nil {
-				continue
+				writeError(w, http.StatusInternalServerError, "reading skill row: "+err.Error())
+				return
 			}
 			skills = append(skills, sk)
+		}
+		if err := rows.Err(); err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"skills": skills, "count": len(skills)})
 	}
@@ -94,11 +99,14 @@ func teamSaveSkill(s *store.Store) http.HandlerFunc {
 			return
 		}
 
-		// Resolve the actual ID (may differ when an existing row was updated).
+		// Resolve the actual ID (may differ when an existing row was updated by ON CONFLICT).
 		var actualID string
-		s.DB().QueryRowContext(r.Context(), //nolint:errcheck
+		if err := s.DB().QueryRowContext(r.Context(),
 			`SELECT id FROM skills WHERE team_id = ? AND name = ?`,
-			sess.teamID, body.Name).Scan(&actualID)
+			sess.teamID, body.Name).Scan(&actualID); err != nil {
+			writeError(w, http.StatusInternalServerError, "resolving skill id: "+err.Error())
+			return
+		}
 
 		writeAudit(s, sess.email, "team_save_skill", actualID, "", hashStr(body.Body))
 		writeJSON(w, http.StatusOK, map[string]string{"id": actualID, "status": "saved"})
@@ -114,16 +122,22 @@ func teamDeleteSkill(s *store.Store) http.HandlerFunc {
 			return
 		}
 		skillID := r.PathValue("id")
-
-		// Verify the skill belongs to the session's team before deleting.
-		var teamID string
-		if err := s.DB().QueryRowContext(r.Context(),
-			`SELECT team_id FROM skills WHERE id = ?`, skillID).Scan(&teamID); err != nil || teamID != sess.teamID {
-			writeError(w, http.StatusNotFound, "skill not found")
+		if skillID == "" {
+			writeError(w, http.StatusBadRequest, "skill id is required")
 			return
 		}
 
-		s.DB().ExecContext(r.Context(), `DELETE FROM skills WHERE id = ?`, skillID) //nolint:errcheck
+		// Atomic verify + delete: WHERE id=? AND team_id=? prevents TOCTOU.
+		res, err := s.DB().ExecContext(r.Context(),
+			`DELETE FROM skills WHERE id = ? AND team_id = ?`, skillID, sess.teamID)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		if n, _ := res.RowsAffected(); n == 0 {
+			writeError(w, http.StatusNotFound, "skill not found")
+			return
+		}
 		writeAudit(s, sess.email, "team_delete_skill", skillID, "", "")
 		writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
 	}
