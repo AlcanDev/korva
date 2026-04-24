@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/alcandev/korva/internal/license"
 	"github.com/alcandev/korva/vault/internal/store"
 )
 
@@ -31,12 +32,18 @@ func authRedeem(s *store.Store) http.HandlerFunc {
 
 		tokenHash := fmt.Sprintf("%x", sha256.Sum256([]byte(body.Token)))
 
-		// Look up the invite
+		// Validate token length to guard against oversized input.
+		if len(body.Token) > 256 {
+			writeError(w, http.StatusBadRequest, "token too long")
+			return
+		}
+
+		// Look up the invite.
 		var invite struct {
-			id       string
-			teamID   string
-			email    string
-			usedAt   *string
+			id        string
+			teamID    string
+			email     string
+			usedAt    *string
 			expiresAt string
 		}
 		err := s.DB().QueryRowContext(r.Context(),
@@ -56,7 +63,7 @@ func authRedeem(s *store.Store) http.HandlerFunc {
 			return
 		}
 
-		// Look up the member record
+		// Look up the member record.
 		var memberID string
 		if err := s.DB().QueryRowContext(r.Context(),
 			`SELECT id FROM team_members WHERE team_id=? AND email=?`,
@@ -65,7 +72,7 @@ func authRedeem(s *store.Store) http.HandlerFunc {
 			return
 		}
 
-		// Generate session token
+		// Generate session token.
 		raw := make([]byte, 32)
 		if _, err := rand.Read(raw); err != nil {
 			writeError(w, http.StatusInternalServerError, "session generation failed")
@@ -78,28 +85,42 @@ func authRedeem(s *store.Store) http.HandlerFunc {
 		expiresAt := now.Add(sessionTTL).Format(time.RFC3339)
 		sessionID := newID()
 
-		// Single session: revoke any existing session for this member
-		s.DB().ExecContext(r.Context(),
-			`DELETE FROM member_sessions WHERE email=? AND team_id=?`,
-			invite.email, invite.teamID)
+		// Atomically: revoke any existing session + insert new one + mark invite used.
+		// Wrapped in a transaction to prevent race conditions on concurrent redemptions.
+		tx, err := s.DB().BeginTx(r.Context(), nil)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "could not begin transaction")
+			return
+		}
+		defer tx.Rollback() //nolint:errcheck
 
-		_, err = s.DB().ExecContext(r.Context(),
+		if _, err = tx.ExecContext(r.Context(),
+			`DELETE FROM member_sessions WHERE email=? AND team_id=?`,
+			invite.email, invite.teamID); err != nil {
+			writeError(w, http.StatusInternalServerError, "session revocation failed")
+			return
+		}
+		if _, err = tx.ExecContext(r.Context(),
 			`INSERT INTO member_sessions(id, team_id, member_id, email, token_hash, expires_at)
 			 VALUES(?,?,?,?,?,?)`,
-			sessionID, invite.teamID, memberID, invite.email, sessionHash, expiresAt)
-		if err != nil {
+			sessionID, invite.teamID, memberID, invite.email, sessionHash, expiresAt); err != nil {
 			writeError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
+		if _, err = tx.ExecContext(r.Context(),
+			`UPDATE member_invites SET used_at=? WHERE id=?`,
+			now.Format(time.RFC3339), invite.id); err != nil {
+			writeError(w, http.StatusInternalServerError, "could not mark invite as used")
+			return
+		}
+		if err = tx.Commit(); err != nil {
+			writeError(w, http.StatusInternalServerError, "transaction commit failed")
+			return
+		}
 
-		// Mark invite as used
-		usedNow := now.Format(time.RFC3339)
-		s.DB().ExecContext(r.Context(),
-			`UPDATE member_invites SET used_at=? WHERE id=?`, usedNow, invite.id)
-
-		// Fetch team name for the response
+		// Fetch team name for the response (best-effort, non-critical).
 		var teamName string
-		s.DB().QueryRowContext(r.Context(),
+		_ = s.DB().QueryRowContext(r.Context(),
 			`SELECT name FROM teams WHERE id=?`, invite.teamID).Scan(&teamName)
 
 		writeJSON(w, http.StatusOK, map[string]string{
@@ -200,16 +221,33 @@ func requireSession(s *store.Store, w http.ResponseWriter, r *http.Request) (ses
 // sessionCtxKey is the unexported context key for injected sessionInfo.
 type sessionCtxKey struct{}
 
-// withSession returns middleware that validates X-Session-Token and injects
-// the resulting sessionInfo into the request context. The handler is only
-// called when authentication succeeds.
-func withSession(s *store.Store) func(http.Handler) http.Handler {
+// withSession returns middleware that:
+//  1. Validates X-Session-Token against the DB.
+//  2. Enforces that the vault's Teams license is still active (Rama 4).
+//     If the license is nil or has expired the member receives 402 — the team
+//     admin must renew the license before member API access is restored.
+//  3. Injects the resulting sessionInfo into the request context.
+//
+// Pass lic=nil only in tests that deliberately bypass license enforcement.
+func withSession(s *store.Store, lic *license.License) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// 1. Validate session token.
 			sess, ok := requireSession(s, w, r)
 			if !ok {
 				return
 			}
+
+			// 2. Mid-session license enforcement.
+			//    A valid session proves past membership, but if the vault admin's
+			//    Teams license has since expired we must degrade to Community tier.
+			if lic == nil || !lic.HasFeature(license.FeatureAdminSkills) {
+				writeError(w, http.StatusPaymentRequired,
+					"Korva for Teams license required — contact your vault admin to renew")
+				return
+			}
+
+			// 3. Inject session into context.
 			ctx := context.WithValue(r.Context(), sessionCtxKey{}, sess)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})

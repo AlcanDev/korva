@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alcandev/korva/internal/license"
 	"github.com/alcandev/korva/vault/internal/store"
 )
 
@@ -65,8 +66,19 @@ func newTeamTestEnv(t *testing.T) *teamTestEnv {
 	adminToken := mkSession(adminMemberID, "admin@corp.com")
 	memberToken := mkSession(regularMemberID, "dev@corp.com")
 
-	// Router with nil license (Community tier — requireFeature passes for nil)
-	h := Router(s, RouterConfig{})
+	// Router with a stub Teams license so withSession passes the license check (Rama 4).
+	// The license is not verified via JWS in tests — we construct the struct directly.
+	testLic := &license.License{
+		LicenseID: "test-lic-001",
+		Tier:      license.TierTeams,
+		Features: []string{
+			license.FeatureAdminSkills,
+			license.FeaturePrivateScrolls,
+			license.FeatureAuditLog,
+		},
+		ExpiresAt: time.Now().Add(365 * 24 * time.Hour),
+	}
+	h := Router(s, RouterConfig{License: testLic})
 
 	return &teamTestEnv{
 		store:       s,
