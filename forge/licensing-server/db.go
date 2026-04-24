@@ -180,6 +180,98 @@ func deleteActivation(db *sql.DB, licenseID, installID string) error {
 	return err
 }
 
+// listLicenses returns a paginated slice of licenses with optional email filter.
+func listLicenses(db *sql.DB, email string, limit, offset int) ([]dbLicense, int, error) {
+	var (
+		where string
+		args  []any
+	)
+	if email != "" {
+		where = " WHERE customer_email LIKE ?"
+		args = append(args, "%"+email+"%")
+	}
+
+	var total int
+	if err := db.QueryRow("SELECT COUNT(*) FROM licenses"+where, args...).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+
+	rows, err := db.Query(
+		"SELECT id, license_key, customer_email, tier, seats, features, grace_days, expires_at, created_at, revoked_at"+
+			" FROM licenses"+where+
+			" ORDER BY created_at DESC LIMIT ? OFFSET ?",
+		append(args, limit, offset)...)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+
+	var licenses []dbLicense
+	for rows.Next() {
+		var lic dbLicense
+		var featJSON, expiresStr, createdStr string
+		var revokedStr *string
+		if err := rows.Scan(&lic.ID, &lic.LicenseKey, &lic.CustomerEmail, &lic.Tier,
+			&lic.Seats, &featJSON, &lic.GraceDays, &expiresStr, &createdStr, &revokedStr); err != nil {
+			return nil, 0, err
+		}
+		json.Unmarshal([]byte(featJSON), &lic.Features) //nolint:errcheck
+		lic.ExpiresAt, _ = time.Parse(time.RFC3339, expiresStr)
+		lic.CreatedAt, _ = time.Parse(time.RFC3339, createdStr)
+		if revokedStr != nil {
+			t, _ := time.Parse(time.RFC3339, *revokedStr)
+			lic.RevokedAt = &t
+		}
+		licenses = append(licenses, lic)
+	}
+	return licenses, total, rows.Err()
+}
+
+// revokeLicense sets revoked_at to now for the given license ID.
+func revokeLicense(db *sql.DB, id string) error {
+	_, err := db.Exec(`UPDATE licenses SET revoked_at = ? WHERE id = ?`,
+		time.Now().UTC().Format(time.RFC3339), id)
+	return err
+}
+
+// unrevokeLicense clears revoked_at, restoring the license to active status.
+func unrevokeLicense(db *sql.DB, id string) error {
+	_, err := db.Exec(`UPDATE licenses SET revoked_at = NULL WHERE id = ?`, id)
+	return err
+}
+
+type dbActivation struct {
+	ID        string    `json:"id"`
+	LicenseID string    `json:"license_id"`
+	InstallID string    `json:"install_id"`
+	CreatedAt time.Time `json:"created_at"`
+	LastSeen  time.Time `json:"last_seen"`
+}
+
+// listActivations returns all active seats for a license.
+func listActivations(db *sql.DB, licenseID string) ([]dbActivation, error) {
+	rows, err := db.Query(
+		`SELECT id, license_id, install_id, created_at, last_seen
+		   FROM activations WHERE license_id = ? ORDER BY last_seen DESC`, licenseID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []dbActivation
+	for rows.Next() {
+		var a dbActivation
+		var createdStr, lastSeenStr string
+		if err := rows.Scan(&a.ID, &a.LicenseID, &a.InstallID, &createdStr, &lastSeenStr); err != nil {
+			return nil, err
+		}
+		a.CreatedAt, _ = time.Parse(time.RFC3339, createdStr)
+		a.LastSeen, _ = time.Parse(time.RFC3339, lastSeenStr)
+		out = append(out, a)
+	}
+	return out, rows.Err()
+}
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 // newLicenseID generates a short random hex ID.

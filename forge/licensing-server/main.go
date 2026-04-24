@@ -21,11 +21,18 @@
 //
 // # Endpoints
 //
-//	GET  /v1/health                                    Health check
-//	POST /v1/issue      (admin-only)                  Issue a new license key
-//	POST /v1/activate   {license_key, install_id}     Activate → JWS
-//	POST /v1/heartbeat  {license_id, install_id}      Refresh JWS every 24h
-//	POST /v1/deactivate {license_id, install_id}      Free a seat
+//	GET  /v1/health                                              Health check
+//	POST /v1/issue          (admin-only)                        Issue a new license key
+//	POST /v1/activate       {license_key, install_id}           Activate → JWS
+//	POST /v1/heartbeat      {license_id, install_id}            Refresh JWS every 24h
+//	POST /v1/deactivate     {license_id, install_id}            Free a seat
+//
+//	GET  /v1/admin/licenses                                     List all licenses (paginated)
+//	GET  /v1/admin/licenses/{id}                                Get license + activations
+//	POST /v1/admin/licenses/{id}/revoke                         Revoke license
+//	DELETE /v1/admin/licenses/{id}/revoke                       Un-revoke license
+//	GET  /v1/admin/licenses/{id}/activations                    List active seats
+//	DELETE /v1/admin/licenses/{id}/activations/{install_id}     Force-free a seat
 package main
 
 import (
@@ -72,6 +79,14 @@ func main() {
 	mux.HandleFunc("POST /v1/activate", srv.handleActivate)
 	mux.HandleFunc("POST /v1/heartbeat", srv.handleHeartbeat)
 	mux.HandleFunc("POST /v1/deactivate", srv.handleDeactivate)
+
+	// Admin endpoints — protected by KORVA_LICENSING_ADMIN_SECRET Bearer token
+	mux.HandleFunc("GET /v1/admin/licenses", srv.handleAdminListLicenses)
+	mux.HandleFunc("GET /v1/admin/licenses/{id}", srv.handleAdminGetLicense)
+	mux.HandleFunc("POST /v1/admin/licenses/{id}/revoke", srv.handleAdminRevokeLicense)
+	mux.HandleFunc("DELETE /v1/admin/licenses/{id}/revoke", srv.handleAdminUnrevokeLicense)
+	mux.HandleFunc("GET /v1/admin/licenses/{id}/activations", srv.handleAdminListActivations)
+	mux.HandleFunc("DELETE /v1/admin/licenses/{id}/activations/{install_id}", srv.handleAdminForceDeactivate)
 
 	httpSrv := &http.Server{
 		Addr:         addr,
