@@ -1,47 +1,37 @@
 import _React, { useState } from 'react'
 import { ShieldCheck, ShieldOff, RefreshCw, KeyRound } from 'lucide-react'
-import { useLicenseStatus } from '@/api/license'
+import { useLicenseStatus, useLicenseActivate } from '@/api/license'
+import { PageHeader, InfoCallout } from '@/components/PageHeader'
+import { useI18n } from '@/contexts/i18n'
 
 export default function AdminLicense() {
   const { data, isLoading, error, refetch } = useLicenseStatus()
+  const activate = useLicenseActivate()
   const [keyInput, setKeyInput] = useState('')
-  const [activating, setActivating] = useState(false)
   const [msg, setMsg] = useState('')
+  const { t } = useI18n()
 
   const handleActivate = async () => {
     if (!keyInput.trim()) return
-    setActivating(true)
     setMsg('')
     try {
-      const res = await fetch('/vault-api/admin/license/activate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ license_key: keyInput.trim() }),
-      })
-      if (res.ok) {
-        setMsg('License activated.')
-        setKeyInput('')
-        refetch()
-      } else {
-        const d = await res.json()
-        setMsg(d.error ?? 'Activation failed.')
-      }
+      await activate.mutateAsync(keyInput.trim())
+      setMsg(t.license.activateSuccess)
+      setKeyInput('')
     } catch {
-      setMsg('Network error.')
-    } finally {
-      setActivating(false)
+      setMsg(t.license.activateFailed)
     }
   }
 
   if (isLoading) {
-    return <PageShell><p className="text-[#8b949e] text-sm">Loading license status…</p></PageShell>
+    return <PageShell t={t}><p className="text-[#8b949e] text-sm">{t.license.loading}</p></PageShell>
   }
 
   const isTeams = data?.tier === 'teams'
   const graceWarning = data && !data.grace_ok
 
   return (
-    <PageShell>
+    <PageShell t={t}>
       {/* Status card */}
       <div className="rounded-lg border border-[#21262d] bg-[#161b22] p-5 mb-6">
         <div className="flex items-center gap-3 mb-4">
@@ -65,28 +55,28 @@ export default function AdminLicense() {
 
         {graceWarning && (
           <div className="mb-4 rounded border border-[#d29922] bg-[#d2992215] p-3 text-xs text-[#d29922]">
-            Grace period lapsed — running as Community tier. Connect to the licensing server to restore Teams access.
+            {t.license.graceWarning}
           </div>
         )}
 
         <div className="grid grid-cols-2 gap-3 text-xs">
           {data?.seats && (
-            <Stat label="Seats" value={String(data.seats)} />
+            <Stat label={t.license.seatsLabel} value={String(data.seats)} />
           )}
           {data?.expires_at && (
-            <Stat label="Expires" value={data.expires_at.slice(0, 10)} />
+            <Stat label={t.license.expiresLabel} value={data.expires_at.slice(0, 10)} />
           )}
           {data?.last_heartbeat && (
-            <Stat label="Last check" value={new Date(data.last_heartbeat).toLocaleString()} />
+            <Stat label={t.license.lastCheckLabel} value={new Date(data.last_heartbeat).toLocaleString()} />
           )}
           {data?.grace_remaining_hours !== undefined && (
-            <Stat label="Grace remaining" value={`${data.grace_remaining_hours}h`} />
+            <Stat label={t.license.graceRemainingLabel} value={`${data.grace_remaining_hours}h`} />
           )}
         </div>
 
         {isTeams && data.features.length > 0 && (
           <div className="mt-4">
-            <p className="text-[10px] text-[#8b949e] uppercase tracking-wider mb-2">Active features</p>
+            <p className="text-[10px] text-[#8b949e] uppercase tracking-wider mb-2">{t.license.activeFeaturesLabel}</p>
             <div className="flex flex-wrap gap-1.5">
               {data.features.map(f => (
                 <span key={f} className="px-2 py-0.5 rounded-full text-[10px] bg-[#388bfd20] text-[#388bfd] border border-[#388bfd30]">
@@ -103,31 +93,31 @@ export default function AdminLicense() {
         <div className="rounded-lg border border-[#21262d] bg-[#161b22] p-5">
           <div className="flex items-center gap-2 mb-4">
             <KeyRound size={15} className="text-[#f0883e]" />
-            <p className="text-[#e6edf3] text-sm font-medium">Activate Korva for Teams</p>
+            <p className="text-[#e6edf3] text-sm font-medium">{t.license.activateTitle}</p>
           </div>
           <div className="flex flex-col sm:flex-row gap-2">
             <input
               type="text"
-              placeholder="KORVA-XXXX-XXXX-XXXX"
+              placeholder={t.license.activatePlaceholder}
               value={keyInput}
               onChange={e => setKeyInput(e.target.value)}
               className="flex-1 bg-[#0d1117] border border-[#30363d] rounded-md px-3 py-1.5 text-sm text-[#e6edf3] placeholder-[#484f58] focus:outline-none focus:border-[#388bfd] min-w-0"
             />
             <button
               onClick={handleActivate}
-              disabled={activating || !keyInput.trim()}
+              disabled={activate.isPending || !keyInput.trim()}
               className="px-4 py-1.5 rounded-md text-sm bg-[#238636] text-white hover:bg-[#2ea043] disabled:opacity-50 transition-colors sm:flex-shrink-0"
             >
-              {activating ? 'Activating…' : 'Activate'}
+              {activate.isPending ? t.license.activating : t.license.activate}
             </button>
           </div>
           {msg && (
-            <p className={`mt-2 text-xs ${msg.includes('activated') ? 'text-[#3fb950]' : 'text-[#f85149]'}`}>
+            <p className={`mt-2 text-xs ${msg === t.license.activateSuccess ? 'text-[#3fb950]' : 'text-[#f85149]'}`}>
               {msg}
             </p>
           )}
           {error && (
-            <p className="mt-2 text-xs text-[#f85149]">Could not load license status.</p>
+            <p className="mt-2 text-xs text-[#f85149]">{t.license.loadError}</p>
           )}
         </div>
       )}
@@ -135,10 +125,35 @@ export default function AdminLicense() {
   )
 }
 
-function PageShell({ children }: { children: React.ReactNode }) {
+function PageShell({ children, t }: { children: React.ReactNode; t: ReturnType<typeof useI18n>['t'] }) {
   return (
     <div className="p-4 sm:p-6 max-w-2xl">
-      <h1 className="text-[#e6edf3] text-lg font-semibold mb-5">License</h1>
+      <PageHeader
+        icon={<KeyRound size={17} />}
+        iconColor="#d29922"
+        title={t.license.title}
+        description={t.license.description}
+      />
+      <InfoCallout title={t.license.comparisonTitle} variant="tip" collapsible id="license-comparison">
+        <div className="grid grid-cols-2 gap-3 mt-1">
+          <div>
+            <p className="font-medium text-[#8b949e] mb-0.5">{t.license.communityFree}</p>
+            <ul className="space-y-0.5 text-[#484f58]">
+              <li>{t.license.communityFeature1}</li>
+              <li>{t.license.communityFeature2}</li>
+              <li>{t.license.communityFeature3}</li>
+            </ul>
+          </div>
+          <div>
+            <p className="font-medium text-[#3fb950] mb-0.5">Teams</p>
+            <ul className="space-y-0.5">
+              <li>{t.license.teamsFeature1}</li>
+              <li>{t.license.teamsFeature2}</li>
+              <li>{t.license.teamsFeature3}</li>
+            </ul>
+          </div>
+        </div>
+      </InfoCallout>
       {children}
     </div>
   )
