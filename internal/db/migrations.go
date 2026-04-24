@@ -3,13 +3,22 @@ package db
 import (
 	"database/sql"
 	"fmt"
+	"strings"
 )
 
 // Migrate applies all schema migrations to the database.
 // It is idempotent — safe to call on every startup.
+//
+// SQLite does not support ALTER TABLE ADD COLUMN IF NOT EXISTS, so we ignore
+// "duplicate column name" errors to keep migrations append-only and idempotent.
 func Migrate(db *sql.DB) error {
 	for _, m := range migrations {
 		if _, err := db.Exec(m); err != nil {
+			// ALTER TABLE ADD COLUMN fails with "duplicate column name: <X>" when the
+			// column already exists. Treat it as a no-op so the list stays idempotent.
+			if strings.Contains(err.Error(), "duplicate column name") {
+				continue
+			}
 			return fmt.Errorf("applying migration: %w", err)
 		}
 	}
@@ -195,15 +204,73 @@ var migrations = []string{
 	`CREATE INDEX IF NOT EXISTS idx_sessions_token   ON member_sessions(token_hash)`,
 
 	// --- private_scrolls: team-managed knowledge documents served via Beacon ---
-	// Scoped globally (admin-managed); name is the unique human identifier.
+	// Scoped per-team via team_id ('' = global/admin-managed).
+	// name is unique within a (team_id, name) pair.
 	// NEVER synced to Hive (same isolation policy as skills).
 	`CREATE TABLE IF NOT EXISTS private_scrolls (
 		id         TEXT PRIMARY KEY,
-		name       TEXT NOT NULL UNIQUE,
+		name       TEXT NOT NULL,
 		content    TEXT NOT NULL,
+		team_id    TEXT NOT NULL DEFAULT '',
 		created_by TEXT NOT NULL DEFAULT '',
 		created_at TEXT NOT NULL DEFAULT (datetime('now')),
 		updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 	)`,
 	`CREATE INDEX IF NOT EXISTS idx_private_scrolls_name ON private_scrolls(name)`,
+	`CREATE UNIQUE INDEX IF NOT EXISTS uq_private_scrolls_team_name ON private_scrolls(team_id, name)`,
+
+	// --- private_scrolls migration: add team_id for per-team scoping ---
+	// For installs where the table was created before team_id existed.
+	// Migrate() ignores "duplicate column name" so this is safe to apply repeatedly.
+	`ALTER TABLE private_scrolls ADD COLUMN team_id TEXT NOT NULL DEFAULT ''`,
+	`CREATE INDEX IF NOT EXISTS idx_private_scrolls_team ON private_scrolls(team_id)`,
+
+	// ── claude-mem integration: content-hash deduplication ───────────────────
+	// Prevents storing the exact same observation twice (e.g. when the agent
+	// re-processes the same tool output). hash = SHA256(title|content|project).
+	`ALTER TABLE observations ADD COLUMN content_hash TEXT NOT NULL DEFAULT ''`,
+	`CREATE INDEX IF NOT EXISTS idx_observations_hash ON observations(content_hash)`,
+
+	// ── internal-pattern integration: SDD phase state ───────────────────────────────
+	// Tracks the current Spec-Driven Development phase per project.
+	// Phases: explore → propose → spec → design → tasks → apply → verify → archive → onboard
+	`CREATE TABLE IF NOT EXISTS sdd_state (
+		project    TEXT PRIMARY KEY,
+		phase      TEXT NOT NULL DEFAULT 'explore',
+		updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+	)`,
+
+	// ── internal-pattern integration: OpenSpec project conventions ──────────────────
+	// Stores per-project conventions (stack, architecture rules, testing standards)
+	// injected automatically into every MCP session for that project.
+	`CREATE TABLE IF NOT EXISTS openspec (
+		project    TEXT PRIMARY KEY,
+		content    TEXT NOT NULL DEFAULT '',
+		updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+	)`,
+
+	// ── Quality gate checkpoints ───────────────────────────────────────────────
+	// Records the result of a QA assessment at a specific SDD phase.
+	// The AI performs the review; Korva stores the outcome for tracking and gating.
+	//
+	// status: pass | fail | partial | skip
+	// score:  0-100 (AI-assigned quality score for that checkpoint)
+	// findings: JSON array of {rule, status, notes} per quality criterion
+	// gate_passed: 1 when this checkpoint satisfies the phase transition requirement
+	`CREATE TABLE IF NOT EXISTS quality_checkpoints (
+		id           TEXT PRIMARY KEY,
+		project      TEXT NOT NULL,
+		session_id   TEXT NOT NULL DEFAULT '',
+		phase        TEXT NOT NULL,
+		language     TEXT NOT NULL DEFAULT '',
+		status       TEXT NOT NULL DEFAULT 'partial',
+		score        INTEGER NOT NULL DEFAULT 0,
+		findings     TEXT NOT NULL DEFAULT '[]',
+		notes        TEXT NOT NULL DEFAULT '',
+		gate_passed  INTEGER NOT NULL DEFAULT 0,
+		created_at   TEXT NOT NULL DEFAULT (datetime('now'))
+	)`,
+	`CREATE INDEX IF NOT EXISTS idx_qc_project   ON quality_checkpoints(project)`,
+	`CREATE INDEX IF NOT EXISTS idx_qc_phase     ON quality_checkpoints(project, phase)`,
+	`CREATE INDEX IF NOT EXISTS idx_qc_created   ON quality_checkpoints(created_at)`,
 }

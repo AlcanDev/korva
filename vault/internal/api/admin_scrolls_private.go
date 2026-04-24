@@ -19,14 +19,27 @@ type privateScrollRow struct {
 	UpdatedAt string `json:"updated_at"`
 }
 
-// adminListPrivateScrolls returns all private scrolls ordered by name.
+// adminListPrivateScrolls returns private scrolls ordered by name.
+// Accepts an optional ?team_id= query param to filter by team.
 // GET /admin/scrolls/private
 func adminListPrivateScrolls(s *store.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		rows, err := s.DB().QueryContext(r.Context(),
-			`SELECT id, name, content, created_at, updated_at
-			   FROM private_scrolls
-			  ORDER BY name ASC`)
+		teamID := r.URL.Query().Get("team_id")
+
+		var rows *sql.Rows
+		var err error
+		if teamID != "" {
+			rows, err = s.DB().QueryContext(r.Context(),
+				`SELECT id, name, content, created_at, updated_at
+				   FROM private_scrolls
+				  WHERE team_id = ?
+				  ORDER BY name ASC`, teamID)
+		} else {
+			rows, err = s.DB().QueryContext(r.Context(),
+				`SELECT id, name, content, created_at, updated_at
+				   FROM private_scrolls
+				  ORDER BY name ASC`)
+		}
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, err.Error())
 			return
@@ -45,16 +58,17 @@ func adminListPrivateScrolls(s *store.Store) http.HandlerFunc {
 	}
 }
 
-// adminSavePrivateScroll creates a new scroll or updates an existing one by name.
-// POST /admin/scrolls/private — body: {"name": "...", "content": "..."}
+// adminSavePrivateScroll creates a new scroll or updates an existing one by (team_id, name).
+// POST /admin/scrolls/private — body: {"name": "...", "content": "...", "team_id": "..."}
 //
-// Using name as the upsert key keeps the frontend simple: it calls POST for both
-// create and save, and the backend decides whether to insert or update.
+// team_id defaults to "" (global, accessible to all teams).
+// Using (team_id, name) as the upsert key keeps the frontend simple.
 func adminSavePrivateScroll(s *store.Store, actor string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var body struct {
 			Name    string `json:"name"`
 			Content string `json:"content"`
+			TeamID  string `json:"team_id"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Name == "" {
 			writeError(w, http.StatusBadRequest, "name is required")
@@ -64,11 +78,11 @@ func adminSavePrivateScroll(s *store.Store, actor string) http.HandlerFunc {
 		ctx := r.Context()
 		now := time.Now().UTC().Format(time.RFC3339)
 
-		// Check for an existing scroll with this name.
+		// Check for an existing scroll with this (team_id, name) pair.
 		var existingID string
 		err := s.DB().QueryRowContext(ctx,
-			`SELECT id FROM private_scrolls WHERE name = ?`, body.Name).
-			Scan(&existingID)
+			`SELECT id FROM private_scrolls WHERE team_id = ? AND name = ?`,
+			body.TeamID, body.Name).Scan(&existingID)
 
 		switch {
 		case err == nil:
@@ -86,9 +100,9 @@ func adminSavePrivateScroll(s *store.Store, actor string) http.HandlerFunc {
 			// Insert new scroll.
 			id := newID()
 			if _, err := s.DB().ExecContext(ctx,
-				`INSERT INTO private_scrolls(id, name, content, created_by, created_at, updated_at)
-				 VALUES (?, ?, ?, ?, ?, ?)`,
-				id, body.Name, body.Content, actor, now, now); err != nil {
+				`INSERT INTO private_scrolls(id, name, content, team_id, created_by, created_at, updated_at)
+				 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+				id, body.Name, body.Content, body.TeamID, actor, now, now); err != nil {
 				writeError(w, http.StatusInternalServerError, err.Error())
 				return
 			}

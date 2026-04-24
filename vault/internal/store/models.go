@@ -6,14 +6,134 @@ import "time"
 type ObservationType string
 
 const (
-	TypeDecision   ObservationType = "decision"
-	TypePattern    ObservationType = "pattern"
-	TypeBugfix     ObservationType = "bugfix"
-	TypeLearning   ObservationType = "learning"
-	TypeContext    ObservationType = "context"
+	TypeDecision    ObservationType = "decision"
+	TypePattern     ObservationType = "pattern"
+	TypeBugfix      ObservationType = "bugfix"
+	TypeLearning    ObservationType = "learning"
+	TypeContext     ObservationType = "context"
 	TypeAntiPattern ObservationType = "antipattern"
-	TypeTask       ObservationType = "task"
+	TypeTask        ObservationType = "task"
+	// From claude-mem: richer vocabulary for development workflows.
+	TypeFeature   ObservationType = "feature"   // new capability added to the codebase
+	TypeRefactor  ObservationType = "refactor"  // structural improvement without behavior change
+	TypeDiscovery ObservationType = "discovery" // unexpected finding worth remembering
 )
+
+// AllObservationTypes lists every valid ObservationType.
+// Used for enum validation and documentation.
+var AllObservationTypes = []string{
+	"decision", "pattern", "bugfix", "learning", "context",
+	"antipattern", "task", "feature", "refactor", "discovery",
+}
+
+// ── SDD phase (internal-pattern Memory / SDD workflow) ──────────────────────────────
+
+// SDDPhase represents the current phase of a Spec-Driven Development workflow.
+// Based on internal-pattern's nine-phase SDD orchestration model.
+type SDDPhase string
+
+const (
+	SDDExplore SDDPhase = "explore"  // rapid investigation
+	SDDPropose SDDPhase = "propose"  // solution sketches
+	SDDSpec    SDDPhase = "spec"     // detailed requirements
+	SDDDesign  SDDPhase = "design"   // architecture definition
+	SDDTasks   SDDPhase = "tasks"    // actionable decomposition
+	SDDApply   SDDPhase = "apply"    // code implementation
+	SDDVerify  SDDPhase = "verify"   // testing & validation
+	SDDArchive SDDPhase = "archive"  // documentation
+	SDDOnboard SDDPhase = "onboard"  // team knowledge capture
+)
+
+// AllSDDPhases lists every valid SDD phase in execution order.
+var AllSDDPhases = []string{
+	"explore", "propose", "spec", "design",
+	"tasks", "apply", "verify", "archive", "onboard",
+}
+
+// SDDState records the active SDD phase for a project.
+type SDDState struct {
+	Project   string    `json:"project"`
+	Phase     SDDPhase  `json:"phase"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+// ── OpenSpec (internal-pattern project conventions) ─────────────────────────────────
+
+// OpenSpec holds per-project conventions (stack, rules, testing standards).
+// It is injected automatically into every MCP session for the project so
+// the AI always has architecture context without being asked.
+type OpenSpec struct {
+	Project   string    `json:"project"`
+	Content   string    `json:"content"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+// ── Quality gate system ───────────────────────────────────────────────────────
+
+// QualityStatus is the outcome of a quality checkpoint.
+type QualityStatus string
+
+const (
+	QualityPass    QualityStatus = "pass"    // all criteria met, gate unlocked
+	QualityFail    QualityStatus = "fail"    // blocking issues found, cannot advance
+	QualityPartial QualityStatus = "partial" // some criteria met, needs attention
+	QualitySkip    QualityStatus = "skip"    // explicitly skipped with justification
+)
+
+// QualityFinding records the result of a single quality criterion check.
+type QualityFinding struct {
+	Rule   string `json:"rule"`
+	Status string `json:"status"` // "pass", "fail", "partial", "na"
+	Notes  string `json:"notes,omitempty"`
+}
+
+// QualityCheckpoint records the outcome of a QA assessment at a SDD phase.
+// The AI agent performs the assessment; Korva stores it for tracking and gating.
+type QualityCheckpoint struct {
+	ID         string           `json:"id"`
+	Project    string           `json:"project"`
+	SessionID  string           `json:"session_id,omitempty"`
+	Phase      string           `json:"phase"`
+	Language   string           `json:"language"`
+	Status     QualityStatus    `json:"status"`
+	Score      int              `json:"score"` // 0-100
+	Findings   []QualityFinding `json:"findings"`
+	Notes      string           `json:"notes,omitempty"`
+	GatePassed bool             `json:"gate_passed"`
+	CreatedAt  time.Time        `json:"created_at"`
+}
+
+// QualityCriterion describes a single quality requirement.
+// These are defined statically per language/phase in quality_rules.go.
+type QualityCriterion struct {
+	ID       string `json:"id"`
+	Category string `json:"category"` // testing | patterns | e2e | style | security | docs
+	Rule     string `json:"rule"`
+	Guidance string `json:"guidance,omitempty"`
+	Severity string `json:"severity"` // error | warning | info
+	Required bool   `json:"required"` // if true, must pass for gate_passed=true
+}
+
+// QualityChecklist is the full quality specification for a phase + language combination.
+type QualityChecklist struct {
+	Phase       string             `json:"phase"`
+	Language    string             `json:"language"`
+	GatePhase   string             `json:"gate_phase,omitempty"` // phase this checklist gates access to
+	Description string             `json:"description"`
+	Criteria    []QualityCriterion `json:"criteria"`
+	E2ERequired bool               `json:"e2e_required"` // true for verify phase
+}
+
+// ProjectQualityScore summarises quality trends for a project.
+type ProjectQualityScore struct {
+	Project        string    `json:"project"`
+	LatestScore    int       `json:"latest_score"`
+	AverageScore   int       `json:"average_score"`
+	TotalChecks    int       `json:"total_checks"`
+	PassedGates    int       `json:"passed_gates"`
+	LastCheckPhase string    `json:"last_check_phase,omitempty"`
+	LastCheckedAt  time.Time `json:"last_checked_at,omitempty"`
+}
 
 // Observation is a piece of knowledge saved to the Vault.
 type Observation struct {
