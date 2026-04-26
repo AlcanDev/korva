@@ -314,7 +314,7 @@ var migrations = []string{
 	`CREATE INDEX IF NOT EXISTS idx_sync_log_team  ON skill_sync_log(team_id)`,
 	`CREATE INDEX IF NOT EXISTS idx_sync_log_email ON skill_sync_log(team_id, user_email)`,
 
-	// ── Project sync controls ───────────────────────────────────────────��─────────
+	// ── Project sync controls ───────────────────────────────────────────────────
 	// Per-project pause/resume for Hive sync. Absent row = sync enabled (safe default).
 	// updated_by stores who last changed the state (admin email or "system").
 	`CREATE TABLE IF NOT EXISTS project_sync_controls (
