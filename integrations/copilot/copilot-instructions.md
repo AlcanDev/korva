@@ -1,5 +1,16 @@
 # GitHub Copilot — Korva instructions
 
+## Behavioral guidelines
+
+Read `BEHAVIOR.md` at repo root before any task. Four principles that apply
+across every IDE Korva supports: **think before coding** (surface
+assumptions, ask when unclear), **simplicity first** (minimum code, no
+speculative features), **surgical changes** (every changed line must trace
+to the user's request), **goal-driven execution** (define verifiable
+success criteria, loop until met).
+
+## Vault MCP
+
 This repo is wired to Korva. When using Copilot Chat or Copilot CLI:
 
 - Korva exposes its MCP server as `korva-vault`. The MCP tools are available via the standard `@korva-vault` mention in chat or via the CLI.

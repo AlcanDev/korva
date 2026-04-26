@@ -2,6 +2,22 @@
 
 This workspace uses Korva for team-aware AI memory and conventions.
 
+## Behavioral guidelines (read first)
+
+Korva ships universal behavioral discipline at the repo root in BEHAVIOR.md.
+Treat it as authoritative for every task. The four principles:
+
+1. **Think before coding.** State assumptions; if multiple interpretations
+   exist, present them; ask when unclear.
+2. **Simplicity first.** Minimum code to solve the problem; no speculative
+   features; no abstractions for single-use code.
+3. **Surgical changes.** Touch only what you must; match existing style;
+   every changed line should trace to the user's request.
+4. **Goal-driven execution.** Define verifiable success criteria; loop until
+   met. Prefer "write a test that fails, make it pass" framing.
+
+See `BEHAVIOR.md` at repo root for the full text with Korva-specific examples.
+
 ## Required behavior
 
 1. At the start of every conversation, call `vault_context` with the active project name, the user's prompt, and any file paths you are inspecting. The response contains:

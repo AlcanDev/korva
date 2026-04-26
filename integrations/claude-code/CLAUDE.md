@@ -2,6 +2,15 @@
 
 This project is wired to Korva via the `korva-vault` MCP server.
 
+## Behavioral guidelines
+
+Korva ships a universal behavioral discipline file at the repo root:
+[BEHAVIOR.md](../../BEHAVIOR.md). Read it once per task — its four principles
+(think before coding, simplicity first, surgical changes, goal-driven
+execution) apply across every IDE Korva supports. They are deliberately short
+and concrete; they exist to prevent the typical LLM coding pitfalls
+(over-engineering, orthogonal refactors, silent assumption-picking).
+
 ## What you get for free
 
 - `vault_context` runs at session start — recent decisions, SDD phase, team skills, and **auto-matched team conventions** are injected automatically.

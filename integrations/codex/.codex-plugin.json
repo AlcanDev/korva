@@ -11,5 +11,5 @@
   "hooks": {
     "session_start": "korva-vault hooks session-start"
   },
-  "instructions": "At the start of any task, call vault_context with project, prompt, file_paths. Apply returned auto_skills silently. Before architectural choices, call vault_hint to scan prior decisions. After meaningful work, call vault_save."
+  "instructions": "Read BEHAVIOR.md at repo root for universal coding discipline (think before coding, simplicity first, surgical changes, goal-driven execution). Then for every task: call vault_context with project, prompt, file_paths; apply returned auto_skills silently; before architectural choices call vault_hint to scan prior decisions; after meaningful work call vault_save."
 }
