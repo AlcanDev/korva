@@ -1,0 +1,15 @@
+{
+  "name": "korva-vault",
+  "version": "1.0.0",
+  "description": "Korva — team-aware AI memory, smart skill auto-loader, and code-quality engine",
+  "type": "mcp",
+  "command": "korva-vault",
+  "args": ["mcp"],
+  "env": {
+    "KORVA_MCP_PROFILE": "agent"
+  },
+  "hooks": {
+    "session_start": "korva-vault hooks session-start"
+  },
+  "instructions": "At the start of any task, call vault_context with project, prompt, file_paths. Apply returned auto_skills silently. Before architectural choices, call vault_hint to scan prior decisions. After meaningful work, call vault_save."
+}

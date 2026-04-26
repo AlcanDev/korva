@@ -537,3 +537,52 @@ func TestHEX003_MultipleConsoles(t *testing.T) {
 		t.Errorf("expected 3 violations, got %d", len(got))
 	}
 }
+
+// ---------------------------------------------------------------------------
+// RuleProfile tests
+// ---------------------------------------------------------------------------
+
+func TestRulesForProfile_Minimal_OnlySecRule(t *testing.T) {
+	rs := RulesForProfile(ProfileMinimal)
+	if len(rs) != 1 {
+		t.Fatalf("minimal should have 1 rule, got %d", len(rs))
+	}
+	if rs[0].ID() != "SEC-001" {
+		t.Errorf("minimal rule should be SEC-001, got %q", rs[0].ID())
+	}
+}
+
+func TestRulesForProfile_Standard_HasKeyRules(t *testing.T) {
+	rs := RulesForProfile(ProfileStandard)
+	ids := make(map[string]bool)
+	for _, r := range rs {
+		ids[r.ID()] = true
+	}
+	for _, want := range []string{"HEX-001", "HEX-002", "HEX-003", "SEC-001"} {
+		if !ids[want] {
+			t.Errorf("standard profile missing rule %q", want)
+		}
+	}
+	// standard should NOT include naming or testing rules
+	for _, unwanted := range []string{"NAM-001", "NAM-002", "NAM-003", "TEST-001"} {
+		if ids[unwanted] {
+			t.Errorf("standard profile should not include %q", unwanted)
+		}
+	}
+}
+
+func TestRulesForProfile_Strict_HasAll(t *testing.T) {
+	rs := RulesForProfile(ProfileStrict)
+	all := AllRules()
+	if len(rs) != len(all) {
+		t.Errorf("strict should have %d rules, got %d", len(all), len(rs))
+	}
+}
+
+func TestRulesForProfile_UnknownFallsBackToStandard(t *testing.T) {
+	rs := RulesForProfile("unknown-profile")
+	standard := RulesForProfile(ProfileStandard)
+	if len(rs) != len(standard) {
+		t.Errorf("unknown profile should fall back to standard (%d rules), got %d", len(standard), len(rs))
+	}
+}

@@ -154,3 +154,37 @@ func AllRules() []Rule {
 		TEST001{},
 	}
 }
+
+// RuleProfile controls which rules are active.
+//
+//   - minimal  — security-critical only (SEC001). Recommended for bootstrapping teams.
+//   - standard — security + critical architecture rules (SEC001, HEX001-003). Default.
+//   - strict   — all rules. Enforces naming, testing, and full architecture compliance.
+type RuleProfile string
+
+const (
+	ProfileMinimal  RuleProfile = "minimal"
+	ProfileStandard RuleProfile = "standard"
+	ProfileStrict   RuleProfile = "strict"
+)
+
+// RulesForProfile returns the subset of AllRules active under the given profile.
+// Unknown profile names fall back to ProfileStandard.
+func RulesForProfile(p RuleProfile) []Rule {
+	switch p {
+	case ProfileMinimal:
+		// Only hard security violations — no architecture noise for new teams.
+		return []Rule{SEC001{}}
+	case ProfileStrict:
+		// Every rule: security, architecture, naming, and testing.
+		return AllRules()
+	default: // ProfileStandard
+		// Security + critical hexagonal rules. Balanced for established teams.
+		return []Rule{
+			HEX001{},
+			HEX002{},
+			HEX003{},
+			SEC001{},
+		}
+	}
+}

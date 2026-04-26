@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"net/http"
 	"time"
 
@@ -46,6 +47,47 @@ func licenseStatusHandler(lic *license.License, statePath string) http.HandlerFu
 			resp["grace_remaining_hours"] = int(rem.Hours())
 		}
 		writeJSON(w, http.StatusOK, resp)
+	}
+}
+
+// licenseActivateHandler exchanges a license key for a signed JWS via the
+// licensing server, persists it to disk, and returns the new tier.
+func licenseActivateHandler(activationURL, installID, licensePath, statePath string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			LicenseKey string `json:"license_key"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.LicenseKey == "" {
+			writeError(w, http.StatusBadRequest, "license_key is required")
+			return
+		}
+		if activationURL == "" {
+			writeError(w, http.StatusServiceUnavailable, "activation_url not configured")
+			return
+		}
+		lic, err := license.Activate(r.Context(), activationURL, body.LicenseKey, installID, licensePath, statePath)
+		if err != nil {
+			writeError(w, http.StatusBadGateway, "activation failed: "+err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{
+			"status": "activated",
+			"tier":   lic.Tier,
+			"seats":  lic.Seats,
+		})
+	}
+}
+
+// licenseDeactivateHandler removes the local license and state files, freeing
+// the installation. The caller is responsible for notifying the licensing
+// server separately if a server-side seat release is needed.
+func licenseDeactivateHandler(licensePath, statePath string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if err := license.Deactivate(licensePath, statePath); err != nil {
+			writeError(w, http.StatusInternalServerError, "deactivate failed: "+err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]string{"status": "deactivated"})
 	}
 }
 

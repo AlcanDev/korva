@@ -12,6 +12,7 @@ import (
 	"github.com/alcandev/korva/internal/admin"
 	"github.com/alcandev/korva/internal/hive"
 	"github.com/alcandev/korva/internal/license"
+	"github.com/alcandev/korva/internal/privacy/cloud"
 	"github.com/alcandev/korva/vault/internal/email"
 	"github.com/alcandev/korva/vault/internal/store"
 )
@@ -23,14 +24,27 @@ type RouterConfig struct {
 	AdminKeyPath string
 	// License is the active license; nil means Community tier.
 	License *license.License
+	// LicensePath is the filesystem path to the JWS license file.
+	LicensePath string
 	// LicenseStatePath is the path to the persisted license heartbeat state.
 	LicenseStatePath string
+	// ActivationURL is the licensing server endpoint for key exchange.
+	ActivationURL string
+	// InstallID uniquely identifies this vault installation.
+	InstallID string
 	// Mailer sends transactional emails (e.g. invite notifications).
 	// Use email.NewFromEnv() in production; a noopMailer is fine when unconfigured.
 	Mailer email.Mailer
 	// HiveClient enables hybrid cloud search when non-nil.
 	// Callers pass ?cloud=1 to GET /api/v1/search to merge Hive results.
 	HiveClient *hive.Client
+	// HiveWorker exposes the worker's live sync status at GET /api/v1/hive/status.
+	// Nil when Hive is disabled.
+	HiveWorker *hive.Worker
+	// HiveOutbox is the outbox queue; used for the dry-run admin endpoint.
+	HiveOutbox *hive.Outbox
+	// HiveFilter is the cloud privacy filter; used for the dry-run admin endpoint.
+	HiveFilter *cloud.Filter
 	// WebhookURL receives a POST for every saved observation (async, best-effort).
 	// Set from VaultConfig.WebhookURL. Empty = disabled.
 	WebhookURL string
@@ -77,6 +91,11 @@ func Router(s *store.Store, cfg RouterConfig) http.Handler {
 	// SDD phase — (GET public, no auth needed)
 	mux.HandleFunc("GET /api/v1/sdd/{project}", withCORS(getSDDPhase(s)))
 
+	// Hive sync status — unauthenticated, safe for dashboards
+	mux.HandleFunc("GET /api/v1/hive/status", withCORS(hiveStatusHandler(cfg.HiveWorker)))
+
+	// Lore export moved to authenticated team route — see sessMW block below
+
 	// Prompts
 	mux.HandleFunc("POST /api/v1/prompts", withCORS(savePrompt(s)))
 
@@ -97,6 +116,10 @@ func Router(s *store.Store, cfg RouterConfig) http.Handler {
 	mux.Handle("PUT /api/v1/openspec/{project}", adminMW(withCORS(putOpenSpec(s))))
 	mux.Handle("PUT /api/v1/sdd/{project}", adminMW(withCORS(putSDDPhase(s))))
 
+	mux.Handle("GET /admin/hive/dry-run", adminMW(withCORS(hiveDryRunHandler(cfg.HiveOutbox, cfg.HiveFilter))))
+	mux.Handle("GET /admin/hive/projects", adminMW(withCORS(listProjectSyncControls(cfg.HiveOutbox))))
+	mux.Handle("POST /admin/hive/projects/{project}/pause", adminMW(withCORS(pauseProjectSync(cfg.HiveOutbox))))
+	mux.Handle("POST /admin/hive/projects/{project}/resume", adminMW(withCORS(resumeProjectSync(cfg.HiveOutbox))))
 	mux.Handle("POST /admin/purge", adminMW(withCORS(adminPurgeHandler(s, actor))))
 	mux.Handle("GET /admin/export", adminMW(withCORS(adminExport(s, actor))))
 	mux.Handle("DELETE /admin/observations/{id}", adminMW(withCORS(adminDeleteObservation(s))))
@@ -104,6 +127,8 @@ func Router(s *store.Store, cfg RouterConfig) http.Handler {
 
 	// License — available to all authenticated admin callers
 	mux.Handle("GET /admin/license/status", adminMW(withCORS(licenseStatusHandler(lic, cfg.LicenseStatePath))))
+	mux.Handle("POST /admin/license/activate", adminMW(withCORS(licenseActivateHandler(cfg.ActivationURL, cfg.InstallID, cfg.LicensePath, cfg.LicenseStatePath))))
+	mux.Handle("POST /admin/license/deactivate", adminMW(withCORS(licenseDeactivateHandler(cfg.LicensePath, cfg.LicenseStatePath))))
 
 	// --- Teams (feature-gated) ---
 
@@ -145,6 +170,9 @@ func Router(s *store.Store, cfg RouterConfig) http.Handler {
 	mux.Handle("POST /admin/scrolls/private", adminMW(scrollsFeat(withCORS(adminSavePrivateScroll(s, actor)))))
 	mux.Handle("DELETE /admin/scrolls/private/{scroll_id}", adminMW(scrollsFeat(withCORS(adminDeletePrivateScroll(s, actor)))))
 
+	// Admin lore export — unrestricted team_id, for backup/compliance
+	mux.Handle("GET /admin/lore/export", adminMW(withCORS(adminLoreExportHandler(s))))
+
 	// --- Team member routes (X-Session-Token required) ---
 	// A valid session token is sufficient proof of team membership — the team's
 	// existence in the DB implies the vault admin created it with a Teams license.
@@ -162,6 +190,9 @@ func Router(s *store.Store, cfg RouterConfig) http.Handler {
 	mux.Handle("GET /team/scrolls", sessMW(withCORS(teamListScrolls(s))))
 	mux.Handle("POST /team/scrolls", sessMW(withCORS(teamSaveScroll(s))))
 	mux.Handle("DELETE /team/scrolls/{id}", sessMW(withCORS(teamDeleteScroll(s))))
+
+	// Lore export — scoped to the authenticated team (session required)
+	mux.Handle("GET /team/lore/export", sessMW(withCORS(loreExportHandler(s))))
 
 	// Wrap the entire mux with a per-IP fixed-window rate limiter.
 	// 120 req/min is generous for AI editor usage; prevents runaway loops.

@@ -148,6 +148,9 @@ type Observation struct {
 	Tags      []string        `json:"tags"`
 	Author    string          `json:"author"`
 	CreatedAt time.Time       `json:"created_at"`
+	// ReasoningHint explains WHY this observation is relevant in the current search context.
+	// Populated by the search layer when why=true is passed; empty otherwise to avoid noise.
+	ReasoningHint string `json:"reasoning_hint,omitempty"`
 }
 
 // Session represents a working session (a period of AI-assisted development).

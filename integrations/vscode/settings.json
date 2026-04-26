@@ -1,0 +1,15 @@
+{
+  "github.copilot.advanced": {
+    "instructionFile": ".github/copilot-instructions.md"
+  },
+  "korva.vault.endpoint": "http://localhost:7437",
+  "korva.vault.profile": "agent",
+  "korva.skills.autoLoad": true,
+  "korva.compress.mode": "off",
+  "mcp.servers": {
+    "korva-vault": {
+      "command": "korva-vault",
+      "args": ["mcp"]
+    }
+  }
+}

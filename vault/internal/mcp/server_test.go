@@ -24,10 +24,11 @@ func newTestServer(t *testing.T, input string) (*Server, *bytes.Buffer) {
 
 	var out bytes.Buffer
 	srv := &Server{
-		store:  s,
-		reader: bufio.NewReader(strings.NewReader(input + "\n")),
-		writer: &out,
-		logger: log.New(bytes.NewBuffer(nil), "", 0), // discard logs
+		store:   s,
+		reader:  bufio.NewReader(strings.NewReader(input + "\n")),
+		writer:  &out,
+		logger:  log.New(bytes.NewBuffer(nil), "", 0), // discard logs
+		profile: ProfileAdmin,                         // tests get full tool access
 	}
 	return srv, &out
 }
@@ -91,10 +92,12 @@ func TestToolsList(t *testing.T) {
 	if !ok {
 		t.Fatal("tools should be an array")
 	}
-	const wantTools = 17 // vault_save, vault_search, vault_context, vault_timeline,
-	// vault_get, vault_session_start, vault_session_end, vault_summary,
-	// vault_save_prompt, vault_stats, vault_delete, vault_query, vault_bulk_save,
-	// vault_sdd_phase, vault_qa_checklist, vault_qa_checkpoint, vault_team_context
+	const wantTools = 23 // 21 prior + vault_skill_match + vault_compress
+	// vault_save, vault_search, vault_context, vault_timeline, vault_get, vault_hint,
+	// vault_code_health, vault_pattern_mine, vault_skill_match, vault_compress,
+	// vault_session_start, vault_session_end, vault_summary, vault_save_prompt,
+	// vault_stats, vault_delete, vault_query, vault_bulk_save, vault_sdd_phase,
+	// vault_qa_checklist, vault_qa_checkpoint, vault_team_context, vault_export_lore
 	if len(toolsArr) != wantTools {
 		t.Errorf("expected exactly %d tools, got %d", wantTools, len(toolsArr))
 	}

@@ -1,0 +1,31 @@
+# Korva — Cursor IDE rules
+
+This workspace uses Korva for team-aware AI memory and conventions.
+
+## Required behavior
+
+1. At the start of every conversation, call `vault_context` with the active project name, the user's prompt, and any file paths you are inspecting. The response contains:
+   - `context`: recent observations
+   - `auto_skills`: team skills auto-matched to the prompt + project
+   - `sdd_phase`: where this project is in the spec-driven workflow
+   - `team_skills` / `team_scrolls`: full team knowledge
+
+2. **Apply auto_skills silently.** The user does NOT have to invoke them. Treat each `auto_skills[].body` as authoritative team guidance for the current task.
+
+3. Before proposing an architectural change, call `vault_hint` (cheaper than `vault_search`) to verify no contradicting decision already exists.
+
+4. After meaningful work (decisions, patterns, bug fixes, refactors), call `vault_save` with the appropriate `type`. The vault auto-detects duplicates and conflicts.
+
+## Tools
+
+The MCP server is named `korva-vault` and exposes 23 tools. The most important:
+
+- `vault_context` — load context (always call first)
+- `vault_save` — capture knowledge
+- `vault_hint` — cheap full-text discovery
+- `vault_skill_match` — explicit skill resolver if `vault_context` didn't pick the right ones
+- `vault_compress` — caveman-style output compression for long replies
+
+## Token budget
+
+If you sense the conversation is getting long, pass `budget_tokens=1500` to `vault_context` and use `delta=true` on subsequent calls.
