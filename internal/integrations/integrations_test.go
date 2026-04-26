@@ -76,15 +76,15 @@ func TestIntegrationsReferenceBehavior(t *testing.T) {
 
 	// Map: relative path → human-friendly IDE name (used in error messages).
 	manifests := map[string]string{
-		"integrations/README.md":                             "integrations index",
-		"integrations/claude-code/CLAUDE.md":                 "Claude Code",
-		"integrations/cursor/.cursorrules":                   "Cursor",
-		"integrations/windsurf/global_rules.md":              "Windsurf",
-		"integrations/codex/.codex-plugin.json":              "OpenAI Codex",
-		"integrations/copilot/copilot-instructions.md":       "GitHub Copilot",
-		"integrations/opencode/opencode.json":                "OpenCode",
-		"integrations/gemini/GEMINI.md":                      "Gemini CLI",
-		"integrations/vscode/settings.json":                  "VS Code",
+		"integrations/README.md":                       "integrations index",
+		"integrations/claude-code/CLAUDE.md":           "Claude Code",
+		"integrations/cursor/.cursorrules":             "Cursor",
+		"integrations/windsurf/global_rules.md":        "Windsurf",
+		"integrations/codex/.codex-plugin.json":        "OpenAI Codex",
+		"integrations/copilot/copilot-instructions.md": "GitHub Copilot",
+		"integrations/opencode/opencode.json":          "OpenCode",
+		"integrations/gemini/GEMINI.md":                "Gemini CLI",
+		"integrations/vscode/settings.json":            "VS Code",
 	}
 
 	for rel, name := range manifests {
