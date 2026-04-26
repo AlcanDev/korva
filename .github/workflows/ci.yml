@@ -53,11 +53,16 @@ jobs:
         run: go test github.com/alcandev/korva/... -count=1 -timeout 120s
 
   # ─── Go lint ────────────────────────────────────────────────────────────────
-  # Uses golangci-lint-action@v8 with version=latest so the linter is always
-  # built with a Go toolchain ≥ the project's. Blocking — lint failures fail CI.
+  # Korva uses a Go workspace (go.work). golangci-lint can't enumerate modules
+  # from the workspace root, so we matrix the lint job per module.
+  # Blocking — lint failures fail CI.
   lint:
     name: Go lint
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        module: [internal, vault, cli, sentinel/validator]
 
     steps:
       - uses: actions/checkout@v4
@@ -67,12 +72,14 @@ jobs:
         with:
           go-version: '1.26.x'
           cache: true
+          cache-dependency-path: ${{ matrix.module }}/go.sum
 
-      - name: golangci-lint
+      - name: golangci-lint (${{ matrix.module }})
         uses: golangci/golangci-lint-action@v8
         with:
           version: latest
-          args: --timeout=5m
+          args: --timeout=5m --config=${{ github.workspace }}/.golangci.yml
+          working-directory: ${{ matrix.module }}
           only-new-issues: true
 
   # ─── Beacon (React + TypeScript) ────────────────────────────────────────────

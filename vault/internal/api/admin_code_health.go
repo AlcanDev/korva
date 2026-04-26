@@ -70,7 +70,7 @@ func adminCodeHealth(s *store.Store) http.HandlerFunc {
 			writeError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
-		defer projRows.Close()
+		defer func() { _ = projRows.Close() }()
 
 		projects := make([]codeHealthProject, 0)
 		for projRows.Next() {
@@ -121,7 +121,7 @@ func adminCodeHealth(s *store.Store) http.HandlerFunc {
 			writeError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
-		defer recentRows.Close()
+		defer func() { _ = recentRows.Close() }()
 
 		recent := make([]recentCheckpoint, 0)
 		for recentRows.Next() {
