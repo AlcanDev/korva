@@ -273,4 +273,44 @@ var migrations = []string{
 	`CREATE INDEX IF NOT EXISTS idx_qc_project   ON quality_checkpoints(project)`,
 	`CREATE INDEX IF NOT EXISTS idx_qc_phase     ON quality_checkpoints(project, phase)`,
 	`CREATE INDEX IF NOT EXISTS idx_qc_created   ON quality_checkpoints(created_at)`,
+
+	// ── Skill Hub: versioning + audit trail ──────────────────────────────────────
+	// Tracks who changed each skill, at what version, and when.
+	// scope: 'team' (default) | 'org' (visible to all org members).
+	// These columns are always added via ALTER to keep the migration idempotent
+	// for existing installs — Migrate() ignores "duplicate column name" errors.
+	`ALTER TABLE skills ADD COLUMN version    INTEGER NOT NULL DEFAULT 1`,
+	`ALTER TABLE skills ADD COLUMN updated_by TEXT    NOT NULL DEFAULT ''`,
+	`ALTER TABLE skills ADD COLUMN scope      TEXT    NOT NULL DEFAULT 'team'`,
+
+	// skill_history: immutable append-only record of every save.
+	// Each row captures the exact body at that version so diffs are possible.
+	// ON DELETE CASCADE keeps history consistent when a skill is deleted.
+	`CREATE TABLE IF NOT EXISTS skill_history (
+		id         TEXT PRIMARY KEY,
+		skill_id   TEXT NOT NULL,
+		version    INTEGER NOT NULL,
+		body       TEXT NOT NULL,
+		changed_by TEXT NOT NULL DEFAULT '',
+		summary    TEXT NOT NULL DEFAULT '',
+		changed_at TEXT NOT NULL DEFAULT (datetime('now')),
+		FOREIGN KEY (skill_id) REFERENCES skills(id) ON DELETE CASCADE
+	)`,
+	`CREATE INDEX IF NOT EXISTS idx_skill_history_skill   ON skill_history(skill_id)`,
+	`CREATE INDEX IF NOT EXISTS idx_skill_history_changed ON skill_history(changed_at)`,
+
+	// ── Skill Hub F5: sync telemetry ─────────────────────────────────────────────
+	// Records every successful CLI sync so the admin can see who is up-to-date.
+	// One row per sync event; the admin query groups by (user_email, target) to get
+	// the latest sync per developer per machine.
+	`CREATE TABLE IF NOT EXISTS skill_sync_log (
+		id           TEXT PRIMARY KEY,
+		team_id      TEXT NOT NULL,
+		user_email   TEXT NOT NULL DEFAULT '',
+		synced_at    TEXT NOT NULL DEFAULT (datetime('now')),
+		skills_count INTEGER NOT NULL DEFAULT 0,
+		target       TEXT NOT NULL DEFAULT ''
+	)`,
+	`CREATE INDEX IF NOT EXISTS idx_sync_log_team  ON skill_sync_log(team_id)`,
+	`CREATE INDEX IF NOT EXISTS idx_sync_log_email ON skill_sync_log(team_id, user_email)`,
 }

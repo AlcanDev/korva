@@ -1,12 +1,13 @@
 package store
 
 import (
+	cryptorand "crypto/rand"
 	"crypto/sha256"
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"math/rand"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/oklog/ulid/v2"
@@ -975,7 +976,21 @@ func nullString(s string) *string {
 	return &s
 }
 
+// newID returns a fresh ULID. The entropy source is shared across calls and
+// uses ulid.Monotonic so two ULIDs minted in the same millisecond are strictly
+// ordered. This is critical on Windows where time.Now() resolution can be
+// ~16ms — without monotonic entropy we would generate duplicate IDs and hit
+// "UNIQUE constraint failed: observations.id" under tight save loops.
+//
+// The mutex serialises access to the monotonic source which is not safe for
+// concurrent reads.
+var (
+	entropyMu sync.Mutex
+	entropy   = ulid.Monotonic(cryptorand.Reader, 0)
+)
+
 func newID() string {
-	entropy := rand.New(rand.NewSource(time.Now().UnixNano()))
+	entropyMu.Lock()
+	defer entropyMu.Unlock()
 	return ulid.MustNew(ulid.Timestamp(time.Now()), entropy).String()
 }

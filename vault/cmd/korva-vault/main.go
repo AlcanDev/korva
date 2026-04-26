@@ -80,10 +80,22 @@ func main() {
 	// Boot retention worker if configured.
 	bootRetention(ctx, s, cfg)
 
+	// Resolve activation URL — env var overrides config.
+	activationURL := cfg.License.ActivationURL
+	if ep := os.Getenv("KORVA_LICENSING_ENDPOINT"); ep != "" {
+		activationURL = strings.TrimRight(ep, "/") + "/v1/activate"
+	}
+
+	// InstallID is needed for license activate — tolerate missing file.
+	installID, _ := identity.LoadInstallID(paths.InstallID)
+
 	routerCfg := api.RouterConfig{
 		AdminKeyPath:     paths.AdminKey,
 		License:          lic,
+		LicensePath:      paths.LicenseFile,
 		LicenseStatePath: paths.LicenseStateFile,
+		ActivationURL:    activationURL,
+		InstallID:        installID,
 		Mailer:           mailer,
 		HiveClient:       hiveClient,
 		WebhookURL:       cfg.Vault.WebhookURL,
