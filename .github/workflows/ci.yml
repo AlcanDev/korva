@@ -13,15 +13,14 @@ concurrency:
 
 jobs:
   # ─── Go: build + test (matrix: ubuntu, macOS, Windows) ─────────────────────
-  # Windows is "best-effort" (continue-on-error) because several tests are
-  # inherently Unix: file permissions (0600), ~/.korva paths, /tmp behaviour.
-  # Korva's primary deployment surface is macOS + Linux; Windows is supported
-  # for the CLI but its test surface needs targeted skips (// go:build !windows)
-  # which is tracked separately. Ubuntu and macOS remain blocking gates.
+  # All three OSes are blocking gates. Windows-specific test failures have
+  # been resolved at the source — POSIX-only assertions (file mode 0600)
+  # now skip on Windows; ULID generation uses ulid.Monotonic to avoid
+  # collisions under Windows' 16ms time resolution; cross-platform paths
+  # use filepath.Base instead of hard-coded "/" prefix checks.
   go:
     name: Go build + test
     runs-on: ${{ matrix.os }}
-    continue-on-error: ${{ matrix.os == 'windows-latest' }}
     strategy:
       fail-fast: false   # don't cancel other OS jobs when one fails
       matrix:
@@ -54,16 +53,11 @@ jobs:
         run: go test github.com/alcandev/korva/... -count=1 -timeout 120s
 
   # ─── Go lint ────────────────────────────────────────────────────────────────
-  # Non-blocking: golangci-lint releases lag behind Go versions. When the Go
-  # toolchain bumps faster than golangci-lint can be rebuilt, we report but
-  # don't block the merge. Security/style enforcement is provided by:
-  #   - gitleaks (secret scanning) — blocking
-  #   - sentinel (Korva's own validator) — blocking
-  #   - go vet (run inside the test job) — blocking
+  # Uses golangci-lint-action@v8 with version=latest so the linter is always
+  # built with a Go toolchain ≥ the project's. Blocking — lint failures fail CI.
   lint:
     name: Go lint
     runs-on: ubuntu-latest
-    continue-on-error: true
 
     steps:
       - uses: actions/checkout@v4
@@ -76,7 +70,6 @@ jobs:
 
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v8
-        continue-on-error: true
         with:
           version: latest
           args: --timeout=5m

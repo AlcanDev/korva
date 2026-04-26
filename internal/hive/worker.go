@@ -2,6 +2,7 @@ package hive
 
 import (
 	"context"
+	cryptorand "crypto/rand"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -254,7 +255,19 @@ func jitterBackoff(consecutiveErrors int) time.Duration {
 	return result
 }
 
+// batchEntropy is a process-wide monotonic ULID entropy source. The mutex
+// serialises access since ulid.Monotonic is not safe for concurrent reads.
+//
+// Same fix as store.newID: math/rand seeded with time.Now().UnixNano() per
+// call produces duplicate IDs on Windows (16 ms time resolution). Using a
+// shared monotonic source ensures strict ordering within the same millisecond.
+var (
+	batchEntropyMu sync.Mutex
+	batchEntropy   = ulid.Monotonic(cryptorand.Reader, 0)
+)
+
 func newBatchID() string {
-	entropy := rand.New(rand.NewSource(time.Now().UnixNano()))
-	return ulid.MustNew(ulid.Timestamp(time.Now()), entropy).String()
+	batchEntropyMu.Lock()
+	defer batchEntropyMu.Unlock()
+	return ulid.MustNew(ulid.Timestamp(time.Now()), batchEntropy).String()
 }
