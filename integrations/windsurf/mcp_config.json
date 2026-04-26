@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "korva-vault": {
+      "command": "korva-vault",
+      "args": ["mcp"],
+      "env": {
+        "KORVA_MCP_PROFILE": "agent"
+      }
+    }
+  }
+}

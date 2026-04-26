@@ -260,8 +260,8 @@ func runVaultClean(cmd *cobra.Command, _ []string) error {
 	}
 
 	var total, duplicates int
-	sqlDB.QueryRow(totalQ, totalArgs...).Scan(&total)   //nolint:errcheck
-	sqlDB.QueryRow(dupQ, qArgs...).Scan(&duplicates)    //nolint:errcheck
+	sqlDB.QueryRow(totalQ, totalArgs...).Scan(&total) //nolint:errcheck
+	sqlDB.QueryRow(dupQ, qArgs...).Scan(&duplicates)  //nolint:errcheck
 
 	if project != "" {
 		fmt.Printf("  Project   : %s\n", project)

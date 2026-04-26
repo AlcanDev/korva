@@ -16,11 +16,11 @@ import (
 
 // teamTestEnv holds the fixtures needed to exercise /team/* endpoints.
 type teamTestEnv struct {
-	store        *store.Store
-	handler      http.Handler
-	teamID       string
-	adminToken   string // plaintext session token for role=admin
-	memberToken  string // plaintext session token for role=member
+	store       *store.Store
+	handler     http.Handler
+	teamID      string
+	adminToken  string // plaintext session token for role=admin
+	memberToken string // plaintext session token for role=member
 }
 
 // newTeamTestEnv creates an in-memory store, one team, two members (admin + member),

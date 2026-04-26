@@ -59,3 +59,26 @@ type StatusCounts struct {
 	Rejected int `json:"rejected_privacy"`
 	Failed   int `json:"failed"`
 }
+
+// SyncPhase describes the current activity of the Hive worker.
+type SyncPhase string
+
+const (
+	PhaseIdle     SyncPhase = "idle"     // worker is waiting for the next tick
+	PhasePushing  SyncPhase = "pushing"  // actively sending a batch to Hive
+	PhaseBackoff  SyncPhase = "backoff"  // waiting after a push failure
+	PhaseError    SyncPhase = "error"    // unrecoverable error; worker stopped
+	PhaseHealthy  SyncPhase = "healthy"  // last push succeeded
+	PhaseDisabled SyncPhase = "disabled" // KORVA_HIVE_DISABLE=1
+)
+
+// WorkerStatus is a point-in-time snapshot of the Hive worker state.
+// It is safe to read from any goroutine via Worker.Status().
+type WorkerStatus struct {
+	Phase             SyncPhase  `json:"phase"`
+	LastSyncAt        *time.Time `json:"last_sync_at,omitempty"`
+	ConsecutiveErrors int        `json:"consecutive_errors"`
+	BackoffUntil      *time.Time `json:"backoff_until,omitempty"`
+	LastError         string     `json:"last_error,omitempty"`
+	PendingCount      int        `json:"pending_count"`
+}
