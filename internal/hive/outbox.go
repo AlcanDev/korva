@@ -290,7 +290,7 @@ func backoff(attempts int) time.Duration {
 	}
 }
 
-// outboxEntropy is a process-wide monotonic ULID source. Mutex serialises
+// outboxEntropy is a process-wide monotonic ULID source. Mutex serializes
 // access since ulid.Monotonic is not safe for concurrent reads.
 //
 // Same fix as store.newID and worker.newBatchID: math/rand seeded with
