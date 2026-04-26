@@ -85,6 +85,12 @@
     # Changelog
     '''^CHANGELOG\.md$''',
     '''^.*\.lock$''',       # lockfiles
+    # Development-only RSA keys (hive-mock and licensing-mock are local dev tools).
+    # Production keys are NEVER committed — see internal/license/keys/ + .gitignore.
+    # The mock servers run on 127.0.0.1 only; their dev keys cannot sign real licences
+    # because the production pubkey baked into release binaries is different.
+    '''^forge/licensing-mock/.*\.pem$''',
+    '''^forge/hive-mock/.*\.pem$''',
   ]
 
   # Regex patterns that are globally safe
