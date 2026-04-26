@@ -41,6 +41,7 @@ func init() {
 	rootCmd.AddCommand(vaultCmd)
 	rootCmd.AddCommand(updateCmd)
 	rootCmd.AddCommand(obsCmd)
+	rootCmd.AddCommand(skillsCmd)
 }
 
 func printSuccess(msg string) {
