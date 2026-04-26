@@ -162,7 +162,7 @@ func TestGetLatestCheckpointForPhase_ReturnsLatest(t *testing.T) {
 
 func TestGetLatestCheckpointForPhase_IsolatedByPhase(t *testing.T) {
 	s := newTestStore(t)
-	s.SaveQualityCheckpoint(QualityCheckpoint{Project: "p", Phase: "apply", Status: QualityPass, Score: 90, GatePassed: true})  //nolint:errcheck
+	s.SaveQualityCheckpoint(QualityCheckpoint{Project: "p", Phase: "apply", Status: QualityPass, Score: 90, GatePassed: true})   //nolint:errcheck
 	s.SaveQualityCheckpoint(QualityCheckpoint{Project: "p", Phase: "verify", Status: QualityFail, Score: 30, GatePassed: false}) //nolint:errcheck
 
 	cp, err := s.GetLatestCheckpointForPhase("p", "apply")

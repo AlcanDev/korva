@@ -2,6 +2,7 @@ package config
 
 import (
 	"os"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
@@ -79,11 +80,21 @@ func TestVaultDB(t *testing.T) {
 	}
 }
 
+// loreDirBase returns a platform-appropriate base path for testing PrivateLoreDir
+// and PublicLoreDir. Hard-coded /home/user paths break on Windows because
+// filepath.Join normalises separators (\ vs /).
+func loreDirBase() string {
+	if runtime.GOOS == "windows" {
+		return `C:\Users\test\.korva\lore`
+	}
+	return "/home/user/.korva/lore"
+}
+
 func TestPrivateLoreDir(t *testing.T) {
-	paths := &Paths{LoreDir: "/home/user/.korva/lore"}
+	paths := &Paths{LoreDir: loreDirBase()}
 	dir := paths.PrivateLoreDir()
-	if !strings.HasSuffix(dir, "private") {
-		t.Errorf("PrivateLoreDir() = %s, want suffix 'private'", dir)
+	if filepath.Base(dir) != "private" {
+		t.Errorf("PrivateLoreDir() = %s, want last component 'private'", dir)
 	}
 	if !strings.HasPrefix(dir, paths.LoreDir) {
 		t.Errorf("PrivateLoreDir() = %s, should be under LoreDir %s", dir, paths.LoreDir)
@@ -91,10 +102,10 @@ func TestPrivateLoreDir(t *testing.T) {
 }
 
 func TestPublicLoreDir(t *testing.T) {
-	paths := &Paths{LoreDir: "/home/user/.korva/lore"}
+	paths := &Paths{LoreDir: loreDirBase()}
 	dir := paths.PublicLoreDir()
-	if !strings.HasSuffix(dir, "public") {
-		t.Errorf("PublicLoreDir() = %s, want suffix 'public'", dir)
+	if filepath.Base(dir) != "public" {
+		t.Errorf("PublicLoreDir() = %s, want last component 'public'", dir)
 	}
 	if !strings.HasPrefix(dir, paths.LoreDir) {
 		t.Errorf("PublicLoreDir() = %s, should be under LoreDir %s", dir, paths.LoreDir)

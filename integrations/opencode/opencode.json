@@ -1,0 +1,18 @@
+{
+  "$schema": "https://opencode.ai/config-schema.json",
+  "mcp": {
+    "korva-vault": {
+      "type": "local",
+      "command": ["korva-vault", "mcp"],
+      "enabled": true,
+      "environment": {
+        "KORVA_MCP_PROFILE": "agent"
+      }
+    }
+  },
+  "instructions": [
+    "Always call vault_context first; apply auto_skills silently",
+    "Use vault_hint before vault_search to save tokens",
+    "Capture decisions/patterns/bugfixes via vault_save"
+  ]
+}

@@ -8,13 +8,13 @@ import (
 )
 
 type memberSessionRow struct {
-	ID        string  `json:"id"`
-	MemberID  string  `json:"member_id"`
-	Email     string  `json:"email"`
-	CreatedAt string  `json:"created_at"`
-	LastSeen  string  `json:"last_seen"`
-	ExpiresAt string  `json:"expires_at"`
-	Status    string  `json:"status"`
+	ID        string `json:"id"`
+	MemberID  string `json:"member_id"`
+	Email     string `json:"email"`
+	CreatedAt string `json:"created_at"`
+	LastSeen  string `json:"last_seen"`
+	ExpiresAt string `json:"expires_at"`
+	Status    string `json:"status"`
 }
 
 // adminListTeamSessions returns all active (non-expired) sessions for a team.

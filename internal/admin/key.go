@@ -14,8 +14,8 @@ import (
 // It is stored in ~/.korva/admin.key with permissions 0600.
 // It is NEVER included in Git Sync manifests.
 type AdminConfig struct {
-	Key       string    `json:"key"`        // 32 bytes = 64 hex chars
-	Owner     string    `json:"owner"`      // e.g., "felipe@alcandev"
+	Key       string    `json:"key"`   // 32 bytes = 64 hex chars
+	Owner     string    `json:"owner"` // e.g., "felipe@alcandev"
 	CreatedAt time.Time `json:"created_at"`
 	Version   int       `json:"version"` // increments on each rotation
 }

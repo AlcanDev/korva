@@ -17,9 +17,9 @@ import (
 
 // Manager handles team profile lifecycle: clone, validate, apply, sync.
 type Manager struct {
-	paths      *config.Paths
-	lic        *license.License
-	vaultAddr  string // base URL of local vault, e.g. "http://localhost:7437"
+	paths     *config.Paths
+	lic       *license.License
+	vaultAddr string // base URL of local vault, e.g. "http://localhost:7437"
 }
 
 // NewManager creates a ProfileManager using the given platform paths.

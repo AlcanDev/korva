@@ -1,43 +1,51 @@
+# golangci-lint v2 config (https://golangci-lint.run/usage/configuration/)
+version: "2"
+
 run:
   timeout: 5m
 
-# Only the linters that add real value without noise
 linters:
-  enable-all: false
+  default: none
+  # Only the linters that add real value without noise.
+  # Note: gosimple was merged into staticcheck in v2; gofmt + goimports moved
+  # to the separate `formatters` section below.
   enable:
     - errcheck      # unchecked error returns
     - govet         # go vet — reports suspicious constructs
-    - gosimple      # code simplification opportunities
     - ineffassign   # assignments that are never used
-    - staticcheck   # SA/ST/QF rules (comprehensive static analysis)
+    - staticcheck   # SA/ST/QF rules (incl. simplification, was gosimple)
     - unused        # unused code (exported + unexported)
     - misspell      # common spelling mistakes in comments/strings
-    - gofmt         # standard Go formatting
-    - goimports     # import grouping + gofmt
     - unconvert     # unnecessary type conversions
     - bodyclose     # HTTP response body left unclosed
     - nilerr        # returns nil instead of the error it just checked
 
-linters-settings:
-  goimports:
-    # Keep korva modules in their own import group
-    local-prefixes: github.com/alcandev/korva
-  misspell:
-    locale: US
+  settings:
+    misspell:
+      locale: US
+
+  exclusions:
+    rules:
+      # Test files — relax errcheck (many test helpers ignore errors intentionally)
+      - path: _test\.go
+        linters: [errcheck, bodyclose]
+      # Test utilities / fixtures
+      - path: testdata/
+        linters: [errcheck, bodyclose, govet, staticcheck, unused, misspell, unconvert, nilerr, ineffassign]
+      # Generated files
+      - path: (\.pb\.go|_gen\.go|mock_.*\.go)$
+        linters: [errcheck, bodyclose, govet, staticcheck, unused, misspell, unconvert, nilerr, ineffassign]
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    goimports:
+      # Keep korva modules in their own import group
+      local-prefixes:
+        - github.com/alcandev/korva
 
 issues:
   max-issues-per-linter: 50
   max-same-issues: 5
-
-  exclude-rules:
-    # Test files — relax errcheck (many test helpers ignore errors intentionally)
-    - path: _test\.go
-      linters: [errcheck, bodyclose]
-
-    # Test utilities / fixtures
-    - path: testdata/
-      linters: [all]
-
-    # Generated files
-    - path: (\.pb\.go|_gen\.go|mock_.*\.go)$
-      linters: [all]

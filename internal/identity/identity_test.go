@@ -3,6 +3,7 @@ package identity
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 )
 
@@ -159,6 +160,13 @@ func TestReadHexFile_TrimsWhitespace(t *testing.T) {
 }
 
 func TestFilePermissions_0600(t *testing.T) {
+	// POSIX permission bits don't apply on Windows — file ACLs are used instead.
+	// EnsureInstallID still calls os.Chmod 0600 for Unix systems; on Windows the
+	// security guarantee comes from the default ACL on the user profile dir.
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX file mode bits not applicable on Windows (ACL-based)")
+	}
+
 	dir := t.TempDir()
 	path := filepath.Join(dir, "install.id")
 	_, err := EnsureInstallID(path)

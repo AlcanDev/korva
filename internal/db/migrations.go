@@ -313,4 +313,47 @@ var migrations = []string{
 	)`,
 	`CREATE INDEX IF NOT EXISTS idx_sync_log_team  ON skill_sync_log(team_id)`,
 	`CREATE INDEX IF NOT EXISTS idx_sync_log_email ON skill_sync_log(team_id, user_email)`,
+
+	// ── Project sync controls ───────────────────────────────────────────────────
+	// Per-project pause/resume for Hive sync. Absent row = sync enabled (safe default).
+	// updated_by stores who last changed the state (admin email or "system").
+	`CREATE TABLE IF NOT EXISTS project_sync_controls (
+		project      TEXT PRIMARY KEY,
+		sync_enabled INTEGER NOT NULL DEFAULT 1,
+		paused_by    TEXT NOT NULL DEFAULT '',
+		paused_at    TEXT,
+		reason       TEXT NOT NULL DEFAULT '',
+		updated_at   TEXT NOT NULL DEFAULT (datetime('now'))
+	)`,
+
+	// ── Smart Skill Auto-Loader: triggers column ────────────────────────────────
+	// triggers is a JSON object describing when a skill should auto-activate:
+	//   {
+	//     "keywords":      ["auth", "jwt", "oauth"],
+	//     "projects":      ["api-server"],          // empty array = all projects
+	//     "file_patterns": ["**/auth/*.go"],        // glob match against working dir files
+	//     "priority":      5                         // higher = preferred when multiple match
+	//   }
+	// Empty triggers ("{}") means the skill never auto-loads (manual only).
+	`ALTER TABLE skills ADD COLUMN triggers TEXT NOT NULL DEFAULT '{}'`,
+	`ALTER TABLE skills ADD COLUMN auto_load INTEGER NOT NULL DEFAULT 0`,
+
+	// ── Skill activation log: telemetry of every auto-skill invocation ──────────
+	// Used for two things:
+	//   1. Showing the user "skills used in this session" in the UI
+	//   2. Tuning trigger heuristics — skills that auto-load but get rejected by
+	//      developers can be down-ranked over time.
+	`CREATE TABLE IF NOT EXISTS skill_activations (
+		id           TEXT PRIMARY KEY,
+		skill_id     TEXT NOT NULL,
+		team_id      TEXT NOT NULL DEFAULT '',
+		project      TEXT NOT NULL DEFAULT '',
+		prompt_hash  TEXT NOT NULL DEFAULT '',
+		match_score  REAL NOT NULL DEFAULT 0,
+		match_reason TEXT NOT NULL DEFAULT '',
+		activated_at TEXT NOT NULL DEFAULT (datetime('now'))
+	)`,
+	`CREATE INDEX IF NOT EXISTS idx_skill_activations_skill   ON skill_activations(skill_id)`,
+	`CREATE INDEX IF NOT EXISTS idx_skill_activations_team    ON skill_activations(team_id)`,
+	`CREATE INDEX IF NOT EXISTS idx_skill_activations_project ON skill_activations(project)`,
 }
