@@ -118,16 +118,29 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Check if sentinel cmd exists on this branch
+        id: have-sentinel
+        run: |
+          if [ -f sentinel/validator/cmd/korva-sentinel/main.go ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "sentinel cmd not present on this branch — skipping self-check (not a regression)."
+          fi
+
       - name: Set up Go
+        if: steps.have-sentinel.outputs.exists == 'true'
         uses: actions/setup-go@v5
         with:
           go-version: '1.26.x'
           cache: true
 
       - name: Build korva-sentinel
+        if: steps.have-sentinel.outputs.exists == 'true'
         run: go build -o korva-sentinel ./sentinel/validator/cmd/korva-sentinel/
 
       - name: Scan beacon source
+        if: steps.have-sentinel.outputs.exists == 'true'
         run: |
           # Feed file list via stdin (how korva-sentinel expects it from pre-commit hooks)
           find beacon/src \( -name '*.ts' -o -name '*.tsx' \) \
@@ -141,7 +154,7 @@ jobs:
           }
 
       - name: Upload sentinel report
-        if: always()
+        if: always() && steps.have-sentinel.outputs.exists == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: sentinel-report
