@@ -1,6 +1,8 @@
 import { useState } from 'react'
-import { Search, Trash2, Tag, Calendar, User, AlertCircle, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Search, Trash2, Tag, Calendar, User, AlertCircle, ChevronLeft, ChevronRight, Database } from 'lucide-react'
 import { useAdminSearch, useAdminDeleteObservation, type Observation } from '@/api/admin'
+import { PageHeader } from '@/components/PageHeader'
+import { useI18n } from '@/contexts/i18n'
 
 const TYPE_OPTIONS = ['', 'decision', 'pattern', 'bugfix', 'learning', 'context', 'antipattern', 'task']
 const PAGE_SIZE = 20
@@ -12,6 +14,7 @@ export default function AdminVault() {
   const [offset, setOffset] = useState(0)
   const [selected, setSelected] = useState<Observation | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
+  const { t } = useI18n()
 
   const { data, isLoading } = useAdminSearch(query, project, type, PAGE_SIZE, offset)
   const deleteMutation = useAdminDeleteObservation()
@@ -30,30 +33,26 @@ export default function AdminVault() {
     })
   }
 
-  // Reset to first page whenever filters change
   function setQueryAndReset(v: string) { setQuery(v); setOffset(0) }
   function setProjectAndReset(v: string) { setProject(v); setOffset(0) }
   function setTypeAndReset(v: string) { setType(v); setOffset(0) }
 
-  function handleDelete(id: string) {
-    deleteMutation.mutate(id, {
-      onSuccess: () => {
-        setConfirmDelete(null)
-        if (selected?.id === id) setSelected(null)
-      },
-    })
-  }
-
   return (
     <div className="p-4 sm:p-6 space-y-4">
-      <div>
-        <h2 className="text-lg font-semibold text-[#e6edf3]">Vault Browser</h2>
-        <p className="text-sm text-[#8b949e] mt-0.5">
-          {total > 0
-            ? `${total} observation${total !== 1 ? 's' : ''} · page ${Math.floor(offset / PAGE_SIZE) + 1} of ${Math.ceil(total / PAGE_SIZE)}`
-            : 'All observations'}
-        </p>
-      </div>
+      <PageHeader
+        icon={<Database size={17} />}
+        iconColor="#388bfd"
+        title={t.vault.title}
+        description={t.vault.description}
+        hint={{ command: 'korva vault start', label: t.vault.hintLabel }}
+        actions={
+          total > 0 ? (
+            <span className="text-xs text-[#484f58]">
+              {t.vault.paginationLabel(total, Math.floor(offset / PAGE_SIZE) + 1, Math.ceil(total / PAGE_SIZE))}
+            </span>
+          ) : undefined
+        }
+      />
 
       {/* Filters */}
       <div className="flex flex-wrap gap-3">
@@ -61,7 +60,7 @@ export default function AdminVault() {
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#484f58]" />
           <input
             type="text"
-            placeholder="Search observations..."
+            placeholder={t.vault.searchPlaceholder}
             value={query}
             onChange={e => setQueryAndReset(e.target.value)}
             className="w-full bg-[#161b22] border border-[#30363d] rounded-lg pl-9 pr-3 py-2 text-sm text-[#e6edf3] placeholder-[#484f58] focus:outline-none focus:border-[#388bfd]"
@@ -69,7 +68,7 @@ export default function AdminVault() {
         </div>
         <input
           type="text"
-          placeholder="Project filter..."
+          placeholder={t.vault.projectPlaceholder}
           value={project}
           onChange={e => setProjectAndReset(e.target.value)}
           className="bg-[#161b22] border border-[#30363d] rounded-lg px-3 py-2 text-sm text-[#e6edf3] placeholder-[#484f58] focus:outline-none focus:border-[#388bfd] w-full sm:w-40"
@@ -79,8 +78,8 @@ export default function AdminVault() {
           onChange={e => setTypeAndReset(e.target.value)}
           className="bg-[#161b22] border border-[#30363d] rounded-lg px-3 py-2 text-sm text-[#e6edf3] focus:outline-none focus:border-[#388bfd]"
         >
-          {TYPE_OPTIONS.map(t => (
-            <option key={t} value={t}>{t || 'All types'}</option>
+          {TYPE_OPTIONS.map(tp => (
+            <option key={tp} value={tp}>{tp || t.vault.allTypes}</option>
           ))}
         </select>
       </div>
@@ -95,7 +94,7 @@ export default function AdminVault() {
           )}
           {!isLoading && results.length === 0 && (
             <div className="text-center text-sm text-[#484f58] py-12">
-              No observations found
+              {t.vault.noObservations}
             </div>
           )}
           {results.map(obs => (
@@ -173,8 +172,8 @@ export default function AdminVault() {
               {selected.tags?.length > 0 && (
                 <div className="flex items-center gap-2 flex-wrap">
                   <Tag size={11} />
-                  {selected.tags.map(t => (
-                    <span key={t} className="bg-[#21262d] px-2 py-0.5 rounded text-[10px]">{t}</span>
+                  {selected.tags.map(tg => (
+                    <span key={tg} className="bg-[#21262d] px-2 py-0.5 rounded text-[10px]">{tg}</span>
                   ))}
                 </div>
               )}
@@ -190,24 +189,24 @@ export default function AdminVault() {
           <div className="bg-[#161b22] border border-[#f8514930] rounded-xl p-6 max-w-sm w-full">
             <div className="flex items-center gap-3 mb-3">
               <AlertCircle size={18} className="text-[#f85149]" />
-              <h3 className="text-sm font-semibold text-[#e6edf3]">Delete observation?</h3>
+              <h3 className="text-sm font-semibold text-[#e6edf3]">{t.vault.deleteConfirmTitle}</h3>
             </div>
             <p className="text-xs text-[#8b949e] mb-5">
-              This action cannot be undone. The observation will be permanently removed from the vault.
+              {t.vault.deleteConfirmDesc}
             </p>
             <div className="flex gap-3">
               <button
                 onClick={() => setConfirmDelete(null)}
                 className="flex-1 px-4 py-2 text-sm text-[#8b949e] border border-[#30363d] rounded-lg hover:bg-[#21262d] transition-colors"
               >
-                Cancel
+                {t.common.cancel}
               </button>
               <button
                 onClick={() => handleDelete(confirmDelete)}
                 disabled={deleteMutation.isPending}
                 className="flex-1 px-4 py-2 text-sm text-white bg-[#da3633] hover:bg-[#f85149] rounded-lg transition-colors disabled:opacity-50"
               >
-                {deleteMutation.isPending ? 'Deleting…' : 'Delete'}
+                {deleteMutation.isPending ? t.common.deleting : t.common.delete}
               </button>
             </div>
           </div>

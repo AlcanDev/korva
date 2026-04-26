@@ -1,8 +1,11 @@
-import { Brain, Clock, FileText, Users, TrendingUp, Database, Zap } from 'lucide-react'
+import { Brain, Clock, FileText, Users, TrendingUp, Database, Zap, LayoutDashboard } from 'lucide-react'
 import { useAdminStats } from '@/api/admin'
+import { PageHeader } from '@/components/PageHeader'
+import { useI18n } from '@/contexts/i18n'
 
 export default function AdminDashboard() {
   const { data: stats, isLoading, error } = useAdminStats()
+  const { t } = useI18n()
 
   if (isLoading) {
     return (
@@ -21,7 +24,7 @@ export default function AdminDashboard() {
         : `Unexpected error: ${msg}`
     return (
       <div className="m-6 bg-[#f8514912] border border-[#f8514930] rounded-xl p-5 space-y-1">
-        <p className="text-[#f85149] text-sm font-medium">Could not load dashboard</p>
+        <p className="text-[#f85149] text-sm font-medium">{t.dashboard.couldNotLoad}</p>
         <p className="text-[#8b949e] text-xs">{hint}</p>
       </div>
     )
@@ -40,34 +43,37 @@ export default function AdminDashboard() {
 
   return (
     <div className="p-4 sm:p-6 space-y-6">
-      <div>
-        <h2 className="text-lg font-semibold text-[#e6edf3]">System Overview</h2>
-        <p className="text-sm text-[#8b949e] mt-0.5">Real-time vault intelligence metrics</p>
-      </div>
+      <PageHeader
+        icon={<LayoutDashboard size={17} />}
+        iconColor="#388bfd"
+        title={t.dashboard.title}
+        description={t.dashboard.description}
+        hint={{ command: 'korva status', label: t.dashboard.hintLabel }}
+      />
 
       {/* KPI cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <KpiCard
           icon={<Brain size={18} className="text-[#388bfd]" />}
-          label="Observations"
+          label={t.dashboard.observations}
           value={stats.total_observations}
           color="blue"
         />
         <KpiCard
           icon={<Clock size={18} className="text-[#3fb950]" />}
-          label="Sessions"
+          label={t.dashboard.sessions}
           value={stats.total_sessions}
           color="green"
         />
         <KpiCard
           icon={<FileText size={18} className="text-[#a371f7]" />}
-          label="Saved Prompts"
+          label={t.dashboard.savedPrompts}
           value={stats.total_prompts}
           color="purple"
         />
         <KpiCard
           icon={<Users size={18} className="text-[#f0883e]" />}
-          label="Active Projects"
+          label={t.dashboard.activeProjects}
           value={Object.keys(stats.by_project).length}
           color="orange"
         />
@@ -78,10 +84,10 @@ export default function AdminDashboard() {
         <div className="bg-[#161b22] border border-[#21262d] rounded-xl p-5">
           <div className="flex items-center gap-2 mb-4">
             <TrendingUp size={15} className="text-[#8b949e]" />
-            <h3 className="text-sm font-medium text-[#e6edf3]">Top Projects</h3>
+            <h3 className="text-sm font-medium text-[#e6edf3]">{t.dashboard.topProjects}</h3>
           </div>
           {topProjects.length === 0 ? (
-            <p className="text-sm text-[#484f58]">No data yet</p>
+            <p className="text-sm text-[#484f58]">{t.dashboard.noData}</p>
           ) : (
             <div className="space-y-3">
               {topProjects.map(([project, count]) => (
@@ -106,10 +112,10 @@ export default function AdminDashboard() {
         <div className="bg-[#161b22] border border-[#21262d] rounded-xl p-5">
           <div className="flex items-center gap-2 mb-4">
             <Database size={15} className="text-[#8b949e]" />
-            <h3 className="text-sm font-medium text-[#e6edf3]">By Type</h3>
+            <h3 className="text-sm font-medium text-[#e6edf3]">{t.dashboard.byType}</h3>
           </div>
           {topTypes.length === 0 ? (
-            <p className="text-sm text-[#484f58]">No data yet</p>
+            <p className="text-sm text-[#484f58]">{t.dashboard.noData}</p>
           ) : (
             <div className="space-y-2">
               {topTypes.map(([type, count]) => (
@@ -121,7 +127,7 @@ export default function AdminDashboard() {
                   <div className="flex items-center gap-2">
                     <div className="w-16 h-1 bg-[#21262d] rounded-full overflow-hidden">
                       <div
-                        className={`h-full rounded-full ${typeColor(type).replace('bg-', 'bg-')}`}
+                        className={`h-full rounded-full ${typeColor(type)}`}
                         style={{ width: `${(count / stats.total_observations) * 100}%` }}
                       />
                     </div>
@@ -139,7 +145,7 @@ export default function AdminDashboard() {
         <div className="bg-[#161b22] border border-[#21262d] rounded-xl p-5">
           <div className="flex items-center gap-2 mb-4">
             <Zap size={15} className="text-[#8b949e]" />
-            <h3 className="text-sm font-medium text-[#e6edf3]">Teams</h3>
+            <h3 className="text-sm font-medium text-[#e6edf3]">{t.dashboard.teams}</h3>
           </div>
           <div className="flex flex-wrap gap-2">
             {Object.entries(stats.by_team).map(([team, count]) => (

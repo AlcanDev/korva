@@ -19,6 +19,7 @@ type Paths struct {
 	LicenseFile      string
 	LicenseStateFile string
 	SessionTokenFile string // ~/.korva/session.token — member auth session
+	SkillsSyncFile   string // ~/.korva/skills_sync.json — last successful sync timestamp
 	ProfilesDir      string
 	LoreDir          string
 	VaultDir         string
@@ -44,6 +45,7 @@ func PlatformPaths() (*Paths, error) {
 		LicenseFile:      filepath.Join(base, "license.key"),
 		LicenseStateFile: filepath.Join(base, "license.state.json"),
 		SessionTokenFile: filepath.Join(base, "session.token"),
+		SkillsSyncFile:   filepath.Join(base, "skills_sync.json"),
 		ProfilesDir:      filepath.Join(base, "profiles"),
 		LoreDir:          filepath.Join(base, "lore"),
 		VaultDir:         filepath.Join(base, "vault"),
