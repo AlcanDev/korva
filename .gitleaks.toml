@@ -59,6 +59,10 @@
       # Documentation examples are OK
       '''://user:password@example\.com''',
       '''://username:password@host''',
+      # Google Fonts URLs use ; and @ in font-weight params and trip the regex.
+      # These are public CDN URLs, not credentials.
+      '''fonts\.googleapis\.com''',
+      '''fonts\.gstatic\.com''',
     ]
 
 [[rules]]
@@ -78,10 +82,13 @@
     '''^.*\.md$''',
     '''^docs/.*''',
     '''^lore/.*''',
-    # Test fixtures
+    # Test fixtures (TypeScript + Go)
     '''^.*/__fixtures__/.*''',
     '''^.*\.spec\.ts$''',
     '''^.*\.test\.ts$''',
+    # Go test files inherently contain fixtures (e.g. testing the privacy filter
+    # requires writing fake JWTs / API keys to verify they get redacted).
+    '''^.*_test\.go$''',
     # Changelog
     '''^CHANGELOG\.md$''',
     '''^.*\.lock$''',       # lockfiles
