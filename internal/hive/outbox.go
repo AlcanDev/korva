@@ -1,10 +1,11 @@
 package hive
 
 import (
+	cryptorand "crypto/rand"
 	"database/sql"
 	"errors"
 	"fmt"
-	"math/rand"
+	"sync"
 	"time"
 
 	"github.com/oklog/ulid/v2"
@@ -70,7 +71,7 @@ func (o *Outbox) NextBatch(limit int) ([]Row, error) {
 	if err != nil {
 		return nil, fmt.Errorf("hive outbox query: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var out []Row
 	for rows.Next() {
@@ -129,7 +130,7 @@ func (o *Outbox) Status() (StatusCounts, error) {
 	if err != nil {
 		return c, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	for rows.Next() {
 		var s string
 		var n int
@@ -243,7 +244,7 @@ func (o *Outbox) ListProjectSyncControls() ([]ProjectSyncControl, error) {
 	if err != nil {
 		return nil, fmt.Errorf("hive outbox: ListProjectSyncControls: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var out []ProjectSyncControl
 	for rows.Next() {
@@ -289,7 +290,19 @@ func backoff(attempts int) time.Duration {
 	}
 }
 
+// outboxEntropy is a process-wide monotonic ULID source. Mutex serialises
+// access since ulid.Monotonic is not safe for concurrent reads.
+//
+// Same fix as store.newID and worker.newBatchID: math/rand seeded with
+// time.Now().UnixNano() per call produces duplicate IDs on Windows
+// (16ms time resolution).
+var (
+	outboxEntropyMu sync.Mutex
+	outboxEntropy   = ulid.Monotonic(cryptorand.Reader, 0)
+)
+
 func newOutboxID() string {
-	entropy := rand.New(rand.NewSource(time.Now().UnixNano()))
-	return ulid.MustNew(ulid.Timestamp(time.Now()), entropy).String()
+	outboxEntropyMu.Lock()
+	defer outboxEntropyMu.Unlock()
+	return ulid.MustNew(ulid.Timestamp(time.Now()), outboxEntropy).String()
 }

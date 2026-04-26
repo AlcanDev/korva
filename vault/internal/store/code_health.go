@@ -38,7 +38,7 @@ func (s *Store) CodeHealthSummary() ([]ProjectHealthScore, error) {
 	if err != nil {
 		return nil, fmt.Errorf("code health query: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var scores []ProjectHealthScore
 	for rows.Next() {
@@ -84,7 +84,7 @@ func computeTrend(s *Store, project string) string {
 	if err != nil {
 		return "stable"
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var scores []float64
 	for rows.Next() {

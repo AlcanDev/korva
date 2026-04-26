@@ -226,7 +226,7 @@ func killSwitch() bool {
 	return v == "1" || v == "true"
 }
 
-// jitterBackoff returns a randomised delay after n consecutive errors.
+// jitterBackoff returns a randomized delay after n consecutive errors.
 // Base schedule: 30s, 2m, 10m, 1h, 6h, then capped at 30m.
 // A ±25% jitter is applied to prevent thundering herds on shared infrastructure.
 func jitterBackoff(consecutiveErrors int) time.Duration {

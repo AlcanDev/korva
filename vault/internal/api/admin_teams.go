@@ -1,11 +1,13 @@
 package api
 
 import (
-	"crypto/sha256"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
+	"sync/atomic"
 	"time"
 
 	"github.com/alcandev/korva/internal/license"
@@ -204,7 +206,31 @@ func adminActiveProfile(s *store.Store) http.HandlerFunc {
 	}
 }
 
-// newID generates a time-ordered hex ID.
+// idCounter feeds newID with a per-process monotonic counter so two calls
+// in the same nanosecond never collide. On Windows time.Now() resolution
+// is ~16ms, which the previous SHA(time.Now().String()) approach hit hard.
+var idCounter atomic.Uint64
+
+// newID generates a time-ordered 16-hex-char ID.
+//
+// Format: 8 hex chars from a process-wide monotonic counter +
+// 8 hex chars of crypto-random entropy. The counter prefix preserves the
+// time-ordering property (later calls always sort after earlier ones)
+// while the entropy suffix prevents predictability.
 func newID() string {
-	return fmt.Sprintf("%x", sha256.Sum256([]byte(time.Now().String())))[:16]
+	n := idCounter.Add(1)
+	var b [4]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		// rand.Read failure is extraordinary on POSIX/Windows; fall back to
+		// time-based jitter rather than panicking.
+		ts := time.Now().UnixNano()
+		b[0] = byte(ts)
+		b[1] = byte(ts >> 8)
+		b[2] = byte(ts >> 16)
+		b[3] = byte(ts >> 24)
+	}
+	return fmt.Sprintf("%08x%s", uint32(n), hex.EncodeToString(b[:]))
 }
+
+// time is used elsewhere in this file (createdAt timestamps); keep import.
+var _ = time.Now

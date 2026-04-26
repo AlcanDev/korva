@@ -210,7 +210,7 @@ func (s *Store) Search(query string, filters SearchFilters) ([]Observation, erro
 	if err != nil {
 		return nil, fmt.Errorf("searching observations: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	return scanObservations(rows)
 }
@@ -280,7 +280,7 @@ func (s *Store) Context(project string, types []ObservationType, limit int) ([]O
 	if err != nil {
 		return nil, fmt.Errorf("querying context: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	return scanObservations(rows)
 }
@@ -302,7 +302,7 @@ func (s *Store) ContextSince(project, sinceID string, limit int) ([]Observation,
 	if err != nil {
 		return nil, fmt.Errorf("querying context since: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	return scanObservations(rows)
 }
@@ -324,7 +324,7 @@ func (s *Store) Timeline(project string, from, to time.Time) ([]Observation, err
 	if err != nil {
 		return nil, fmt.Errorf("querying timeline: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	return scanObservations(rows)
 }
@@ -429,7 +429,7 @@ func (s *Store) ListSessions(limit int) ([]Session, error) {
 	if err != nil {
 		return nil, fmt.Errorf("listing sessions: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var sessions []Session
 	for rows.Next() {
@@ -498,7 +498,7 @@ func scanGroupCount(db *sql.DB, query string, dest map[string]int) error {
 	if err != nil {
 		return err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	for rows.Next() {
 		var k string
 		var n int
@@ -628,7 +628,7 @@ func (s *Store) Export(opts ExportOptions) ([]Observation, error) {
 	if err != nil {
 		return nil, fmt.Errorf("export: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	return scanObservations(rows)
 }
 
@@ -841,7 +841,7 @@ func (s *Store) GetQualityCheckpoints(project string, limit int) ([]QualityCheck
 	if err != nil {
 		return nil, fmt.Errorf("querying checkpoints: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	return scanCheckpoints(rows)
 }
 
@@ -874,7 +874,7 @@ func (s *Store) GetProjectQualityScore(project string) (*ProjectQualityScore, er
 	if err != nil {
 		return nil, fmt.Errorf("querying quality score: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var total, sum, passed int
 	var latest int
@@ -1062,7 +1062,7 @@ func (s *Store) ExportScrolls(opts ExportScrollsOptions) ([]ScrollExportNote, in
 	if err != nil {
 		return nil, 0, fmt.Errorf("export scrolls: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var out []ScrollExportNote
 	for rows.Next() {

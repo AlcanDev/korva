@@ -67,7 +67,7 @@ func (s *Store) MatchSkills(in SkillMatchInput) ([]MatchedSkill, error) {
 	if err != nil {
 		return nil, fmt.Errorf("match skills query: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	prompt := strings.ToLower(in.Prompt)
 	project := strings.ToLower(in.Project)

@@ -15,7 +15,7 @@ var reDtoLowerSuffix = regexp.MustCompile(`Dto$`)
 
 func (r NAM001) ID() string { return "NAM-001" }
 func (r NAM001) Applies(path string) bool {
-	return strings.Contains(path, "/dto/") && isTS(path)
+	return strings.Contains(normalizePath(path), "/dto/") && isTS(path)
 }
 func (r NAM001) Check(filePath string, lines []string) []Violation {
 	var vs []Violation
@@ -46,7 +46,7 @@ var reScreamingSnake = regexp.MustCompile(`^[A-Z][A-Z0-9_]+$`)
 
 func (r NAM002) ID() string { return "NAM-002" }
 func (r NAM002) Applies(path string) bool {
-	return strings.Contains(path, "/domain/") && isTS(path)
+	return strings.Contains(normalizePath(path), "/domain/") && isTS(path)
 }
 func (r NAM002) Check(filePath string, lines []string) []Violation {
 	var vs []Violation
@@ -74,10 +74,11 @@ type NAM003 struct{}
 
 func (r NAM003) ID() string { return "NAM-003" }
 func (r NAM003) Applies(path string) bool {
-	return strings.Contains(path, "/adapters/") && isTS(path) && !isSpec(path)
+	return strings.Contains(normalizePath(path), "/adapters/") && isTS(path) && !isSpec(path)
 }
 func (r NAM003) Check(filePath string, lines []string) []Violation {
-	base := filePath[strings.LastIndex(filePath, "/")+1:]
+	p := normalizePath(filePath)
+	base := p[strings.LastIndex(p, "/")+1:]
 	// Must match: *.adapter.*.ts or *.adapter.ts
 	if !strings.Contains(base, ".adapter.") {
 		return []Violation{{
@@ -127,7 +128,8 @@ func (r TEST001) Applies(path string) bool {
 	return isSpec(path) && isTS(path)
 }
 func (r TEST001) Check(filePath string, lines []string) []Violation {
-	if strings.Contains(filePath, "/__tests__/") || strings.Contains(filePath, "/test/") {
+	p := normalizePath(filePath)
+	if strings.Contains(p, "/__tests__/") || strings.Contains(p, "/test/") {
 		return []Violation{{
 			File:     filePath,
 			Line:     1,
