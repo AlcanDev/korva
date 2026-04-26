@@ -15,7 +15,7 @@ var reDtoLowerSuffix = regexp.MustCompile(`Dto$`)
 
 func (r NAM001) ID() string { return "NAM-001" }
 func (r NAM001) Applies(path string) bool {
-	return strings.Contains(path, "/dto/") && isTS(path)
+	return strings.Contains(normalizePath(path), "/dto/") && isTS(path)
 }
 func (r NAM001) Check(filePath string, lines []string) []Violation {
 	var vs []Violation
@@ -46,7 +46,7 @@ var reScreamingSnake = regexp.MustCompile(`^[A-Z][A-Z0-9_]+$`)
 
 func (r NAM002) ID() string { return "NAM-002" }
 func (r NAM002) Applies(path string) bool {
-	return strings.Contains(path, "/domain/") && isTS(path)
+	return strings.Contains(normalizePath(path), "/domain/") && isTS(path)
 }
 func (r NAM002) Check(filePath string, lines []string) []Violation {
 	var vs []Violation
@@ -74,10 +74,11 @@ type NAM003 struct{}
 
 func (r NAM003) ID() string { return "NAM-003" }
 func (r NAM003) Applies(path string) bool {
-	return strings.Contains(path, "/adapters/") && isTS(path) && !isSpec(path)
+	return strings.Contains(normalizePath(path), "/adapters/") && isTS(path) && !isSpec(path)
 }
 func (r NAM003) Check(filePath string, lines []string) []Violation {
-	base := filePath[strings.LastIndex(filePath, "/")+1:]
+	p := normalizePath(filePath)
+	base := p[strings.LastIndex(p, "/")+1:]
 	// Must match: *.adapter.*.ts or *.adapter.ts
 	if !strings.Contains(base, ".adapter.") {
 		return []Violation{{
@@ -127,7 +128,8 @@ func (r TEST001) Applies(path string) bool {
 	return isSpec(path) && isTS(path)
 }
 func (r TEST001) Check(filePath string, lines []string) []Violation {
-	if strings.Contains(filePath, "/__tests__/") || strings.Contains(filePath, "/test/") {
+	p := normalizePath(filePath)
+	if strings.Contains(p, "/__tests__/") || strings.Contains(p, "/test/") {
 		return []Violation{{
 			File:     filePath,
 			Line:     1,
@@ -152,5 +154,39 @@ func AllRules() []Rule {
 		NAM003{},
 		SEC001{},
 		TEST001{},
+	}
+}
+
+// RuleProfile controls which rules are active.
+//
+//   - minimal  — security-critical only (SEC001). Recommended for bootstrapping teams.
+//   - standard — security + critical architecture rules (SEC001, HEX001-003). Default.
+//   - strict   — all rules. Enforces naming, testing, and full architecture compliance.
+type RuleProfile string
+
+const (
+	ProfileMinimal  RuleProfile = "minimal"
+	ProfileStandard RuleProfile = "standard"
+	ProfileStrict   RuleProfile = "strict"
+)
+
+// RulesForProfile returns the subset of AllRules active under the given profile.
+// Unknown profile names fall back to ProfileStandard.
+func RulesForProfile(p RuleProfile) []Rule {
+	switch p {
+	case ProfileMinimal:
+		// Only hard security violations — no architecture noise for new teams.
+		return []Rule{SEC001{}}
+	case ProfileStrict:
+		// Every rule: security, architecture, naming, and testing.
+		return AllRules()
+	default: // ProfileStandard
+		// Security + critical hexagonal rules. Balanced for established teams.
+		return []Rule{
+			HEX001{},
+			HEX002{},
+			HEX003{},
+			SEC001{},
+		}
 	}
 }

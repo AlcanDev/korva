@@ -145,15 +145,15 @@ func runInit(cmd *cobra.Command, args []string) error {
 	projectConfig := "korva.config.json"
 	if _, err := os.Stat(projectConfig); os.IsNotExist(err) {
 		template := map[string]any{
-			"$schema": "https://korva.dev/schemas/config/v1.json",
-			"version": "1",
-			"project": filepath.Base(currentDir()),
-			"team":    "",
-			"country": "CL",
-			"vault":   map[string]any{"port": 7437, "auto_start": true},
-			"lore":    map[string]any{"active_scrolls": []string{"forge-sdd"}},
+			"$schema":  "https://korva.dev/schemas/config/v1.json",
+			"version":  "1",
+			"project":  filepath.Base(currentDir()),
+			"team":     "",
+			"country":  "CL",
+			"vault":    map[string]any{"port": 7437, "auto_start": true},
+			"lore":     map[string]any{"active_scrolls": []string{"forge-sdd"}},
 			"sentinel": map[string]any{"enabled": true},
-			"agent":   initAgent,
+			"agent":    initAgent,
 		}
 		data, _ := json.MarshalIndent(template, "", "  ")
 		os.WriteFile(projectConfig, data, 0644)

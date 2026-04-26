@@ -10,8 +10,9 @@ var obsTypeEnum = []string{
 func tools() []Tool {
 	return []Tool{
 		{
-			Name:        "vault_save",
-			Description: "Save a knowledge observation to the Vault. Use after completing tasks, discovering patterns, fixing bugs, or making architectural decisions.",
+			Name: "vault_save",
+			Description: "Save a knowledge observation to the Vault. Use after completing tasks, discovering patterns, fixing bugs, or making architectural decisions. " +
+				"Pass dry_run=true to preview what would be stored after privacy filtering, without actually saving.",
 			InputSchema: Schema{
 				Type: "object",
 				Properties: map[string]Property{
@@ -25,6 +26,8 @@ func tools() []Tool {
 					"country":    {Type: "string", Description: "Country code: CL, PE, CO, or ALL"},
 					"author":     {Type: "string", Description: "Author (developer username or AI agent name)"},
 					"session_id": {Type: "string", Description: "Active session ID (optional)"},
+					"dry_run":    {Type: "boolean", Description: "Preview the filtered content without saving (default: false)"},
+					"force":      {Type: "boolean", Description: "Save even if a similar observation already exists (bypass semantic dedup). Default: false."},
 				},
 				Required: []string{"title", "content", "type"},
 			},
@@ -44,17 +47,26 @@ func tools() []Tool {
 					"type":    {Type: "string", Description: "Filter by observation type"},
 					"limit":   {Type: "number", Description: "Max results (default: 20)"},
 					"compact": {Type: "boolean", Description: "Return compact index (id + type + title + project only). Default: false"},
+					"why":     {Type: "boolean", Description: "Attach a plain-language reasoning hint to each result explaining why it is relevant. Default: false"},
 				},
 			},
 		},
 		{
-			Name:        "vault_context",
-			Description: "Retrieve recent observations for the current project. Call at the START of each session to restore context.",
+			Name: "vault_context",
+			Description: "Retrieve recent observations for the current project. Call at the START of each session to restore context. " +
+				"When prompt and file_paths are provided, the response also includes auto_skills — team skills automatically matched to the current task " +
+				"without the developer needing to invoke them explicitly. " +
+				"Use budget_tokens to cap the token cost; use delta=true on subsequent calls to receive only new observations since the last call.",
 			InputSchema: Schema{
 				Type: "object",
 				Properties: map[string]Property{
-					"project": {Type: "string", Description: "Project name"},
-					"limit":   {Type: "number", Description: "Max observations (default: 10)"},
+					"project":       {Type: "string", Description: "Project name"},
+					"limit":         {Type: "number", Description: "Max observations (default: 10)"},
+					"budget_tokens": {Type: "number", Description: "Soft cap on response size in tokens (~4 chars/token). Content is truncated to fit. Default: 0 (unlimited)."},
+					"delta":         {Type: "boolean", Description: "Return only observations added since the last vault_context call for this project. Saves tokens on repeated calls."},
+					"prompt":        {Type: "string", Description: "Developer's current prompt or task description — used to auto-match team skills. Optional."},
+					"file_paths":    {Type: "array", Description: "Currently relevant file paths (optional) — used to auto-match team skills."},
+					"skill_limit":   {Type: "number", Description: "Max auto-matched skills to include (default: 5)"},
 				},
 			},
 		},
@@ -134,7 +146,7 @@ func tools() []Tool {
 			Name:        "vault_stats",
 			Description: "Get global Vault statistics: total observations, sessions, breakdown by type/project/team.",
 			InputSchema: Schema{
-				Type: "object",
+				Type:       "object",
 				Properties: map[string]Property{},
 			},
 		},
@@ -226,11 +238,11 @@ func tools() []Tool {
 					"language": {Type: "string", Description: "Language evaluated: go, typescript, react (optional)"},
 					"status": {Type: "string", Description: "Overall assessment status",
 						Enum: []string{"pass", "fail", "partial", "skip"}},
-					"score":      {Type: "number", Description: "Quality score 0–100. gate_passed=true requires score ≥ 70"},
-					"findings":   {Type: "array", Description: "Array of {rule, status, notes} objects — one per criterion evaluated. rule = criterion ID (e.g. APP-001)"},
-					"notes":      {Type: "string", Description: "General notes about the checkpoint (optional)"},
+					"score":       {Type: "number", Description: "Quality score 0–100. gate_passed=true requires score ≥ 70"},
+					"findings":    {Type: "array", Description: "Array of {rule, status, notes} objects — one per criterion evaluated. rule = criterion ID (e.g. APP-001)"},
+					"notes":       {Type: "string", Description: "General notes about the checkpoint (optional)"},
 					"gate_passed": {Type: "boolean", Description: "true when ALL required criteria pass and score ≥ 70. Unlocks gated phase transitions."},
-					"session_id": {Type: "string", Description: "Active session ID (optional)"},
+					"session_id":  {Type: "string", Description: "Active session ID (optional)"},
 				},
 				Required: []string{"project", "phase", "status", "score"},
 			},
@@ -244,6 +256,89 @@ func tools() []Tool {
 			InputSchema: Schema{
 				Type:       "object",
 				Properties: map[string]Property{},
+			},
+		},
+		{
+			Name: "vault_export_lore",
+			Description: "Export team private scrolls as structured notes for use in external tools. " +
+				"Returns name, content, hash (for change detection), and updated_at for each scroll. " +
+				"Pass since (RFC3339) to fetch only scrolls updated after that timestamp — useful for incremental sync. " +
+				"Requires an active team session.",
+			InputSchema: Schema{
+				Type: "object",
+				Properties: map[string]Property{
+					"since": {Type: "string", Description: "RFC3339 timestamp — return only scrolls updated after this time. Omit for full export."},
+				},
+			},
+		},
+		{
+			Name: "vault_compress",
+			Description: "Caveman-style output compression — strips filler, articles, and pleasantries from text while preserving technical accuracy. " +
+				"Use to reduce token cost of long responses, summaries, or memory entries. " +
+				"Modes: off, lite, full (default), ultra. Average ~65% reduction on prose; code blocks pass through untouched.",
+			InputSchema: Schema{
+				Type: "object",
+				Properties: map[string]Property{
+					"text": {Type: "string", Description: "Text to compress"},
+					"mode": {Type: "string", Description: "Compression intensity: off, lite, full, ultra (default: env KORVA_OUTPUT_MODE or full)"},
+				},
+				Required: []string{"text"},
+			},
+		},
+		{
+			Name: "vault_skill_match",
+			Description: "Smart Skill Auto-Loader: returns the team skills most relevant to the current prompt + project. " +
+				"Skills are matched by file patterns, keywords, project name, and tags. " +
+				"Pass the developer's prompt and the active file paths to get scored matches with explanations. " +
+				"This runs implicitly inside vault_context — only call directly if you need a custom prompt.",
+			InputSchema: Schema{
+				Type: "object",
+				Properties: map[string]Property{
+					"prompt":     {Type: "string", Description: "Developer's prompt or task description"},
+					"project":    {Type: "string", Description: "Active project name"},
+					"file_paths": {Type: "array", Description: "Currently relevant file paths (optional)"},
+					"limit":      {Type: "number", Description: "Max skills to return (default: 5)"},
+				},
+			},
+		},
+		{
+			Name: "vault_pattern_mine",
+			Description: "Scan recent observations for emerging implicit patterns — clusters of related work that haven't been explicitly documented as patterns. " +
+				"Returns suggested pattern titles with example observation IDs. " +
+				"Use periodically to surface undocumented conventions worth preserving.",
+			InputSchema: Schema{
+				Type: "object",
+				Properties: map[string]Property{
+					"project":   {Type: "string", Description: "Project to scan (required)"},
+					"max":       {Type: "number", Description: "Max patterns to return (default: 5)"},
+					"min_count": {Type: "number", Description: "Min observations to qualify as a pattern (default: 2)"},
+				},
+				Required: []string{"project"},
+			},
+		},
+		{
+			Name: "vault_code_health",
+			Description: "Returns a composite code health score (0-100) and grade (A-F) per project, " +
+				"based on QA checkpoint history, gate pass rate, and bug/pattern signal. " +
+				"Use to quickly assess project quality trends before making architectural decisions.",
+			InputSchema: Schema{
+				Type:       "object",
+				Properties: map[string]Property{},
+			},
+		},
+		{
+			Name: "vault_hint",
+			Description: "Ultra-lightweight search returning only IDs, types, and titles — no content. " +
+				"Use when you need to discover what exists in the vault before deciding which entries to fully load with vault_get. " +
+				"Costs ~10x fewer tokens than vault_search with full content.",
+			InputSchema: Schema{
+				Type: "object",
+				Properties: map[string]Property{
+					"query":   {Type: "string", Description: "Full-text search query"},
+					"project": {Type: "string", Description: "Filter by project name"},
+					"type":    {Type: "string", Description: "Filter by observation type"},
+					"limit":   {Type: "number", Description: "Max results (default: 20, max: 100)"},
+				},
 			},
 		},
 	}

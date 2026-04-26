@@ -65,6 +65,12 @@ func (s *Store) DB() *sql.DB {
 	return s.db
 }
 
+// PreviewFilter applies the privacy filter to title and content without saving.
+// Use this for dry-run previews so callers can inspect what would be stored.
+func (s *Store) PreviewFilter(title, content string) (filteredTitle, filteredContent string) {
+	return privacy.Filter(title, s.privatePatterns), privacy.Filter(content, s.privatePatterns)
+}
+
 // --- vault_save ---
 
 // Save stores an observation after running the privacy filter.
@@ -204,7 +210,7 @@ func (s *Store) Search(query string, filters SearchFilters) ([]Observation, erro
 	if err != nil {
 		return nil, fmt.Errorf("searching observations: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	return scanObservations(rows)
 }
@@ -274,7 +280,29 @@ func (s *Store) Context(project string, types []ObservationType, limit int) ([]O
 	if err != nil {
 		return nil, fmt.Errorf("querying context: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
+
+	return scanObservations(rows)
+}
+
+// ContextSince returns observations for the project that were saved after sinceID
+// (exclusive). ULIDs are lexicographically monotonic so a simple id > sinceID
+// comparison gives correct ordering without a timestamp index.
+func (s *Store) ContextSince(project, sinceID string, limit int) ([]Observation, error) {
+	if limit <= 0 {
+		limit = 10
+	}
+	rows, err := s.db.Query(`
+		SELECT id, COALESCE(session_id, ''), project, team, country,
+		       type, title, content, tags, author, created_at
+		FROM observations
+		WHERE project = ? AND id > ?
+		ORDER BY id DESC
+		LIMIT ?`, project, sinceID, limit)
+	if err != nil {
+		return nil, fmt.Errorf("querying context since: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
 
 	return scanObservations(rows)
 }
@@ -296,7 +324,7 @@ func (s *Store) Timeline(project string, from, to time.Time) ([]Observation, err
 	if err != nil {
 		return nil, fmt.Errorf("querying timeline: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	return scanObservations(rows)
 }
@@ -337,13 +365,15 @@ func (s *Store) SessionEnd(id, summary string) error {
 func (s *Store) Summary(project string) (*ProjectSummary, error) {
 	summary := &ProjectSummary{Project: project}
 
-	// Count observations
-	s.db.QueryRow(`SELECT COUNT(*) FROM observations WHERE project = ?`, project).
-		Scan(&summary.Observations)
+	if err := s.db.QueryRow(`SELECT COUNT(*) FROM observations WHERE project = ?`, project).
+		Scan(&summary.Observations); err != nil {
+		return nil, fmt.Errorf("summary observations count: %w", err)
+	}
 
-	// Count sessions
-	s.db.QueryRow(`SELECT COUNT(*) FROM sessions WHERE project = ?`, project).
-		Scan(&summary.Sessions)
+	if err := s.db.QueryRow(`SELECT COUNT(*) FROM sessions WHERE project = ?`, project).
+		Scan(&summary.Sessions); err != nil {
+		return nil, fmt.Errorf("summary sessions count: %w", err)
+	}
 
 	// Recent observations
 	recent, err := s.Context(project, nil, 5)
@@ -399,7 +429,7 @@ func (s *Store) ListSessions(limit int) ([]Session, error) {
 	if err != nil {
 		return nil, fmt.Errorf("listing sessions: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var sessions []Session
 	for rows.Next() {
@@ -436,55 +466,48 @@ func (s *Store) Stats() (*VaultStats, error) {
 		ByCountry: make(map[string]int),
 	}
 
-	s.db.QueryRow(`SELECT COUNT(*) FROM observations`).Scan(&stats.TotalObservations)
-	s.db.QueryRow(`SELECT COUNT(*) FROM sessions`).Scan(&stats.TotalSessions)
-	s.db.QueryRow(`SELECT COUNT(*) FROM prompts`).Scan(&stats.TotalPrompts)
-
-	rows, err := s.db.Query(`SELECT type, COUNT(*) FROM observations GROUP BY type`)
-	if err == nil {
-		defer rows.Close()
-		for rows.Next() {
-			var t string
-			var n int
-			rows.Scan(&t, &n)
-			stats.ByType[t] = n
-		}
+	if err := s.db.QueryRow(`SELECT COUNT(*) FROM observations`).Scan(&stats.TotalObservations); err != nil {
+		return nil, fmt.Errorf("stats observations count: %w", err)
+	}
+	if err := s.db.QueryRow(`SELECT COUNT(*) FROM sessions`).Scan(&stats.TotalSessions); err != nil {
+		return nil, fmt.Errorf("stats sessions count: %w", err)
+	}
+	if err := s.db.QueryRow(`SELECT COUNT(*) FROM prompts`).Scan(&stats.TotalPrompts); err != nil {
+		return nil, fmt.Errorf("stats prompts count: %w", err)
 	}
 
-	rows, err = s.db.Query(`SELECT project, COUNT(*) FROM observations WHERE project != '' GROUP BY project`)
-	if err == nil {
-		defer rows.Close()
-		for rows.Next() {
-			var p string
-			var n int
-			rows.Scan(&p, &n)
-			stats.ByProject[p] = n
-		}
+	if err := scanGroupCount(s.db, `SELECT type, COUNT(*) FROM observations GROUP BY type`, stats.ByType); err != nil {
+		return nil, fmt.Errorf("stats by type: %w", err)
 	}
-
-	rows, err = s.db.Query(`SELECT team, COUNT(*) FROM observations WHERE team != '' GROUP BY team`)
-	if err == nil {
-		defer rows.Close()
-		for rows.Next() {
-			var t string
-			var n int
-			rows.Scan(&t, &n)
-			stats.ByTeam[t] = n
-		}
+	if err := scanGroupCount(s.db, `SELECT project, COUNT(*) FROM observations WHERE project != '' GROUP BY project`, stats.ByProject); err != nil {
+		return nil, fmt.Errorf("stats by project: %w", err)
 	}
-
-	rows, err = s.db.Query(`SELECT country, COUNT(*) FROM observations WHERE country != '' GROUP BY country`)
-	if err == nil {
-		defer rows.Close()
-		for rows.Next() {
-			var c string
-			var n int
-			rows.Scan(&c, &n)
-			stats.ByCountry[c] = n
-		}
+	if err := scanGroupCount(s.db, `SELECT team, COUNT(*) FROM observations WHERE team != '' GROUP BY team`, stats.ByTeam); err != nil {
+		return nil, fmt.Errorf("stats by team: %w", err)
+	}
+	if err := scanGroupCount(s.db, `SELECT country, COUNT(*) FROM observations WHERE country != '' GROUP BY country`, stats.ByCountry); err != nil {
+		return nil, fmt.Errorf("stats by country: %w", err)
 	}
 
 	return stats, nil
+}
+
+// scanGroupCount runs a "SELECT key, COUNT(*) … GROUP BY" query and populates dest.
+func scanGroupCount(db *sql.DB, query string, dest map[string]int) error {
+	rows, err := db.Query(query)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = rows.Close() }()
+	for rows.Next() {
+		var k string
+		var n int
+		if err := rows.Scan(&k, &n); err != nil {
+			return err
+		}
+		dest[k] = n
+	}
+	return rows.Err()
 }
 
 // --- helpers ---
@@ -605,7 +628,7 @@ func (s *Store) Export(opts ExportOptions) ([]Observation, error) {
 	if err != nil {
 		return nil, fmt.Errorf("export: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	return scanObservations(rows)
 }
 
@@ -818,7 +841,7 @@ func (s *Store) GetQualityCheckpoints(project string, limit int) ([]QualityCheck
 	if err != nil {
 		return nil, fmt.Errorf("querying checkpoints: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	return scanCheckpoints(rows)
 }
 
@@ -851,7 +874,7 @@ func (s *Store) GetProjectQualityScore(project string) (*ProjectQualityScore, er
 	if err != nil {
 		return nil, fmt.Errorf("querying quality score: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var total, sum, passed int
 	var latest int
@@ -923,7 +946,11 @@ func scanCheckpoint(sc cpScanner) (*QualityCheckpoint, error) {
 	}
 
 	cp.GatePassed = gatePassed == 1
-	json.Unmarshal([]byte(findingsJSON), &cp.Findings) //nolint:errcheck
+	if findingsJSON != "" {
+		if err := json.Unmarshal([]byte(findingsJSON), &cp.Findings); err != nil {
+			return nil, fmt.Errorf("scan checkpoint findings: %w", err)
+		}
+	}
 	if cp.Findings == nil {
 		cp.Findings = []QualityFinding{}
 	}
@@ -960,13 +987,100 @@ func scanObservation(s scanner) (*Observation, error) {
 		return nil, err
 	}
 
-	json.Unmarshal([]byte(tagsJSON), &obs.Tags)
+	if tagsJSON != "" {
+		if err := json.Unmarshal([]byte(tagsJSON), &obs.Tags); err != nil {
+			return nil, fmt.Errorf("scan observation tags: %w", err)
+		}
+	}
 	if obs.Tags == nil {
 		obs.Tags = []string{}
 	}
 
 	obs.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
 	return &obs, nil
+}
+
+// ScrollExportNote is one scroll in a lore export response.
+type ScrollExportNote struct {
+	Path      string    `json:"path"` // e.g. "private/auth-patterns"
+	Name      string    `json:"name"`
+	Content   string    `json:"content"`
+	TeamID    string    `json:"team_id,omitempty"`
+	Hash      string    `json:"hash"` // SHA-256[:12] for change detection
+	UpdatedAt time.Time `json:"updated_at"`
+	Deleted   bool      `json:"deleted,omitempty"`
+}
+
+// ExportScrollsOptions constrains which scrolls are included.
+type ExportScrollsOptions struct {
+	// TeamID limits results to a specific team. Empty returns all teams.
+	TeamID string
+	// Since returns only scrolls updated after this time. Zero = all.
+	Since time.Time
+	// Limit is the max number of results (0 = default 100).
+	Limit int
+	// Offset is the number of results to skip for pagination.
+	Offset int
+}
+
+// ExportScrolls returns private scrolls from the DB, suitable for incremental
+// export to external tools. The caller uses the Hash field to detect changes.
+// Returns (notes, total, error) where total is the count without limit/offset.
+func (s *Store) ExportScrolls(opts ExportScrollsOptions) ([]ScrollExportNote, int, error) {
+	var args []any
+	var conditions []string
+
+	if opts.TeamID != "" {
+		conditions = append(conditions, "team_id = ?")
+		args = append(args, opts.TeamID)
+	}
+	if !opts.Since.IsZero() {
+		conditions = append(conditions, "updated_at > ?")
+		args = append(args, opts.Since.UTC().Format(time.RFC3339))
+	}
+
+	where := ""
+	if len(conditions) > 0 {
+		where = " WHERE " + strings.Join(conditions, " AND ")
+	}
+
+	var total int
+	if err := s.db.QueryRow("SELECT COUNT(*) FROM private_scrolls"+where, args...).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("export scrolls count: %w", err)
+	}
+
+	limit := opts.Limit
+	if limit <= 0 {
+		limit = 100
+	}
+
+	query := `SELECT name, content, team_id, updated_at FROM private_scrolls` +
+		where + " ORDER BY team_id ASC, name ASC LIMIT ? OFFSET ?"
+	queryArgs := append(args, limit, opts.Offset)
+
+	rows, err := s.db.Query(query, queryArgs...)
+	if err != nil {
+		return nil, 0, fmt.Errorf("export scrolls: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var out []ScrollExportNote
+	for rows.Next() {
+		var n ScrollExportNote
+		var updatedAt string
+		if err := rows.Scan(&n.Name, &n.Content, &n.TeamID, &updatedAt); err != nil {
+			return nil, 0, err
+		}
+		n.UpdatedAt, _ = time.Parse(time.RFC3339, updatedAt)
+		n.Path = "private/" + n.Name
+		sum := sha256.Sum256([]byte(n.Content))
+		n.Hash = fmt.Sprintf("%x", sum[:6]) // 12 hex chars
+		out = append(out, n)
+	}
+	if out == nil {
+		out = []ScrollExportNote{}
+	}
+	return out, total, rows.Err()
 }
 
 func nullString(s string) *string {
@@ -982,7 +1096,7 @@ func nullString(s string) *string {
 // ~16ms — without monotonic entropy we would generate duplicate IDs and hit
 // "UNIQUE constraint failed: observations.id" under tight save loops.
 //
-// The mutex serialises access to the monotonic source which is not safe for
+// The mutex serializes access to the monotonic source which is not safe for
 // concurrent reads.
 var (
 	entropyMu sync.Mutex

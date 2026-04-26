@@ -1,8 +1,7 @@
 package admin
 
 import (
-	"crypto/hmac"
-	"crypto/sha256"
+	"crypto/subtle"
 	"net/http"
 )
 
@@ -39,11 +38,6 @@ func Middleware(keyPath string) func(http.Handler) http.Handler {
 }
 
 // secureEqual compares two strings in constant time to prevent timing attacks.
-// It uses HMAC-SHA256 to ensure equal-length comparison regardless of string length.
 func secureEqual(a, b string) bool {
-	ha := hmac.New(sha256.New, []byte("korva-key-compare"))
-	ha.Write([]byte(a))
-	hb := hmac.New(sha256.New, []byte("korva-key-compare"))
-	hb.Write([]byte(b))
-	return hmac.Equal(ha.Sum(nil), hb.Sum(nil))
+	return subtle.ConstantTimeCompare([]byte(a), []byte(b)) == 1
 }

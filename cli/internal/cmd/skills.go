@@ -640,4 +640,3 @@ func removeHook(settings map[string]any) {
 		hooks["PreToolUse"] = filtered
 	}
 }
-

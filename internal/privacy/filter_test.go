@@ -7,10 +7,10 @@ import (
 
 func TestFilter(t *testing.T) {
 	tests := []struct {
-		name     string
-		input    string
-		wantIn   string // expected substring in output
-		wantOut  string // substring that should NOT be in output
+		name    string
+		input   string
+		wantIn  string // expected substring in output
+		wantOut string // substring that should NOT be in output
 	}{
 		{
 			name:    "password equals sign",

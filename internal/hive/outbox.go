@@ -1,10 +1,11 @@
 package hive
 
 import (
+	cryptorand "crypto/rand"
 	"database/sql"
 	"errors"
 	"fmt"
-	"math/rand"
+	"sync"
 	"time"
 
 	"github.com/oklog/ulid/v2"
@@ -19,6 +20,20 @@ type Outbox struct {
 // (created by internal/db migrations).
 func NewOutbox(db *sql.DB) *Outbox {
 	return &Outbox{db: db}
+}
+
+// EnqueueForProject stores an observation payload for future Hive delivery,
+// but only if the project's sync is enabled. Returns (false, nil) when the
+// project is paused — callers should log the skip at debug level.
+func (o *Outbox) EnqueueForProject(observationID, project string, payload []byte) (bool, error) {
+	enabled, err := o.IsProjectSyncEnabled(project)
+	if err != nil {
+		return false, err
+	}
+	if !enabled {
+		return false, nil
+	}
+	return true, o.Enqueue(observationID, payload)
 }
 
 // Enqueue stores an observation payload for future Hive delivery.
@@ -56,7 +71,7 @@ func (o *Outbox) NextBatch(limit int) ([]Row, error) {
 	if err != nil {
 		return nil, fmt.Errorf("hive outbox query: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var out []Row
 	for rows.Next() {
@@ -115,7 +130,7 @@ func (o *Outbox) Status() (StatusCounts, error) {
 	if err != nil {
 		return c, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	for rows.Next() {
 		var s string
 		var n int
@@ -156,6 +171,106 @@ func (o *Outbox) update(id, status, errMsg string, nextAt time.Time, bumpAttempt
 	return err
 }
 
+// --- per-project sync controls ---
+
+// ProjectSyncControl describes the sync state for a project.
+type ProjectSyncControl struct {
+	Project     string     `json:"project"`
+	SyncEnabled bool       `json:"sync_enabled"`
+	PausedBy    string     `json:"paused_by,omitempty"`
+	PausedAt    *time.Time `json:"paused_at,omitempty"`
+	Reason      string     `json:"reason,omitempty"`
+	UpdatedAt   time.Time  `json:"updated_at"`
+}
+
+// IsProjectSyncEnabled returns false when the project has been explicitly paused.
+// An absent row defaults to true (fail-open: unknown projects are allowed to sync).
+// Returns (false, err) on DB errors — callers should log and treat as paused.
+func (o *Outbox) IsProjectSyncEnabled(project string) (bool, error) {
+	var enabled int
+	err := o.db.QueryRow(
+		`SELECT sync_enabled FROM project_sync_controls WHERE project = ?`, project,
+	).Scan(&enabled)
+	if err == sql.ErrNoRows {
+		return true, nil // safe default: no control row = sync enabled
+	}
+	if err != nil {
+		return false, fmt.Errorf("hive outbox: IsProjectSyncEnabled: %w", err)
+	}
+	return enabled == 1, nil
+}
+
+// PauseProjectSync disables Hive sync for the given project.
+// Future Enqueue calls for this project will be skipped.
+func (o *Outbox) PauseProjectSync(project, pausedBy, reason string) error {
+	now := time.Now().UTC().Format(time.RFC3339)
+	_, err := o.db.Exec(`
+		INSERT INTO project_sync_controls (project, sync_enabled, paused_by, paused_at, reason, updated_at)
+		VALUES (?, 0, ?, ?, ?, ?)
+		ON CONFLICT(project) DO UPDATE SET
+			sync_enabled = 0,
+			paused_by    = excluded.paused_by,
+			paused_at    = excluded.paused_at,
+			reason       = excluded.reason,
+			updated_at   = excluded.updated_at`,
+		project, pausedBy, now, reason, now,
+	)
+	return err
+}
+
+// ResumeProjectSync re-enables Hive sync for the given project.
+func (o *Outbox) ResumeProjectSync(project, resumedBy string) error {
+	now := time.Now().UTC().Format(time.RFC3339)
+	_, err := o.db.Exec(`
+		INSERT INTO project_sync_controls (project, sync_enabled, paused_by, paused_at, reason, updated_at)
+		VALUES (?, 1, ?, NULL, '', ?)
+		ON CONFLICT(project) DO UPDATE SET
+			sync_enabled = 1,
+			paused_by    = excluded.paused_by,
+			paused_at    = NULL,
+			reason       = '',
+			updated_at   = excluded.updated_at`,
+		project, resumedBy, now,
+	)
+	return err
+}
+
+// ListProjectSyncControls returns all rows from project_sync_controls.
+func (o *Outbox) ListProjectSyncControls() ([]ProjectSyncControl, error) {
+	rows, err := o.db.Query(`
+		SELECT project, sync_enabled, paused_by, paused_at, reason, updated_at
+		FROM project_sync_controls
+		ORDER BY project ASC`)
+	if err != nil {
+		return nil, fmt.Errorf("hive outbox: ListProjectSyncControls: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var out []ProjectSyncControl
+	for rows.Next() {
+		var c ProjectSyncControl
+		var enabled int
+		var pausedAt sql.NullString
+		var updatedAt, pausedBy, reason string
+		if err := rows.Scan(&c.Project, &enabled, &pausedBy, &pausedAt, &reason, &updatedAt); err != nil {
+			return nil, err
+		}
+		c.SyncEnabled = enabled == 1
+		c.PausedBy = pausedBy
+		c.Reason = reason
+		if pausedAt.Valid && pausedAt.String != "" {
+			if t, err := time.Parse(time.RFC3339, pausedAt.String); err == nil {
+				c.PausedAt = &t
+			}
+		}
+		c.UpdatedAt, _ = time.Parse(time.RFC3339, updatedAt)
+		out = append(out, c)
+	}
+	return out, rows.Err()
+}
+
+// --- per-project sync controls end ---
+
 // backoff returns the delay before retrying after `attempts` failures.
 // Schedule: 30s → 2m → 10m → 1h → 6h → 24h, then park at 'failed'.
 func backoff(attempts int) time.Duration {
@@ -175,7 +290,19 @@ func backoff(attempts int) time.Duration {
 	}
 }
 
+// outboxEntropy is a process-wide monotonic ULID source. Mutex serializes
+// access since ulid.Monotonic is not safe for concurrent reads.
+//
+// Same fix as store.newID and worker.newBatchID: math/rand seeded with
+// time.Now().UnixNano() per call produces duplicate IDs on Windows
+// (16ms time resolution).
+var (
+	outboxEntropyMu sync.Mutex
+	outboxEntropy   = ulid.Monotonic(cryptorand.Reader, 0)
+)
+
 func newOutboxID() string {
-	entropy := rand.New(rand.NewSource(time.Now().UnixNano()))
-	return ulid.MustNew(ulid.Timestamp(time.Now()), entropy).String()
+	outboxEntropyMu.Lock()
+	defer outboxEntropyMu.Unlock()
+	return ulid.MustNew(ulid.Timestamp(time.Now()), outboxEntropy).String()
 }
