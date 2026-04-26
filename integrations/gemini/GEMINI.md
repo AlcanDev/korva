@@ -1,5 +1,15 @@
 # Korva — Gemini CLI integration
 
+## Behavioral guidelines
+
+Read `BEHAVIOR.md` at repo root before any task. Four universal principles:
+**think before coding** (surface assumptions, ask when unclear),
+**simplicity first** (minimum code, no speculative features), **surgical
+changes** (every changed line traces to the request), **goal-driven
+execution** (define verifiable success criteria, loop until met).
+
+## Vault MCP
+
 Korva is exposed as `korva-vault` via MCP. Use these tools at every conversation:
 
 1. `vault_context` — call first; apply `auto_skills` silently as authoritative team guidance

@@ -2,6 +2,10 @@
 
 Korva ships first-class integrations for every major AI coding tool. Each subdirectory is a drop-in plugin manifest that wires the local `korva-vault` MCP server into the corresponding IDE.
 
+## Universal behavioral guidelines
+
+Every integration references [`BEHAVIOR.md`](../BEHAVIOR.md) at repo root. That file defines four universal coding principles (think before coding, simplicity first, surgical changes, goal-driven execution) that apply to AI agents in any IDE — whether or not the vault MCP server is running. Pure markdown, zero runtime dependency. Inspired by Karpathy's observations on LLM coding pitfalls, adapted to Korva's Go monorepo.
+
 | IDE / Tool         | Directory          | Install                                            |
 | ------------------ | ------------------ | -------------------------------------------------- |
 | Claude Code        | `claude-code/`     | `cp claude-code/* ~/.claude/`                      |

@@ -11,6 +11,7 @@
     }
   },
   "instructions": [
+    "Read BEHAVIOR.md at repo root: think before coding, simplicity first, surgical changes, goal-driven execution",
     "Always call vault_context first; apply auto_skills silently",
     "Use vault_hint before vault_search to save tokens",
     "Capture decisions/patterns/bugfixes via vault_save"
