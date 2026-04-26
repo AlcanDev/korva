@@ -25,9 +25,9 @@ import (
 )
 
 func main() {
-	format        := flag.String("format", "text", "Output format: text | json")
+	format := flag.String("format", "text", "Output format: text | json")
 	failOnWarning := flag.Bool("fail-on-warning", false, "Exit 1 on warnings as well as errors")
-	profile       := flag.String("profile", "standard", "Rule profile: minimal | standard | strict")
+	profile := flag.String("profile", "standard", "Rule profile: minimal | standard | strict")
 	flag.Parse()
 
 	// File paths from args, or stdin if none provided

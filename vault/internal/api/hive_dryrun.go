@@ -12,7 +12,7 @@ import (
 //
 // Shows which pending outbox rows would be sent vs. rejected by the privacy
 // filter on the next sync — without actually sending anything. Useful for
-// verifying privacy filter behaviour before enabling Hive sync.
+// verifying privacy filter behavior before enabling Hive sync.
 //
 // Requires admin key.
 func hiveDryRunHandler(outbox *hive.Outbox, filter *cloud.Filter) http.HandlerFunc {

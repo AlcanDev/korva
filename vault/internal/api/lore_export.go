@@ -60,8 +60,8 @@ func loreExportHandler(s *store.Store) http.HandlerFunc {
 			"incremental": !opts.Since.IsZero(),
 			"team_id":     sess.teamID,
 			"pagination": map[string]any{
-				"limit":   opts.Limit,
-				"offset":  opts.Offset,
+				"limit":    opts.Limit,
+				"offset":   opts.Offset,
 				"has_more": opts.Offset+len(notes) < total,
 			},
 		})
@@ -113,8 +113,8 @@ func adminLoreExportHandler(s *store.Store) http.HandlerFunc {
 			"incremental": !opts.Since.IsZero(),
 			"team_id":     teamID,
 			"pagination": map[string]any{
-				"limit":   opts.Limit,
-				"offset":  opts.Offset,
+				"limit":    opts.Limit,
+				"offset":   opts.Offset,
 				"has_more": opts.Offset+len(notes) < total,
 			},
 		})

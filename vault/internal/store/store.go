@@ -1002,11 +1002,11 @@ func scanObservation(s scanner) (*Observation, error) {
 
 // ScrollExportNote is one scroll in a lore export response.
 type ScrollExportNote struct {
-	Path      string    `json:"path"`    // e.g. "private/auth-patterns"
+	Path      string    `json:"path"` // e.g. "private/auth-patterns"
 	Name      string    `json:"name"`
 	Content   string    `json:"content"`
 	TeamID    string    `json:"team_id,omitempty"`
-	Hash      string    `json:"hash"`       // SHA-256[:12] for change detection
+	Hash      string    `json:"hash"` // SHA-256[:12] for change detection
 	UpdatedAt time.Time `json:"updated_at"`
 	Deleted   bool      `json:"deleted,omitempty"`
 }
@@ -1096,7 +1096,7 @@ func nullString(s string) *string {
 // ~16ms — without monotonic entropy we would generate duplicate IDs and hit
 // "UNIQUE constraint failed: observations.id" under tight save loops.
 //
-// The mutex serialises access to the monotonic source which is not safe for
+// The mutex serializes access to the monotonic source which is not safe for
 // concurrent reads.
 var (
 	entropyMu sync.Mutex

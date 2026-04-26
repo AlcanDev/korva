@@ -30,12 +30,12 @@ import (
 )
 
 func main() {
-	mode   := flag.String("mode", "both", "Server mode: mcp | http | both | tui")
-	port   := flag.Int("port", 7437, "HTTP server port")
+	mode := flag.String("mode", "both", "Server mode: mcp | http | both | tui")
+	port := flag.Int("port", 7437, "HTTP server port")
 	dbPath := flag.String("db", "", "SQLite database path (default: ~/.korva/vault/observations.db)")
 	flag.Parse()
 
-	// Root context — cancelled on SIGINT/SIGTERM so all goroutines can clean up.
+	// Root context — canceled on SIGINT/SIGTERM so all goroutines can clean up.
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
@@ -363,7 +363,7 @@ func runHTTP(ctx context.Context, s *store.Store, cfg api.RouterConfig, port int
 		}
 	}()
 
-	// Block until the root context is cancelled (SIGINT/SIGTERM or MCP exit).
+	// Block until the root context is canceled (SIGINT/SIGTERM or MCP exit).
 	<-ctx.Done()
 
 	log.Printf("Korva Vault shutting down…")

@@ -650,4 +650,3 @@ func TestToolContext_HiveUnavailable(t *testing.T) {
 		t.Errorf("hive_status should be 'unavailable', got: %s", text)
 	}
 }
-

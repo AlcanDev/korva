@@ -43,18 +43,18 @@ var profileTools = map[Profile]map[string]bool{
 		"vault_export_lore":   true,
 	},
 	ProfileReadonly: {
-		"vault_search":        true,
-		"vault_context":       true,
-		"vault_timeline":      true,
-		"vault_get":           true,
-		"vault_hint":          true,
-		"vault_code_health":   true,
-		"vault_pattern_mine":  true,
-		"vault_skill_match":   true,
-		"vault_compress":      true,
-		"vault_summary":       true,
-		"vault_stats":         true,
-		"vault_export_lore":   true,
+		"vault_search":       true,
+		"vault_context":      true,
+		"vault_timeline":     true,
+		"vault_get":          true,
+		"vault_hint":         true,
+		"vault_code_health":  true,
+		"vault_pattern_mine": true,
+		"vault_skill_match":  true,
+		"vault_compress":     true,
+		"vault_summary":      true,
+		"vault_stats":        true,
+		"vault_export_lore":  true,
 	},
 	ProfileAdmin: {
 		"vault_save":          true,
@@ -84,7 +84,7 @@ var profileTools = map[Profile]map[string]bool{
 }
 
 // activeProfile reads KORVA_MCP_PROFILE and returns the matching Profile.
-// Falls back to ProfileAgent when the variable is absent or unrecognised.
+// Falls back to ProfileAgent when the variable is absent or unrecognized.
 func activeProfile() Profile {
 	switch os.Getenv("KORVA_MCP_PROFILE") {
 	case string(ProfileReadonly):

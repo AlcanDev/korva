@@ -33,15 +33,15 @@ var AllObservationTypes = []string{
 type SDDPhase string
 
 const (
-	SDDExplore SDDPhase = "explore"  // rapid investigation
-	SDDPropose SDDPhase = "propose"  // solution sketches
-	SDDSpec    SDDPhase = "spec"     // detailed requirements
-	SDDDesign  SDDPhase = "design"   // architecture definition
-	SDDTasks   SDDPhase = "tasks"    // actionable decomposition
-	SDDApply   SDDPhase = "apply"    // code implementation
-	SDDVerify  SDDPhase = "verify"   // testing & validation
-	SDDArchive SDDPhase = "archive"  // documentation
-	SDDOnboard SDDPhase = "onboard"  // team knowledge capture
+	SDDExplore SDDPhase = "explore" // rapid investigation
+	SDDPropose SDDPhase = "propose" // solution sketches
+	SDDSpec    SDDPhase = "spec"    // detailed requirements
+	SDDDesign  SDDPhase = "design"  // architecture definition
+	SDDTasks   SDDPhase = "tasks"   // actionable decomposition
+	SDDApply   SDDPhase = "apply"   // code implementation
+	SDDVerify  SDDPhase = "verify"  // testing & validation
+	SDDArchive SDDPhase = "archive" // documentation
+	SDDOnboard SDDPhase = "onboard" // team knowledge capture
 )
 
 // AllSDDPhases lists every valid SDD phase in execution order.
@@ -124,7 +124,7 @@ type QualityChecklist struct {
 	E2ERequired bool               `json:"e2e_required"` // true for verify phase
 }
 
-// ProjectQualityScore summarises quality trends for a project.
+// ProjectQualityScore summarizes quality trends for a project.
 type ProjectQualityScore struct {
 	Project        string    `json:"project"`
 	LatestScore    int       `json:"latest_score"`
@@ -155,14 +155,14 @@ type Observation struct {
 
 // Session represents a working session (a period of AI-assisted development).
 type Session struct {
-	ID        string    `json:"id"`
-	Project   string    `json:"project"`
-	Team      string    `json:"team"`
-	Country   string    `json:"country"`
-	Agent     string    `json:"agent"`
-	Goal      string    `json:"goal"`
-	Summary   string    `json:"summary"`
-	StartedAt time.Time `json:"started_at"`
+	ID        string     `json:"id"`
+	Project   string     `json:"project"`
+	Team      string     `json:"team"`
+	Country   string     `json:"country"`
+	Agent     string     `json:"agent"`
+	Goal      string     `json:"goal"`
+	Summary   string     `json:"summary"`
+	StartedAt time.Time  `json:"started_at"`
 	EndedAt   *time.Time `json:"ended_at,omitempty"`
 }
 
@@ -186,7 +186,7 @@ type SearchFilters struct {
 	// Since/Until filter by creation timestamp (zero value = no bound).
 	Since time.Time
 	Until time.Time
-	Limit  int
+	Limit int
 	// Offset skips this many results; used for page-based navigation alongside Limit.
 	Offset int
 }
@@ -211,7 +211,7 @@ type ExportOptions struct {
 	Type    string
 }
 
-// DedupResult summarises what vault_clean found or removed.
+// DedupResult summarizes what vault_clean found or removed.
 type DedupResult struct {
 	Total      int  `json:"total"`
 	Duplicates int  `json:"duplicates"`

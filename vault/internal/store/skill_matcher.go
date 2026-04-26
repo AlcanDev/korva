@@ -7,10 +7,10 @@
 // invoke any skill explicitly.
 //
 // Match signal sources (in order of weight):
-//   1. file_patterns  — strongest signal; the developer is editing matching files
-//   2. keywords       — prompt contains a trigger keyword
-//   3. projects       — listed project name matches the active project
-//   4. tags           — prompt mentions a skill's tag
+//  1. file_patterns  — strongest signal; the developer is editing matching files
+//  2. keywords       — prompt contains a trigger keyword
+//  3. projects       — listed project name matches the active project
+//  4. tags           — prompt mentions a skill's tag
 //
 // The matcher is intentionally heuristic (no ML) so it stays fast, deterministic,
 // and explainable. Each match comes with a `reason` field so the UI can show

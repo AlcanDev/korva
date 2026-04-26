@@ -5,16 +5,16 @@ import "fmt"
 // ProjectHealthScore is the composite code health score for one project.
 // Score is in [0, 100] — higher is better.
 type ProjectHealthScore struct {
-	Project          string  `json:"project"`
-	Score            int     `json:"score"`
-	Grade            string  `json:"grade"`            // A/B/C/D/F
-	SDDPhase         string  `json:"sdd_phase"`
-	AvgQAScore       float64 `json:"avg_qa_score"`
-	GatePassRate     float64 `json:"gate_pass_rate"`   // 0-1
-	RecentCheckpoints int    `json:"recent_checkpoints"`
-	BugfixCount      int     `json:"bugfix_count"`
-	PatternCount     int     `json:"pattern_count"`
-	Trend            string  `json:"trend"`            // "improving" / "declining" / "stable"
+	Project           string  `json:"project"`
+	Score             int     `json:"score"`
+	Grade             string  `json:"grade"` // A/B/C/D/F
+	SDDPhase          string  `json:"sdd_phase"`
+	AvgQAScore        float64 `json:"avg_qa_score"`
+	GatePassRate      float64 `json:"gate_pass_rate"` // 0-1
+	RecentCheckpoints int     `json:"recent_checkpoints"`
+	BugfixCount       int     `json:"bugfix_count"`
+	PatternCount      int     `json:"pattern_count"`
+	Trend             string  `json:"trend"` // "improving" / "declining" / "stable"
 }
 
 // CodeHealthSummary returns a composite code health score per project.

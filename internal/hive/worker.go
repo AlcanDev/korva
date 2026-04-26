@@ -89,7 +89,7 @@ func (w *Worker) recordFailure(err error) {
 	w.mu.Unlock()
 }
 
-// Run blocks until ctx is cancelled, ticking every interval.
+// Run blocks until ctx is canceled, ticking every interval.
 // Honours the KORVA_HIVE_DISABLE=1 kill switch on every tick.
 func (w *Worker) Run(ctx context.Context) {
 	t := time.NewTicker(w.interval)
@@ -256,7 +256,7 @@ func jitterBackoff(consecutiveErrors int) time.Duration {
 }
 
 // batchEntropy is a process-wide monotonic ULID entropy source. The mutex
-// serialises access since ulid.Monotonic is not safe for concurrent reads.
+// serializes access since ulid.Monotonic is not safe for concurrent reads.
 //
 // Same fix as store.newID: math/rand seeded with time.Now().UnixNano() per
 // call produces duplicate IDs on Windows (16 ms time resolution). Using a

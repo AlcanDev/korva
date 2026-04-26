@@ -339,8 +339,8 @@ func reactCriteria(phase string) []QualityCriterion {
 // PhaseGates defines which phases require a quality checkpoint to advance.
 // Key = current phase, Value = phase you're trying to enter.
 var PhaseGates = map[string]string{
-	"apply":   "verify",  // cannot enter verify without a passing apply checkpoint
-	"verify":  "archive", // cannot enter archive without a passing verify checkpoint
+	"apply":  "verify",  // cannot enter verify without a passing apply checkpoint
+	"verify": "archive", // cannot enter archive without a passing verify checkpoint
 }
 
 // IsGatedTransition returns true when moving from fromPhase to toPhase requires

@@ -145,7 +145,7 @@ func TestHEX003_Applies(t *testing.T) {
 		{"src/application/services/insurance.service.ts", true},
 		{"src/domain/entities/policy.ts", true},
 		{"src/application/services/insurance.service.spec.ts", false}, // spec excluded
-		{"test/helpers.ts", false},                                     // not in src/
+		{"test/helpers.ts", false},                                    // not in src/
 	}
 	for _, c := range cases {
 		got := r.Applies(c.path)
@@ -269,7 +269,7 @@ func TestNAM001_Applies(t *testing.T) {
 	}{
 		{"src/infrastructure/dto/request.dto.ts", true},
 		{"src/infrastructure/dto/response.dto.ts", true},
-		{"src/domain/entities/policy.ts", false},      // not in dto/
+		{"src/domain/entities/policy.ts", false}, // not in dto/
 		{"src/application/services/foo.service.ts", false},
 	}
 	for _, c := range cases {
