@@ -1,5 +1,11 @@
 # Korva — Instrucciones para Claude Code
 
+> **Behavioral discipline:** read [BEHAVIOR.md](BEHAVIOR.md) for the four
+> universal principles (think before coding, simplicity first, surgical
+> changes, goal-driven execution) — they apply to every task in this repo.
+> This file describes *what Korva is and how it is built*; BEHAVIOR.md
+> describes *how to work in it without LLM-typical mistakes*.
+
 ## Approach
 
 - Think before acting. Read existing files before writing code.

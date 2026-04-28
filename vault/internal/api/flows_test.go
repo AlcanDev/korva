@@ -462,9 +462,9 @@ func TestFlow_MultiProjectSearch(t *testing.T) {
 		query   string
 		wantMin int
 	}{
-		{"lock", 1},    // matches "Redis lock timeout"
-		{"RS256", 1},   // matches "Adopt RS256 JWT"
-		{"outbox", 1},  // matches "Transactional outbox"
+		{"lock", 1},   // matches "Redis lock timeout"
+		{"RS256", 1},  // matches "Adopt RS256 JWT"
+		{"outbox", 1}, // matches "Transactional outbox"
 	}
 
 	for _, tt := range tests {

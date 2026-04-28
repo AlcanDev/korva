@@ -1,11 +1,12 @@
 // Package sync provides Git-based export and import of Vault observations.
 //
 // Format:
-//   .korva-sync/
-//   ├── manifest.json           ← metadata: version, last export, ULID watermark
-//   └── chunks/
-//       ├── 2024-01.jsonl.gz    ← observations for that month (newline-delimited JSON, gzipped)
-//       └── 2024-02.jsonl.gz
+//
+//	.korva-sync/
+//	├── manifest.json           ← metadata: version, last export, ULID watermark
+//	└── chunks/
+//	    ├── 2024-01.jsonl.gz    ← observations for that month (newline-delimited JSON, gzipped)
+//	    └── 2024-02.jsonl.gz
 //
 // Design:
 //   - Export appends only new observations (ULID-ordered, incremental)

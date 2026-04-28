@@ -2,9 +2,19 @@ package rules
 
 import (
 	"fmt"
+	"path/filepath"
 	"regexp"
 	"strings"
 )
+
+// normalizePath returns the path with forward slashes regardless of OS.
+// All path matchers below assume Unix-style separators because that is how
+// the rules express layer/folder conventions (src/application/services/…).
+// Without this, tests fail on Windows where filepath.Join produces \-separated
+// paths that don't match `/src/` etc.
+func normalizePath(p string) string {
+	return filepath.ToSlash(p)
+}
 
 // reImport matches TypeScript/JavaScript static import statements.
 var reImport = regexp.MustCompile(`^\s*import\s+.*\s+from\s+['"]([^'"]+)['"]`)
@@ -161,11 +171,13 @@ func containsLayer(imp, layer string) bool {
 }
 
 func isInLayer(path, layer string) bool {
-	return strings.Contains(path, "/"+layer+"/") || strings.Contains(path, "/src/"+layer)
+	p := normalizePath(path)
+	return strings.Contains(p, "/"+layer+"/") || strings.Contains(p, "/src/"+layer)
 }
 
 func isInSrc(path string) bool {
-	return strings.Contains(path, "/src/") || strings.HasPrefix(path, "src/")
+	p := normalizePath(path)
+	return strings.Contains(p, "/src/") || strings.HasPrefix(p, "src/")
 }
 
 func isTS(path string) bool {

@@ -83,12 +83,12 @@ var teamsRemoveMemberCmd = &cobra.Command{
 // ── flag vars ─────────────────────────────────────────────────────────────────
 
 var (
-	teamsSyncGitMirror     string
-	teamsCreateOwner       string
-	teamsCreateLicenseID   string
-	teamsInviteTeamID      string
-	teamsAddMemberTeamID   string
-	teamsAddMemberRole     string
+	teamsSyncGitMirror      string
+	teamsCreateOwner        string
+	teamsCreateLicenseID    string
+	teamsInviteTeamID       string
+	teamsAddMemberTeamID    string
+	teamsAddMemberRole      string
 	teamsRemoveMemberTeamID string
 )
 

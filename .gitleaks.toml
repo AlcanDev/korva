@@ -59,6 +59,10 @@
       # Documentation examples are OK
       '''://user:password@example\.com''',
       '''://username:password@host''',
+      # Google Fonts URLs use ; and @ in font-weight params and trip the regex.
+      # These are public CDN URLs, not credentials.
+      '''fonts\.googleapis\.com''',
+      '''fonts\.gstatic\.com''',
     ]
 
 [[rules]]
@@ -78,13 +82,22 @@
     '''^.*\.md$''',
     '''^docs/.*''',
     '''^lore/.*''',
-    # Test fixtures
+    # Test fixtures (TypeScript + Go)
     '''^.*/__fixtures__/.*''',
     '''^.*\.spec\.ts$''',
     '''^.*\.test\.ts$''',
+    # Go test files inherently contain fixtures (e.g. testing the privacy filter
+    # requires writing fake JWTs / API keys to verify they get redacted).
+    '''^.*_test\.go$''',
     # Changelog
     '''^CHANGELOG\.md$''',
     '''^.*\.lock$''',       # lockfiles
+    # Development-only RSA keys (hive-mock and licensing-mock are local dev tools).
+    # Production keys are NEVER committed — see internal/license/keys/ + .gitignore.
+    # The mock servers run on 127.0.0.1 only; their dev keys cannot sign real licences
+    # because the production pubkey baked into release binaries is different.
+    '''^forge/licensing-mock/.*\.pem$''',
+    '''^forge/hive-mock/.*\.pem$''',
   ]
 
   # Regex patterns that are globally safe

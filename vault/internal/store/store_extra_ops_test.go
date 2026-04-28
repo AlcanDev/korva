@@ -47,7 +47,7 @@ func TestPurge_DryRun(t *testing.T) {
 	s, _ := NewMemory(nil)
 	defer s.Close()
 
-	s.Save(Observation{Project: "demo", Type: "pattern", Title: "t", Content: "c"}) //nolint:errcheck
+	s.Save(Observation{Project: "demo", Type: "pattern", Title: "t", Content: "c"})   //nolint:errcheck
 	s.Save(Observation{Project: "demo", Type: "pattern", Title: "t2", Content: "c2"}) //nolint:errcheck
 
 	n, err := s.Purge(PurgeOptions{Project: "demo", DryRun: true})
@@ -108,8 +108,8 @@ func TestExport_Filtered(t *testing.T) {
 	s, _ := NewMemory(nil)
 	defer s.Close()
 
-	s.Save(Observation{Project: "alpha", Type: "pattern", Title: "a", Content: "a"}) //nolint:errcheck
-	s.Save(Observation{Project: "beta", Type: "decision", Title: "b", Content: "b"}) //nolint:errcheck
+	s.Save(Observation{Project: "alpha", Type: "pattern", Title: "a", Content: "a"})  //nolint:errcheck
+	s.Save(Observation{Project: "beta", Type: "decision", Title: "b", Content: "b"})  //nolint:errcheck
 	s.Save(Observation{Project: "alpha", Type: "decision", Title: "c", Content: "c"}) //nolint:errcheck
 
 	obs, err := s.Export(ExportOptions{Project: "alpha"})
@@ -197,7 +197,7 @@ func TestDedup_DifferentTypesNotDuplicates(t *testing.T) {
 	defer s.Close()
 
 	// Same content but different types — should NOT be deduped.
-	s.Save(Observation{Project: "p", Type: "pattern", Title: "t", Content: "same"}) //nolint:errcheck
+	s.Save(Observation{Project: "p", Type: "pattern", Title: "t", Content: "same"})  //nolint:errcheck
 	s.Save(Observation{Project: "p", Type: "decision", Title: "t", Content: "same"}) //nolint:errcheck
 
 	res, err := s.Dedup("p", false)

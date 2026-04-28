@@ -57,10 +57,10 @@ type LoreConfig struct {
 
 // SentinelConfig holds pre-commit hook settings.
 type SentinelConfig struct {
-	Enabled         bool     `json:"enabled"`
-	Hooks           []string `json:"hooks"` // pre-commit, pre-push
-	RulesPath       string   `json:"rules_path,omitempty"`
-	BlockOnViolation bool    `json:"block_on_violation,omitempty"`
+	Enabled          bool     `json:"enabled"`
+	Hooks            []string `json:"hooks"` // pre-commit, pre-push
+	RulesPath        string   `json:"rules_path,omitempty"`
+	BlockOnViolation bool     `json:"block_on_violation,omitempty"`
 }
 
 // TeamProfile is the structure loaded from a private team profile repository.
@@ -114,8 +114,8 @@ type VaultOverride struct {
 	SyncIntervalMin *int     `json:"sync_interval_minutes,omitempty"`
 	PrivatePatterns []string `json:"private_patterns,omitempty"`
 	// Teams only
-	RetentionDays   *int    `json:"vault_retention_days,omitempty"`
-	CloudEndpoint   string  `json:"cloud_sync_endpoint,omitempty"`
+	RetentionDays *int   `json:"vault_retention_days,omitempty"`
+	CloudEndpoint string `json:"cloud_sync_endpoint,omitempty"`
 }
 
 // SentinelOverride contains sentinel settings that a team profile can override.

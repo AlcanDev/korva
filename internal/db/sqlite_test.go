@@ -3,6 +3,7 @@ package db
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 )
 
@@ -121,9 +122,18 @@ func TestMigrate_IndexesCreated(t *testing.T) {
 }
 
 func TestOpen_InvalidPath(t *testing.T) {
-	// /dev/null/subdir is not a valid directory to create
-	_, err := Open("/dev/null/korva/test.db")
+	// Pick a path that's guaranteed to be uncreatable on each OS:
+	//   - Unix: /dev/null/<x> — /dev/null is a char device, can't be a parent dir.
+	//   - Windows: a path under NUL\ — NUL is a reserved device name.
+	// Both produce a "not a directory" / "invalid path" error from the OS.
+	var invalidPath string
+	if runtime.GOOS == "windows" {
+		invalidPath = `NUL\korva\test.db`
+	} else {
+		invalidPath = "/dev/null/korva/test.db"
+	}
+	_, err := Open(invalidPath)
 	if err == nil {
-		t.Error("Open() on invalid path should return an error")
+		t.Errorf("Open(%q) on invalid path should return an error", invalidPath)
 	}
 }
