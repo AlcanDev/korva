@@ -17,8 +17,9 @@ korva.config.local.json
 # NEVER commit. Deploy via KORVA_LICENSING_PRIVATE_KEY_PEM env var.
 priv.pem
 
-# Licensing server lives in korva-cloud (private repo) — never commit here
+# Licensing infrastructure lives in korva-cloud (private repo) — never commit here
 forge/licensing-server/
+forge/licensing-mock/
 
 # Datos locales del runtime (~/.korva/ no pertenece aquí)
 .korva/
