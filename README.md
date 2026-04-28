@@ -41,7 +41,8 @@ Korva is built on **four integrated components**:
 | 🧠 **Vault** | Persistent AI memory — decisions, incidents, patterns saved forever |
 | 🛡️ **Sentinel** | Architecture guardrails — catches violations before they reach your codebase |
 | 📜 **Lore** | Knowledge injection — opens `payments.ts`, AI already knows PCI + Stripe rules |
-| ⚙️ **Forge** | Structured workflow — 5-phase SDD prevents AI from diving straight into code |
+| ⚙️ **Forge** | Structured workflow — 9-phase SDD prevents AI from diving straight into code |
+| 🎛️ **Beacon** | Web dashboard — vault explorer, admin panel, Skills Hub |
 
 ---
 
@@ -106,16 +107,22 @@ Clones your team's private scrolls, Sentinel rules, and AI instructions into you
 In any AI session, your agent now has access to:
 
 ```
-vault_save         — save a decision, bug fix, or pattern
-vault_context      — load relevant context (local + cloud hybrid)
-vault_search       — full-text search across everything saved
-vault_sdd_phase    — track/advance the 9-phase SDD workflow
-vault_qa_checklist — get quality criteria for the current phase
+vault_save          — save a decision, bug fix, or pattern
+vault_context       — load relevant context (local + cloud hybrid)
+                        auto_skills injected automatically (Teams+ feature)
+vault_search        — full-text search across everything saved
+vault_sdd_phase     — track/advance the 9-phase SDD workflow
+vault_qa_checklist  — get quality criteria for the current phase
 vault_qa_checkpoint — record a QA assessment and unlock phase gates
-vault_team_context — load team skills and private scrolls
-vault_bulk_save    — save up to 50 observations in one call
-vault_timeline     — show a project's observation history over time
-vault_stats        — vault usage statistics
+vault_team_context  — load team skills and private scrolls
+vault_bulk_save     — save up to 50 observations in one call
+vault_timeline      — show a project's observation history over time
+vault_stats         — vault usage statistics
+vault_skill_match   — find best skills for a task (Teams+)
+vault_code_health   — code quality score A–F (Business+)
+vault_pattern_mine  — extract recurring patterns from vault (Business+)
+vault_compress      — compress long context to key insights
+vault_hint          — get context-aware suggestions
 ```
 
 ---
@@ -176,6 +183,8 @@ Running Korva Sentinel...
 ```
 
 > **60+ community skills**: Install curated community skills from [skills.sh](https://skills.sh) to give your AI best practices for every library in your stack — alongside Korva's team scrolls. See [docs/COMMUNITY-SKILLS.md](docs/COMMUNITY-SKILLS.md).
+
+> **Smart Skill Auto-Loader** *(Teams+)*: Tag any skill with `auto_load=true` and Korva automatically injects the best-matching skills into every `vault_context` call — no explicit invocation needed. Your AI arrives to each session pre-loaded with the right conventions for the file it's editing.
 
 ### Forge — 9-Phase Spec-Driven Development (SDD)
 
@@ -282,8 +291,14 @@ The cloud privacy filter enforces a **default-deny** policy before any data leav
 | VS Code + GitHub Copilot | MCP via `mcp.json` | ✅ Supported |
 | Claude Code | MCP via `settings.json` | ✅ Supported |
 | Cursor | MCP via `mcp.json` | ✅ Supported |
+| Windsurf | MCP via `global_rules.md` | ✅ Supported |
+| Gemini CLI | MCP via `GEMINI.md` | ✅ Supported |
+| OpenAI Codex | MCP via `.codex-plugin.json` | ✅ Supported |
+| OpenCode | MCP via `opencode.json` | ✅ Supported |
 | JetBrains (IntelliJ, GoLand...) | MCP via plugin | 🔨 Roadmap |
 | Neovim | MCP via plugin | 🔨 Roadmap |
+
+See [`integrations/`](integrations/) for copy-paste configuration snippets for every supported editor.
 
 Any editor that supports the [Model Context Protocol](https://modelcontextprotocol.io) works with Korva.
 
@@ -341,16 +356,16 @@ If `korva setup --all` doesn't cover your editor, configure manually:
 
 ```
 korva/
-├── internal/    → shared Go packages (db, config, privacy, admin, license, hive)
-├── vault/       → Vault server — SQLite FTS5 + 17 MCP tools (stdio) + REST :7437
-├── cli/         → korva CLI — init, setup, sync, teams, license, hive
-├── sentinel/    → Architecture validator — 10 built-in rules + custom YAML
+├── internal/        → shared Go packages (db, config, privacy, admin, license, hive)
+├── vault/           → Vault server — SQLite FTS5 + 18 MCP tools (stdio) + REST :7437
+├── cli/             → korva CLI — init, setup, sync, teams, license, hive
+├── sentinel/        → Architecture validator — 10 built-in rules + custom YAML
 ├── lore/
-│   └── curated/ → 13+ knowledge scrolls (NestJS, TypeScript, Docker, CI/CD...)
-├── forge/       → SDD workflow — 9-phase structured development + QA gates
-│   ├── hive-mock/        → local Hive server for development (:7438)
-│   └── licensing-mock/   → local licensing server for development (:7439)
-└── beacon/      → Web dashboard — React 19 + Vite (vault explorer + admin panel)
+│   └── curated/     → 13+ knowledge scrolls (NestJS, TypeScript, Docker, CI/CD...)
+├── forge/
+│   └── hive-mock/   → local Hive server for development (:7438)
+├── integrations/    → copy-paste MCP configs for 8 AI editors
+└── beacon/          → Web dashboard — React 19 + Vite (vault explorer + admin panel)
 ```
 
 ---
@@ -397,32 +412,39 @@ make completions
 
 ---
 
-## Korva for Teams
+## Open Core Model
 
 **Korva Community** (this repo) is free forever — MIT license, no telemetry, no cloud required.
 
-**Korva for Teams** is the paid tier for engineering teams that want:
+**Korva for Teams** and **Korva Business** are paid tiers for engineering teams:
 
-| Feature | Community | Teams |
-|---------|-----------|-------|
-| Vault, Sentinel, Lore, Forge | ✅ | ✅ |
-| Beacon dashboard | ✅ | ✅ |
-| Team Profile via private Git repo | ✅ | ✅ |
-| Private Scrolls managed from Beacon | ❌ | ✅ |
-| Custom skills library in Beacon | ❌ | ✅ |
-| Audit log (who saved what, when) | ❌ | ✅ |
-| Custom config overrides per team | ❌ | ✅ |
-| Multi-profile workspaces | ❌ | ✅ |
-| Priority support | ❌ | ✅ |
+| Feature | Community | Teams | Business |
+|---------|-----------|-------|---------|
+| Vault, Sentinel, Lore, Forge, Beacon | ✅ | ✅ | ✅ |
+| 8-editor integration manifests | ✅ | ✅ | ✅ |
+| Team Profile via private Git repo | ✅ | ✅ | ✅ |
+| Private Scrolls managed from Beacon | ❌ | ✅ | ✅ |
+| Skills Hub in Beacon (`vault_skill_match`) | ❌ | ✅ | ✅ |
+| Smart Skill Auto-Loader in `vault_context` | ❌ | ✅ | ✅ |
+| Audit log (who changed what, when) | ❌ | ✅ | ✅ |
+| Custom config overrides per team | ❌ | ✅ | ✅ |
+| Code Health grades (`vault_code_health`) | ❌ | ❌ | ✅ |
+| Pattern mining (`vault_pattern_mine`) | ❌ | ❌ | ✅ |
+| Multi-profile workspaces | ❌ | ❌ | ✅ |
+| Private Hive sync (not community) | ❌ | ❌ | ✅ |
+| Priority support | ❌ | ✅ | ✅ |
 
 License keys are **offline-first** (RS256 JWS) — the vault verifies the license locally on every start with no network call. A single online heartbeat every 24 h keeps the license current; 7-day grace period if the server is temporarily unreachable.
 
 ```bash
 # Activate after purchase
 korva license activate KORVA-XXXX-XXXX-XXXX-XXXX
+
+# Check license status
+korva license status
 ```
 
-> Interested? → [korva.dev/teams](https://korva.dev/teams)
+> Teams: $12/user/month · Business: $32/user/month → [korva.dev/pricing](https://korva.dev/pricing)
 
 ---
 
