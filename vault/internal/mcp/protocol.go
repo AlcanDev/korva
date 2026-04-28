@@ -70,9 +70,9 @@ type ContentBlock struct {
 
 // Tool describes a single MCP tool with its JSON Schema input definition.
 type Tool struct {
-	Name        string    `json:"name"`
-	Description string    `json:"description"`
-	InputSchema Schema    `json:"inputSchema"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	InputSchema Schema `json:"inputSchema"`
 }
 
 // Schema is a simplified JSON Schema for tool inputs.

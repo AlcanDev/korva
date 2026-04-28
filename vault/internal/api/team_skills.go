@@ -56,6 +56,7 @@ func teamListSkills(s *store.Store) http.HandlerFunc {
 				writeError(w, http.StatusInternalServerError, "reading skill row: "+err.Error())
 				return
 			}
+			sk.AutoLoad = autoLoadInt == 1
 			skills = append(skills, sk)
 		}
 		if err := rows.Err(); err != nil {
@@ -92,6 +93,16 @@ func teamSaveSkill(s *store.Store) http.HandlerFunc {
 			if b, err := json.Marshal(body.Tags); err == nil {
 				tagsJSON = string(b)
 			}
+		}
+		triggersJSON := "{}"
+		if body.Triggers != nil {
+			if b, err := json.Marshal(body.Triggers); err == nil {
+				triggersJSON = string(b)
+			}
+		}
+		autoLoadInt := 0
+		if body.AutoLoad {
+			autoLoadInt = 1
 		}
 		now := time.Now().UTC().Format(time.RFC3339)
 

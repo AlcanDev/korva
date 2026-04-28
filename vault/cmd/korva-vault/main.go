@@ -30,12 +30,12 @@ import (
 )
 
 func main() {
-	mode   := flag.String("mode", "both", "Server mode: mcp | http | both | tui")
-	port   := flag.Int("port", 7437, "HTTP server port")
+	mode := flag.String("mode", "both", "Server mode: mcp | http | both | tui")
+	port := flag.Int("port", 7437, "HTTP server port")
 	dbPath := flag.String("db", "", "SQLite database path (default: ~/.korva/vault/observations.db)")
 	flag.Parse()
 
-	// Root context — cancelled on SIGINT/SIGTERM so all goroutines can clean up.
+	// Root context — canceled on SIGINT/SIGTERM so all goroutines can clean up.
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
@@ -75,7 +75,7 @@ func main() {
 	bootLicense(ctx, lic, cfg, paths)
 
 	// Boot the Hive worker if enabled.
-	hiveClient := bootHive(ctx, s, cfg, paths)
+	hiveResult := bootHive(ctx, s, cfg, paths)
 
 	// Boot retention worker if configured.
 	bootRetention(ctx, s, cfg)
@@ -97,20 +97,23 @@ func main() {
 		ActivationURL:    activationURL,
 		InstallID:        installID,
 		Mailer:           mailer,
-		HiveClient:       hiveClient,
+		HiveClient:       hiveResult.Client,
+		HiveWorker:       hiveResult.Worker,
+		HiveOutbox:       hiveResult.Outbox,
+		HiveFilter:       hiveResult.Filter,
 		WebhookURL:       cfg.Vault.WebhookURL,
 	}
 
 	switch *mode {
 	case "mcp":
-		runMCP(s, hiveClient)
+		runMCP(s, hiveResult.Client)
 	case "http":
 		runHTTP(ctx, s, routerCfg, *port)
 	case "tui":
 		runTUI(s)
 	case "both":
 		go runHTTP(ctx, s, routerCfg, *port)
-		runMCP(s, hiveClient)
+		runMCP(s, hiveResult.Client)
 		// MCP exited (stdin closed) — trigger HTTP shutdown.
 		stop()
 	default:
@@ -166,12 +169,20 @@ func deriveHeartbeatURL(activationURL string) string {
 	return "https://licensing.korva.dev/v1/heartbeat"
 }
 
+// bootHiveResult groups all Hive boot outputs.
+type bootHiveResult struct {
+	Client *hive.Client
+	Worker *hive.Worker
+	Outbox *hive.Outbox
+	Filter *cloud.Filter
+}
+
 // bootHive starts the Hive worker goroutine when the config enables it.
 // It wires the outbox into the store so every Save call enqueues an observation.
-// Returns the hive.Client for hybrid search, or nil when Hive is disabled.
-func bootHive(ctx context.Context, s *store.Store, cfg config.KorvaConfig, paths *config.Paths) *hive.Client {
+// Returns a result with all Hive components, or zero values when Hive is disabled.
+func bootHive(ctx context.Context, s *store.Store, cfg config.KorvaConfig, paths *config.Paths) bootHiveResult {
 	if !cfg.Hive.Enabled {
-		return nil
+		return bootHiveResult{}
 	}
 	// Allow the environment to override the endpoint (useful for dev/testing).
 	endpoint := cfg.Hive.Endpoint
@@ -182,12 +193,12 @@ func bootHive(ctx context.Context, s *store.Store, cfg config.KorvaConfig, paths
 	installID, idErr := identity.LoadInstallID(paths.InstallID)
 	if idErr != nil {
 		log.Printf("hive: cannot load install.id (%v) — Hive sync disabled", idErr)
-		return nil
+		return bootHiveResult{}
 	}
 	hiveKey, hkErr := identity.LoadHiveKey(paths.HiveKey)
 	if hkErr != nil {
 		log.Printf("hive: cannot load hive.key (%v) — Hive sync disabled", hkErr)
-		return nil
+		return bootHiveResult{}
 	}
 
 	outbox := hive.NewOutbox(s.DB())
@@ -204,7 +215,7 @@ func bootHive(ctx context.Context, s *store.Store, cfg config.KorvaConfig, paths
 	go worker.Run(ctx)
 
 	log.Printf("hive: worker started (endpoint=%s, interval=%v)", endpoint, interval)
-	return client
+	return bootHiveResult{Client: client, Worker: worker, Outbox: outbox, Filter: cloudFilter}
 }
 
 // bootRetention starts a daily goroutine that auto-purges observations older
@@ -352,7 +363,7 @@ func runHTTP(ctx context.Context, s *store.Store, cfg api.RouterConfig, port int
 		}
 	}()
 
-	// Block until the root context is cancelled (SIGINT/SIGTERM or MCP exit).
+	// Block until the root context is canceled (SIGINT/SIGTERM or MCP exit).
 	<-ctx.Done()
 
 	log.Printf("Korva Vault shutting down…")

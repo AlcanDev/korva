@@ -3,6 +3,7 @@ package admin
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 )
 
@@ -25,7 +26,14 @@ func TestGenerate(t *testing.T) {
 		t.Errorf("Version = %d, want 1", cfg.Version)
 	}
 
-	// Verify file permissions are 0600
+	// Verify file permissions are 0600 — Unix only.
+	// Windows uses ACLs, not POSIX bits; os.Chmod with mode 0600 is a no-op
+	// and the resulting Mode().Perm() reflects file attributes (read-only flag),
+	// not POSIX permissions. The security guarantee on Windows comes from the
+	// default ACL on user-profile directories, not from the os.Chmod call.
+	if runtime.GOOS == "windows" {
+		t.Skip("file permission bits are POSIX-only; skipping on Windows (ACL-based)")
+	}
 	info, err := os.Stat(keyPath)
 	if err != nil {
 		t.Fatalf("Stat(admin.key) error = %v", err)

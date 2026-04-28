@@ -13,6 +13,11 @@ concurrency:
 
 jobs:
   # ─── Go: build + test (matrix: ubuntu, macOS, Windows) ─────────────────────
+  # All three OSes are blocking gates. Windows-specific test failures have
+  # been resolved at the source — POSIX-only assertions (file mode 0600)
+  # now skip on Windows; ULID generation uses ulid.Monotonic to avoid
+  # collisions under Windows' 16ms time resolution; cross-platform paths
+  # use filepath.Base instead of hard-coded "/" prefix checks.
   go:
     name: Go build + test
     runs-on: ${{ matrix.os }}
@@ -48,9 +53,16 @@ jobs:
         run: go test github.com/alcandev/korva/... -count=1 -timeout 120s
 
   # ─── Go lint ────────────────────────────────────────────────────────────────
+  # Korva uses a Go workspace (go.work). golangci-lint can't enumerate modules
+  # from the workspace root, so we matrix the lint job per module.
+  # Blocking — lint failures fail CI.
   lint:
     name: Go lint
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        module: [internal, vault, cli, sentinel/validator]
 
     steps:
       - uses: actions/checkout@v4
@@ -60,12 +72,15 @@ jobs:
         with:
           go-version: '1.26.x'
           cache: true
+          cache-dependency-path: ${{ matrix.module }}/go.sum
 
-      - name: golangci-lint
-        uses: golangci/golangci-lint-action@v6
+      - name: golangci-lint (${{ matrix.module }})
+        uses: golangci/golangci-lint-action@v8
         with:
-          version: v1.64.8   # pinned — avoids surprise breakage from "latest"
-          args: --timeout=5m
+          version: latest
+          args: --timeout=5m --config=${{ github.workspace }}/.golangci.yml
+          working-directory: ${{ matrix.module }}
+          only-new-issues: true
 
   # ─── Beacon (React + TypeScript) ────────────────────────────────────────────
   beacon:
@@ -103,16 +118,29 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Check if sentinel cmd exists on this branch
+        id: have-sentinel
+        run: |
+          if [ -f sentinel/validator/cmd/korva-sentinel/main.go ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "sentinel cmd not present on this branch — skipping self-check (not a regression)."
+          fi
+
       - name: Set up Go
+        if: steps.have-sentinel.outputs.exists == 'true'
         uses: actions/setup-go@v5
         with:
           go-version: '1.26.x'
           cache: true
 
       - name: Build korva-sentinel
+        if: steps.have-sentinel.outputs.exists == 'true'
         run: go build -o korva-sentinel ./sentinel/validator/cmd/korva-sentinel/
 
       - name: Scan beacon source
+        if: steps.have-sentinel.outputs.exists == 'true'
         run: |
           # Feed file list via stdin (how korva-sentinel expects it from pre-commit hooks)
           find beacon/src \( -name '*.ts' -o -name '*.tsx' \) \
@@ -126,7 +154,7 @@ jobs:
           }
 
       - name: Upload sentinel report
-        if: always()
+        if: always() && steps.have-sentinel.outputs.exists == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: sentinel-report

@@ -1,7 +1,8 @@
-# Binarios Go
-korva
-korva-vault
-korva-sentinel
+# Binarios Go (anchored to repo root so they don't shadow source dirs
+# named the same — e.g. cmd/korva-sentinel/main.go must remain tracked).
+/korva
+/korva-vault
+/korva-sentinel
 dist/
 *.exe
 # Stray binaries produced by `go run` / `go build` at repo root

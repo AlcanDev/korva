@@ -47,7 +47,7 @@ func (m Model) renderDashboard(height int) string {
 		breakdowns,
 	)
 
-	return styleBox.Width(m.width-4).Height(height).Render(content)
+	return styleBox.Width(m.width - 4).Height(height).Render(content)
 }
 
 func renderBreakdown(title string, data map[string]int, width int) string {

@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
-
 )
 
 var obsCmd = &cobra.Command{
@@ -255,4 +254,3 @@ func dimText(s string) string {
 	// ANSI dim — degrades gracefully in non-ANSI terminals.
 	return "\033[2m" + s + "\033[0m"
 }
-

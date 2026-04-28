@@ -66,12 +66,12 @@ func adminPurgeHandler(s *store.Store, actor string) http.HandlerFunc {
 		}
 
 		writeJSON(w, http.StatusOK, map[string]any{
-			"deleted":  n,
-			"dry_run":  body.DryRun,
-			"project":  body.Project,
-			"team":     body.Team,
-			"type":     body.Type,
-			"before":   body.Before,
+			"deleted": n,
+			"dry_run": body.DryRun,
+			"project": body.Project,
+			"team":    body.Team,
+			"type":    body.Type,
+			"before":  body.Before,
 		})
 	}
 }
