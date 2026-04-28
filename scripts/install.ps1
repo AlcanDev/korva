@@ -24,8 +24,13 @@ Write-Host "  Instalador de Korva para Windows" -ForegroundColor White
 Write-Host ""
 
 # --- Detectar arquitectura ---
-$arch = if ([System.Environment]::Is64BitOperatingSystem) { "amd64" } else { "386" }
-$os = "Windows"
+# GoReleaser uses lowercase "windows" and skips arm64 for Windows
+$arch = switch ($env:PROCESSOR_ARCHITECTURE) {
+    "AMD64" { "amd64" }
+    "ARM64" { "arm64" }
+    default { "amd64" }  # fallback for x86 on 64-bit
+}
+$os = "windows"
 
 Write-Host "[1/4] Detectando version..." -ForegroundColor Yellow
 
@@ -52,16 +57,18 @@ if (-not (Test-Path $InstallDir)) {
 # --- Descargar binarios ---
 Write-Host "[3/4] Descargando binarios..." -ForegroundColor Yellow
 
-$TarName = "korva_${os}_${arch}.tar.gz"
-$DownloadUrl = "$BaseUrl/download/v$Version/$TarName"
-$TmpDir = Join-Path $env:TEMP "korva_install_$([System.Guid]::NewGuid().ToString('N').Substring(0,8))"
-$TmpTar = Join-Path $TmpDir $TarName
+# GoReleaser uses .zip for Windows archives
+$ArchiveName = "korva_${Version}_${os}_${arch}.zip"
+$DownloadUrl  = "$BaseUrl/download/v$Version/$ArchiveName"
+$TmpDir       = Join-Path $env:TEMP "korva_install_$([System.Guid]::NewGuid().ToString('N').Substring(0,8))"
+$TmpZip       = Join-Path $TmpDir $ArchiveName
 
 New-Item -ItemType Directory -Path $TmpDir -Force | Out-Null
 
 try {
     Write-Host "  Descargando $DownloadUrl..." -ForegroundColor Gray
-    Invoke-WebRequest -Uri $DownloadUrl -OutFile $TmpTar -UseBasicParsing
+    $ProgressPreference = "SilentlyContinue"  # faster download
+    Invoke-WebRequest -Uri $DownloadUrl -OutFile $TmpZip -UseBasicParsing
 } catch {
     Write-Error "Error descargando Korva v$Version. Verifica que la version exista en: $BaseUrl"
     Remove-Item -Recurse -Force $TmpDir -ErrorAction SilentlyContinue
@@ -71,11 +78,10 @@ try {
 # --- Extraer ---
 Write-Host "  Extrayendo archivos..." -ForegroundColor Gray
 
-# Windows 10+ tiene tar.exe built-in
 try {
-    & tar -xzf $TmpTar -C $TmpDir
+    Expand-Archive -Path $TmpZip -DestinationPath $TmpDir -Force
 } catch {
-    Write-Error "Error extrayendo el archivo. Asegurate de tener Windows 10 o superior."
+    Write-Error "Error extrayendo el archivo zip."
     Remove-Item -Recurse -Force $TmpDir -ErrorAction SilentlyContinue
     exit 1
 }
