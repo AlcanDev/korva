@@ -10,9 +10,10 @@ Every integration references [`BEHAVIOR.md`](../BEHAVIOR.md) at repo root. That 
 | ------------------ | ------------------ | -------------------------------------------------- |
 | Claude Code        | `claude-code/`     | `cp claude-code/* ~/.claude/`                      |
 | Cursor             | `cursor/`          | `cp cursor/.cursorrules <project>` + MCP config    |
+| VS Code + Copilot  | `vscode/`          | `cp vscode/settings.json .vscode/`                 |
 | Windsurf           | `windsurf/`        | `cp windsurf/* <project>/.windsurf/`               |
 | OpenAI Codex       | `codex/`           | `cp codex/.codex-plugin.json ~/.codex/plugins/`    |
-| GitHub Copilot CLI | `copilot/`         | `cp copilot/copilot-instructions.md .github/`      |
+| GitHub Copilot     | `copilot/`         | `cp copilot/copilot-instructions.md .github/`      |
 | OpenCode           | `opencode/`        | `cp opencode/* <project>/.opencode/`               |
 | Gemini CLI         | `gemini/`          | `gemini extensions install ./gemini`               |
 
