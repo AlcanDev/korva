@@ -39,10 +39,10 @@ info "Detectando plataforma..."
 UNAME_S="$(uname -s)"
 UNAME_M="$(uname -m)"
 
-# GoReleaser capitaliza el OS: Darwin, Linux
+# GoReleaser uses lowercase OS names: darwin, linux
 case "$UNAME_S" in
-  Darwin) OS_NAME="Darwin"  ;;
-  Linux)  OS_NAME="Linux"   ;;
+  Darwin) OS_NAME="darwin"  ;;
+  Linux)  OS_NAME="linux"   ;;
   *)      error "Sistema operativo no soportado: $UNAME_S. En Windows usa: scripts/install.ps1" ;;
 esac
 
