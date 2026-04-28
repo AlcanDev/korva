@@ -1,0 +1,18 @@
+{
+  "name": "korva-vault",
+  "displayName": "Korva — team-aware AI memory",
+  "version": "1.0.0",
+  "description": "Smart skill auto-loader, semantic dedup, decision-conflict detection, code-health scoring, and caveman-style compression for Gemini CLI.",
+  "mcpServers": {
+    "korva-vault": {
+      "command": "korva-vault",
+      "args": ["mcp"],
+      "env": {
+        "KORVA_MCP_PROFILE": "agent"
+      }
+    }
+  },
+  "contextFiles": [
+    "GEMINI.md"
+  ]
+}
