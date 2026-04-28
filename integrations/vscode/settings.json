@@ -2,6 +2,10 @@
   "github.copilot.advanced": {
     "instructionFile": ".github/copilot-instructions.md"
   },
+  "github.copilot.chat.codeGeneration.instructions": [
+    { "file": "BEHAVIOR.md" },
+    { "file": "CLAUDE.md" }
+  ],
   "korva.vault.endpoint": "http://localhost:7437",
   "korva.vault.profile": "agent",
   "korva.skills.autoLoad": true,

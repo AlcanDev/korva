@@ -20,20 +20,45 @@ import (
 	"time"
 )
 
-// devPrivKeyPEM is the test-only RSA private key for signing JWS in tests.
-// This key matches the embedded pubkey-dev.pem in verify.go.
-var testPrivKeyPEM = mustReadTestPrivKey()
-
-func mustReadTestPrivKey() []byte {
-	// The dev private key lives in forge/licensing-mock/dev_priv.pem.
-	// Resolve relative to this test file (internal/license/).
-	path := filepath.Join("..", "..", "forge", "licensing-mock", "dev_priv.pem")
-	data, err := os.ReadFile(path)
-	if err != nil {
-		panic("license_test: cannot read dev_priv.pem: " + err.Error())
-	}
-	return data
-}
+// testPrivKeyPEM is the dev-only RSA-2048 private key used to sign JWS tokens
+// in tests. It matches the public key embedded in keys/pubkey-dev.pem.
+//
+// This is a TEST-ONLY key. It was generated with:
+//
+//	openssl genrsa 2048 | openssl pkcs8 -topk8 -nocrypt
+//
+// The corresponding public key lives in internal/license/keys/pubkey-dev.pem.
+// Neither key has any production value — the production private key is never
+// stored in any repository.
+var testPrivKeyPEM = []byte(`-----BEGIN PRIVATE KEY-----
+MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDilk1dTzBk2vmS
+0vJCHDKrT1FIRXW5HZV2ZR6ZMIyZvtvDNFZazr8lrim04L1fPclgOlEONTSrfgjf
+pXvhID/ODzyRo9nkIpxcNkECkIMKNrOclAVliVYSybrIkiPRCw9oV4RAnOleD+Pg
+sh9UrxFbqAd/QERkUbvnfTEfJYg+EH6+I7Y4LYTw4ra1tQSXKbuSyUyKjW49pazI
+rvyK/3CSJnSx0IZ18CguZMjg/62Rdou6KNldlTPHOk6Ohyr8AA8LBEBxt6zgLsJ/
+WrLkdKRIpzRi+0nVb+5AWkipEzvFikH/IVfZWeFQGZlKkq694Ly30CW+uPW+t2LA
+h2/pftZJAgMBAAECggEAUtV8oeR9vhkZTPYmD0oMsfjUr7WI5GwuxDISXhFUDS6r
+W3DqMtdLJMTHRXM1d7h4Ql//WtDTmPAB4XS3VWU7PiLu0xVR5idK/yDsYjofVaAK
+yG6KjISI/WRXDtTyGA1RjCUWWaKjY7ouZenoL0ay8015tCjz97KznVx0lTzc0kb4
+FznOhqqxZyNa4Ad8Q/LjPSbBiTdXjYWkPctU2Z1kW4vKEemssju+92yygtyYgV8N
+ZYSeZKfSrvBe/E3Pj0f6yfMuWm7GIW/i1HFCmegBRSfrF0bhHvYa1vVx4uscU0a4
+36ovXx5fPwT5pg/ucM0H33r0+caxEXSCC60vQ6lWmwKBgQD+wFIdOY++pxCYmJvj
+fOvhCQIgIrId8QxefbiifmaMOtunZT2CnaltFct1SwzOhcFknGM68xSRhbLLiwgv
+8aZHyrQxMOyAxT7Ny0d79tF6AotlZBLNQ+u+7Ut61IxkkPpbR5YHgBlB4Vi+xBkp
+9P+AC5YN1a+B378sLmNBHBUWkwKBgQDjsqOgoSEwvavzPaLLJYYDhqcVfz4QGVcT
+lYBHhZEFy/0Iw98MoQYnLglzpVhJDwkSME4fWciDta598nB6HM2zYKrsPJZyHgvp
+I3o2qio2eB+vRPtMg4F2V7KONPtGJ9zApaKg4nlJnFgvfODp16ApobhLzNpi3+t0
+gVz69w6tMwKBgAOOhdb4ncQoqvemcc68SMLMkGYIdforCmQrVy+VmjLtA3IT3Mb9
+Eod+XWfW02fywB96e3wwNqJNfpCO8V9R/WNVNizVpQerOVRAOVBGwuf0LyQMQKLz
+BtCUmZAudYNV7tjlZ/fU1wVvcwC+1icaz5JnFwI8cIXcrNueDi6ziKvXAoGBAN2C
+kARYPH26R2le8NxIKNONT0ZufuYSgM+ghScPHUJSbFr2kisrC11aP/+tPvH0GpMD
+Qzzkj1jyikokbJ+fHc3/oMgpOQLTkCrCRMahTGeo/Mn5ha+tz2hdcGs/x6M8bFlN
+yaRSLkQaQQARsIxNJJbbqPq000+VHu48W0QazMBZAoGBAPT9DwTDjoX/q1YI7SeK
+oeAhJEwSlheO7zWukx9hjz8wYdj6RfMXo/JRELdhXHnduilURGq2/Xr6D/3gIWff
+lES9Q7+YBNYOCsAJOzEzt6MEoNNVaHozaFa98OS31Twpj/Zf/CWWHSshiDOK02xU
+axTJs4z9p5IatBWXh4Z6+3K/
+-----END PRIVATE KEY-----
+`)
 
 func mustParsePrivKey(pemBytes []byte) *rsa.PrivateKey {
 	block, _ := pem.Decode(pemBytes)

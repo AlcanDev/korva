@@ -27,6 +27,8 @@ type teamSkillRow struct {
 	Version   int    `json:"version"`
 	UpdatedBy string `json:"updated_by"`
 	Scope     string `json:"scope"`
+	Triggers  string `json:"triggers"`
+	AutoLoad  bool   `json:"auto_load"`
 	CreatedAt string `json:"created_at"`
 	UpdatedAt string `json:"updated_at"`
 }
@@ -37,7 +39,9 @@ func teamListSkills(s *store.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		sess := sessionFromCtx(r)
 		rows, err := s.DB().QueryContext(r.Context(),
-			`SELECT id, name, body, tags, version, updated_by, scope, created_at, updated_at
+			`SELECT id, name, body, tags, version, updated_by, scope,
+			        COALESCE(triggers, '{}'), COALESCE(auto_load, 0),
+			        created_at, updated_at
 			   FROM skills
 			  WHERE team_id = ?
 			  ORDER BY name ASC`, sess.teamID)
@@ -50,8 +54,10 @@ func teamListSkills(s *store.Store) http.HandlerFunc {
 		skills := make([]teamSkillRow, 0)
 		for rows.Next() {
 			var sk teamSkillRow
+			var autoLoadInt int
 			if err := rows.Scan(&sk.ID, &sk.Name, &sk.Body, &sk.Tags,
 				&sk.Version, &sk.UpdatedBy, &sk.Scope,
+				&sk.Triggers, &autoLoadInt,
 				&sk.CreatedAt, &sk.UpdatedAt); err != nil {
 				writeError(w, http.StatusInternalServerError, "reading skill row: "+err.Error())
 				return
@@ -74,11 +80,13 @@ func teamSaveSkill(s *store.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		sess := sessionFromCtx(r)
 		var body struct {
-			Name    string   `json:"name"`
-			Body    string   `json:"body"`
-			Tags    []string `json:"tags"`
-			Scope   string   `json:"scope"`
-			Summary string   `json:"summary"`
+			Name     string                 `json:"name"`
+			Body     string                 `json:"body"`
+			Tags     []string               `json:"tags"`
+			Scope    string                 `json:"scope"`
+			Summary  string                 `json:"summary"`
+			Triggers map[string]interface{} `json:"triggers"`
+			AutoLoad bool                   `json:"auto_load"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Name == "" {
 			writeError(w, http.StatusBadRequest, "name is required")
@@ -115,16 +123,20 @@ func teamSaveSkill(s *store.Store) http.HandlerFunc {
 
 		skillULID := newID()
 		if _, err := tx.ExecContext(r.Context(),
-			`INSERT INTO skills(id, team_id, name, body, tags, scope, updated_by, version, created_at, updated_at)
-			 VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
+			`INSERT INTO skills(id, team_id, name, body, tags, scope, updated_by, version,
+			                    triggers, auto_load, created_at, updated_at)
+			 VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)
 			 ON CONFLICT(team_id, name)
 			 DO UPDATE SET body       = excluded.body,
 			               tags       = excluded.tags,
 			               scope      = excluded.scope,
 			               updated_by = excluded.updated_by,
+			               triggers   = excluded.triggers,
+			               auto_load  = excluded.auto_load,
 			               version    = skills.version + 1,
 			               updated_at = excluded.updated_at`,
-			skillULID, sess.teamID, body.Name, body.Body, tagsJSON, body.Scope, sess.email, now, now,
+			skillULID, sess.teamID, body.Name, body.Body, tagsJSON, body.Scope, sess.email,
+			triggersJSON, autoLoadInt, now, now,
 		); err != nil {
 			writeError(w, http.StatusInternalServerError, err.Error())
 			return

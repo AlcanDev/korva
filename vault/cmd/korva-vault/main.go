@@ -106,14 +106,14 @@ func main() {
 
 	switch *mode {
 	case "mcp":
-		runMCP(s, hiveResult.Client)
+		runMCP(s, hiveResult.Client, lic)
 	case "http":
 		runHTTP(ctx, s, routerCfg, *port)
 	case "tui":
 		runTUI(s)
 	case "both":
 		go runHTTP(ctx, s, routerCfg, *port)
-		runMCP(s, hiveResult.Client)
+		runMCP(s, hiveResult.Client, lic)
 		// MCP exited (stdin closed) — trigger HTTP shutdown.
 		stop()
 	default:
@@ -273,12 +273,13 @@ func (a *hiveSearchAdapter) Search(ctx context.Context, query string, limit int)
 	return hits, nil
 }
 
-func runMCP(s *store.Store, hiveClient *hive.Client) {
+func runMCP(s *store.Store, hiveClient *hive.Client, lic *license.License) {
 	server := mcp.New(s)
 	if hiveClient != nil {
 		server.WithCloudSearch(&hiveSearchAdapter{c: hiveClient})
 		log.Printf("MCP: hybrid search enabled (local + hive)")
 	}
+	server.WithLicense(lic)
 	if err := server.Run(); err != nil {
 		log.Fatalf("MCP server error: %v", err)
 	}
