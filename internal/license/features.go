@@ -1,20 +1,33 @@
 package license
 
-// Feature constants gated by the Korva for Teams license.
-// Add new features here, then check via license.HasFeature(FeatureX).
+// Feature constants gated by license tier.
+// Add new features here, then gate via license.HasFeature(FeatureX).
+//
+// Tier assignment:
+//   Teams    → FeatureAdminSkills, FeatureCustomWhitelist, FeatureAuditLog,
+//              FeaturePrivateScrolls, FeatureSmartSkillLoader
+//   Business → above + FeatureCodeHealth, FeaturePatternMine, FeatureMultiProfile,
+//              FeatureCloudPrivate
 const (
-	FeatureAdminSkills     = "admin_skills"     // editor de skills/instrucciones en Beacon
-	FeatureCustomWhitelist = "custom_whitelist" // overrides extra en team-profile
-	FeatureAuditLog        = "audit_log"        // bitácora de cambios admin
-	FeaturePrivateScrolls  = "private_scrolls"  // scrolls privados gestionados desde panel
-	FeatureMultiProfile    = "multi_profile"    // múltiples team profiles activos a la vez
-	FeatureCloudPrivate    = "cloud_private"    // sync privado equipo (no comunitario)
+	// Teams tier
+	FeatureAdminSkills      = "admin_skills"       // Skills Hub editor in Beacon + vault_skill_match
+	FeatureCustomWhitelist  = "custom_whitelist"   // extra overrides in team-profile
+	FeatureAuditLog         = "audit_log"          // admin change audit trail
+	FeaturePrivateScrolls   = "private_scrolls"    // team-managed private scrolls
+	FeatureSmartSkillLoader = "smart_skill_loader" // auto-skill injection in vault_context
+
+	// Business tier (superset of Teams)
+	FeatureCodeHealth   = "code_health"   // vault_code_health MCP tool (A-F grade)
+	FeaturePatternMine  = "pattern_mine"  // vault_pattern_mine MCP tool
+	FeatureMultiProfile = "multi_profile" // multiple active team profiles simultaneously
+	FeatureCloudPrivate = "cloud_private" // private team sync (not community)
 )
 
 // Tier is the license tier name.
 type Tier string
 
 const (
-	TierCommunity Tier = "community" // open source, gratis
-	TierTeams     Tier = "teams"     // pago
+	TierCommunity Tier = "community" // free — core vault + basic MCP tools
+	TierTeams     Tier = "teams"     // paid — Skills Hub, team profiles, smart loader
+	TierBusiness  Tier = "business"  // paid — + code health, pattern mining, multi-profile
 )

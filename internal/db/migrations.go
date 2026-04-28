@@ -313,4 +313,37 @@ var migrations = []string{
 	)`,
 	`CREATE INDEX IF NOT EXISTS idx_sync_log_team  ON skill_sync_log(team_id)`,
 	`CREATE INDEX IF NOT EXISTS idx_sync_log_email ON skill_sync_log(team_id, user_email)`,
+
+	// ── Project sync controls ─────────────────────────────────────────────────────
+	// Per-project pause/resume for Hive sync. Absent row = sync enabled (safe default).
+	`CREATE TABLE IF NOT EXISTS project_sync_controls (
+		project      TEXT PRIMARY KEY,
+		sync_enabled INTEGER NOT NULL DEFAULT 1,
+		paused_by    TEXT NOT NULL DEFAULT '',
+		paused_at    TEXT,
+		reason       TEXT NOT NULL DEFAULT '',
+		updated_at   TEXT NOT NULL DEFAULT (datetime('now'))
+	)`,
+
+	// ── Smart Skill Auto-Loader: triggers + auto_load ─────────────────────────────
+	// triggers — JSON object: {keywords, projects, file_patterns, priority}
+	// auto_load — 1 = eligible for automatic injection in vault_context
+	`ALTER TABLE skills ADD COLUMN triggers  TEXT    NOT NULL DEFAULT '{}'`,
+	`ALTER TABLE skills ADD COLUMN auto_load INTEGER NOT NULL DEFAULT 0`,
+
+	// ── Skill activation telemetry ────────────────────────────────────────────────
+	// Records every auto-skill invocation for analytics and heuristic tuning.
+	`CREATE TABLE IF NOT EXISTS skill_activations (
+		id           TEXT PRIMARY KEY,
+		skill_id     TEXT NOT NULL,
+		team_id      TEXT NOT NULL DEFAULT '',
+		project      TEXT NOT NULL DEFAULT '',
+		prompt_hash  TEXT NOT NULL DEFAULT '',
+		match_score  REAL NOT NULL DEFAULT 0,
+		match_reason TEXT NOT NULL DEFAULT '',
+		activated_at TEXT NOT NULL DEFAULT (datetime('now'))
+	)`,
+	`CREATE INDEX IF NOT EXISTS idx_skill_activations_skill   ON skill_activations(skill_id)`,
+	`CREATE INDEX IF NOT EXISTS idx_skill_activations_team    ON skill_activations(team_id)`,
+	`CREATE INDEX IF NOT EXISTS idx_skill_activations_project ON skill_activations(project)`,
 }

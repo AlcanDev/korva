@@ -56,7 +56,7 @@ func (l *License) Validate() error {
 	if l == nil {
 		return errors.New("license: nil")
 	}
-	if l.Tier != TierTeams && l.Tier != TierCommunity {
+	if l.Tier != TierTeams && l.Tier != TierCommunity && l.Tier != TierBusiness {
 		return fmt.Errorf("license: unknown tier %q", l.Tier)
 	}
 	if !l.ExpiresAt.IsZero() && time.Now().After(l.ExpiresAt) {

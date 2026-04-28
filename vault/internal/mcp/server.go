@@ -16,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/alcandev/korva/internal/license"
 	"github.com/alcandev/korva/internal/version"
 	"github.com/alcandev/korva/vault/internal/store"
 )
@@ -62,6 +63,7 @@ type Server struct {
 	logger       *log.Logger
 	session      *mcpSession                   // nil = anonymous; set during handleInitialize if valid token
 	cloud        CloudSearcher                 // nil = local-only mode
+	lic          *license.License              // nil = community tier; set via WithLicense()
 	profile      Profile                       // controls which tools are exposed; set once in New()
 	contextCache map[string]*contextCacheEntry // key=project; session fingerprint cache
 }
@@ -71,6 +73,32 @@ type Server struct {
 // when vault_context or vault_search is invoked.
 func (s *Server) WithCloudSearch(cs CloudSearcher) {
 	s.cloud = cs
+}
+
+// WithLicense attaches a validated license to the server so it can gate
+// enterprise MCP tools at runtime. Pass nil for community-tier installs.
+// Call before Run().
+func (s *Server) WithLicense(lic *license.License) {
+	s.lic = lic
+}
+
+// requireFeatureMCP checks whether the active license includes the given
+// feature. Returns a user-friendly error when the feature is not unlocked so
+// the AI receives an actionable message instead of a generic crash.
+func (s *Server) requireFeatureMCP(feature, toolName string) error {
+	if s.lic != nil && s.lic.HasFeature(feature) {
+		return nil
+	}
+	tier := "Teams"
+	switch feature {
+	case license.FeatureCodeHealth, license.FeaturePatternMine,
+		license.FeatureMultiProfile, license.FeatureCloudPrivate:
+		tier = "Business"
+	}
+	return fmt.Errorf(
+		"tool %q requires a Korva %s license — visit https://korva.dev/pricing to upgrade",
+		toolName, tier,
+	)
 }
 
 // New creates an MCP server reading from stdin and writing to stdout.
@@ -377,10 +405,19 @@ func (s *Server) dispatch(tool string, args map[string]any) (any, error) {
 	case "vault_hint":
 		return s.toolHint(args)
 	case "vault_code_health":
+		if err := s.requireFeatureMCP(license.FeatureCodeHealth, "vault_code_health"); err != nil {
+			return nil, err
+		}
 		return s.toolCodeHealth(args)
 	case "vault_pattern_mine":
+		if err := s.requireFeatureMCP(license.FeaturePatternMine, "vault_pattern_mine"); err != nil {
+			return nil, err
+		}
 		return s.toolPatternMine(args)
 	case "vault_skill_match":
+		if err := s.requireFeatureMCP(license.FeatureAdminSkills, "vault_skill_match"); err != nil {
+			return nil, err
+		}
 		return s.toolSkillMatch(args)
 	case "vault_compress":
 		return s.toolCompress(args)
@@ -675,28 +712,30 @@ func (s *Server) toolContext(args map[string]any) (any, error) {
 		}
 		resp["team_id"] = s.session.teamID
 
-		// Smart Skill Auto-Loader: silently match skills tagged auto_load=1 to
-		// the active project. The AI receives them in `auto_skills` with body
-		// inlined, so it can apply team conventions without explicit invocation.
+		// Smart Skill Auto-Loader (Teams+ feature): silently match skills tagged
+		// auto_load=1 to the active project. The AI receives them in `auto_skills`
+		// with body inlined, so it can apply team conventions without explicit invocation.
 		// We use the project name as the prompt fallback when no prompt is given,
 		// which still triggers project- and file-pattern-based matches.
-		matchPrompt := stringArg(args, "prompt")
-		if matchPrompt == "" {
-			matchPrompt = project
-		}
-		matched, mErr := s.store.MatchSkills(store.SkillMatchInput{
-			TeamID:    s.session.teamID,
-			Project:   project,
-			Prompt:    matchPrompt,
-			FilePaths: stringSliceArg(args, "file_paths"),
-			Limit:     intArg(args, "skill_limit", 5),
-		})
-		if mErr == nil && len(matched) > 0 {
-			resp["auto_skills"] = matched
-			// Telemetry — fire-and-forget.
-			promptHash := hashPrompt(matchPrompt)
-			for _, m := range matched {
-				s.store.LogSkillActivation(m.ID, s.session.teamID, project, promptHash, m.Reason, m.Score)
+		if s.lic.HasFeature(license.FeatureSmartSkillLoader) {
+			matchPrompt := stringArg(args, "prompt")
+			if matchPrompt == "" {
+				matchPrompt = project
+			}
+			matched, mErr := s.store.MatchSkills(store.SkillMatchInput{
+				TeamID:    s.session.teamID,
+				Project:   project,
+				Prompt:    matchPrompt,
+				FilePaths: stringSliceArg(args, "file_paths"),
+				Limit:     intArg(args, "skill_limit", 5),
+			})
+			if mErr == nil && len(matched) > 0 {
+				resp["auto_skills"] = matched
+				// Telemetry — fire-and-forget.
+				promptHash := hashPrompt(matchPrompt)
+				for _, m := range matched {
+					s.store.LogSkillActivation(m.ID, s.session.teamID, project, promptHash, m.Reason, m.Score)
+				}
 			}
 		}
 	}
