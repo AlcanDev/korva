@@ -18,6 +18,12 @@ var rootCmd = &cobra.Command{
 		// Keep the completion command visible in `korva --help`.
 		HiddenDefaultCmd: false,
 	},
+	// PersistentPreRun fires before every sub-command and triggers a
+	// non-blocking background update check (at most once every 24 h).
+	// The hint is printed to stderr so it never interferes with command output.
+	PersistentPreRun: func(_ *cobra.Command, _ []string) {
+		go CheckUpdateHint()
+	},
 }
 
 // Execute runs the root command.

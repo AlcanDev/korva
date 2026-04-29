@@ -1,5 +1,7 @@
 name: Release
 
+# Triggered automatically when release-please creates a vX.Y.Z tag.
+# Also triggered if you push a tag manually: git tag v1.2.3 && git push --tags
 on:
   push:
     tags:
@@ -10,9 +12,27 @@ permissions:
   packages: write
 
 jobs:
+  # ─── Wait for CI to be green on the tagged commit ───────────────────────────
+  # The release job only starts once all CI checks on the same SHA pass.
+  # This prevents shipping a broken release if tests were flaky on main.
+  wait-ci:
+    name: Wait for CI
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check CI status on tagged commit
+        uses: lewagon/wait-on-check-action@v1.3.4
+        with:
+          ref: ${{ github.sha }}
+          check-name: "Go build + test (ubuntu-latest, 1.26.x)"
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          wait-interval: 20
+          allowed-conclusions: success,skipped
+
+  # ─── Build & publish release ─────────────────────────────────────────────────
   release:
     name: GoReleaser
     runs-on: ubuntu-latest
+    needs: wait-ci
 
     steps:
       - name: Checkout (full history for changelog)
@@ -26,21 +46,29 @@ jobs:
           go-version-file: go.work
           cache: true
 
-      - name: Set up Node.js
+      - name: Set up Node.js 22
         uses: actions/setup-node@v4
         with:
           node-version: "22"
           cache: "npm"
           cache-dependency-path: beacon/package-lock.json
 
-      - name: Build Beacon
+      # Build the Beacon SPA and copy it into the vault embed path so
+      # GoReleaser can compile korva-vault with -tags embedui and have a
+      # self-contained binary that serves the dashboard on :7437.
+      - name: Build Beacon (embedded UI)
         run: |
           cd beacon
           npm ci
           npm run build
-        # Produces beacon/dist/ which will be embedded in the vault binary.
+          cd ..
+          mkdir -p vault/internal/ui/dist
+          cp -r beacon/dist/. vault/internal/ui/dist/
 
-      - name: Import GPG key (optional — skip if GPG_PRIVATE_KEY is not set)
+      # GPG signing is optional. Set GPG_PRIVATE_KEY + GPG_PASSPHRASE secrets
+      # to enable signed checksums. Skipped gracefully when not configured.
+      - name: Import GPG key
+        id: import_gpg
         if: ${{ env.GPG_PRIVATE_KEY != '' }}
         uses: crazy-max/ghaction-import-gpg@v6
         with:
@@ -49,13 +77,25 @@ jobs:
         env:
           GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
 
+      # Determine whether to skip GPG signing (when key is not configured).
+      - name: Compute GoReleaser flags
+        id: flags
+        env:
+          HAS_GPG: ${{ secrets.GPG_PRIVATE_KEY != '' }}
+        run: |
+          if [ "$HAS_GPG" = "true" ]; then
+            echo "args=release --clean" >> "$GITHUB_OUTPUT"
+          else
+            echo "args=release --clean --skip=sign" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v6
         with:
           distribution: goreleaser
           version: "~> v2"
-          args: release --clean
+          args: ${{ steps.flags.outputs.args }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
-          GPG_FINGERPRINT: ${{ steps.import_gpg.outputs.fingerprint }}
+          GPG_FINGERPRINT: ${{ steps.import_gpg.outputs.fingerprint || '' }}
