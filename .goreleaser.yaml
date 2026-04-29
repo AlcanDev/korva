@@ -38,6 +38,11 @@ builds:
   - id: korva-vault
     main: ./vault/cmd/korva-vault/
     binary: korva-vault
+    # embedui embeds the pre-built Beacon SPA (vault/internal/ui/dist/).
+    # The release workflow copies beacon/dist/ there before goreleaser runs.
+    # Local `make vault-full` does the same for development builds.
+    tags:
+      - embedui
     env:
       - CGO_ENABLED=0
     goos:

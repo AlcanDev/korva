@@ -1,0 +1,40 @@
+name: Release Please
+
+# release-please tracks conventional commits since the last tag and maintains
+# a "chore(release): vX.Y.Z" PR on main. Merging that PR creates the tag,
+# which triggers the Release workflow (release.yml) and GoReleaser.
+#
+# Version bump rules (conventional commits):
+#   feat:      → minor bump  (v1.1.0 → v1.2.0)
+#   fix:       → patch bump  (v1.1.0 → v1.1.1)
+#   feat!: or BREAKING CHANGE: → major bump  (v1.1.0 → v2.0.0)
+#   chore/docs/ci/refactor:    → no bump (included in next release)
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write       # create tags + update manifest
+  pull-requests: write  # open/update Release PR
+
+jobs:
+  release-please:
+    name: Release Please
+    runs-on: ubuntu-latest
+
+    outputs:
+      # Set to true when release-please just merged and created a tag.
+      # Downstream jobs can gate on this output.
+      release_created: ${{ steps.rp.outputs.release_created }}
+      tag_name:        ${{ steps.rp.outputs.tag_name }}
+
+    steps:
+      - uses: googleapis/release-please-action@v4
+        id: rp
+        with:
+          # Uses GITHUB_TOKEN — no extra PAT needed for public repos.
+          token: ${{ secrets.GITHUB_TOKEN }}
+          # release-please-config.json + .release-please-manifest.json must
+          # exist at the repo root (see those files).

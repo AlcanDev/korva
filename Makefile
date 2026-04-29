@@ -3,6 +3,7 @@
 
 .PHONY: all build test lint clean tidy sync vault vault-full cli sentinel \
         licensing-server licensing-mock hive-mock keygen release-dry \
+        release-patch release-minor release-major \
         docker docker-licensing completions help
 
 # ─── Defaults ─────────────────────────────────────────────────────────────────
@@ -57,9 +58,49 @@ licensing-server:
 keygen:
 	go run github.com/alcandev/korva/forge/licensing-server/keygen
 
-# release-dry: validate the goreleaser config without publishing.
+# release-dry: validate the goreleaser config + build all platforms locally.
 release-dry:
 	goreleaser release --snapshot --clean
+
+# ─── Release helpers ─────────────────────────────────────────────────────────
+# These targets bump the version, create an annotated tag, and push it.
+# The tag push triggers the release.yml workflow which runs GoReleaser.
+#
+# Usage:
+#   make release-patch   → v0.1.0 → v0.1.1  (bug fixes)
+#   make release-minor   → v0.1.0 → v0.2.0  (new features, no breaking changes)
+#   make release-major   → v0.1.0 → v1.0.0  (breaking changes)
+#
+# Tip: for automated releases on every PR merge, let release-please handle
+#      this — it analyses conventional commits and creates the Release PR.
+#      These targets are for when you want to cut a release immediately.
+
+_LATEST_TAG    := $(shell git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+_VER_PARTS     := $(subst ., ,$(patsubst v%,%,$(_LATEST_TAG)))
+_VER_MAJOR     := $(word 1,$(_VER_PARTS))
+_VER_MINOR     := $(word 2,$(_VER_PARTS))
+_VER_PATCH     := $(word 3,$(_VER_PARTS))
+
+release-patch: test
+	$(eval _NEXT := v$(_VER_MAJOR).$(_VER_MINOR).$(shell echo $$(($(_VER_PATCH)+1))))
+	@echo "Tagging $(_LATEST_TAG) → $(_NEXT)"
+	git tag -a $(_NEXT) -m "Release $(_NEXT)"
+	git push origin $(_NEXT)
+	@echo "Released $(_NEXT) — GoReleaser running at https://github.com/AlcanDev/korva/actions"
+
+release-minor: test
+	$(eval _NEXT := v$(_VER_MAJOR).$(shell echo $$(($(_VER_MINOR)+1))).0)
+	@echo "Tagging $(_LATEST_TAG) → $(_NEXT)"
+	git tag -a $(_NEXT) -m "Release $(_NEXT)"
+	git push origin $(_NEXT)
+	@echo "Released $(_NEXT) — GoReleaser running at https://github.com/AlcanDev/korva/actions"
+
+release-major: test
+	$(eval _NEXT := v$(shell echo $$(($(_VER_MAJOR)+1))).0.0)
+	@echo "Tagging $(_LATEST_TAG) → $(_NEXT)"
+	git tag -a $(_NEXT) -m "Release $(_NEXT)"
+	git push origin $(_NEXT)
+	@echo "Released $(_NEXT) — GoReleaser running at https://github.com/AlcanDev/korva/actions"
 
 # completions: generate shell completion scripts for bash, zsh, and fish.
 completions:
@@ -163,6 +204,9 @@ help:
 	@echo "  make licensing-mock    Start licensing mock server (port 7439)"
 	@echo "  make licensing-server  Start production licensing server (port 7440)"
 	@echo "  make keygen            Generate RSA-4096 key pair for licensing"
+	@echo "  make release-patch     Bump patch, tag, push → triggers GoReleaser"
+	@echo "  make release-minor     Bump minor, tag, push → triggers GoReleaser"
+	@echo "  make release-major     Bump major, tag, push → triggers GoReleaser"
 	@echo "  make release-dry       Dry-run goreleaser (no publish)"
 	@echo "  make docker            Build korva-vault Docker image locally"
 	@echo "  make docker-licensing  Build korva-licensing Docker image locally"
