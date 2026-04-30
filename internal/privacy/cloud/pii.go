@@ -15,7 +15,7 @@ type piiPattern struct {
 	placeholder string
 }
 
-const piiRedacted = "[CLOUD_REDACTED]"
+const piiRedacted = "[CLOUD_REDACTED]" //nolint:unused // kept for future configurable redaction
 
 func defaultPIIDetector() *piiDetector {
 	// Order matters: more specific patterns must run before generic ones,

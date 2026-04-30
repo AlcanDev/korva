@@ -142,8 +142,10 @@ func TestApplyTokenBudget_TruncatesContent(t *testing.T) {
 		if len(o.Content) > 800 {
 			t.Errorf("content not truncated: len=%d > budget chars", len(o.Content))
 		}
-		if len(o.Content) > 0 && !strings.HasSuffix(o.Content, "…[truncated]") {
-			// content was within budget — that's fine
+		// If content was kept under budget without truncation that's fine;
+		// if it was truncated, it must end with the truncation marker.
+		if len(o.Content) > 0 && len(o.Content) >= 800 && !strings.HasSuffix(o.Content, "…[truncated]") {
+			t.Errorf("oversized content missing truncation marker: %q", o.Content)
 		}
 	}
 }

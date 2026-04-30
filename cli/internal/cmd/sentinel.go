@@ -83,7 +83,8 @@ func runSentinelValidation(hookType string) error {
 	// Get staged files
 	out, err := exec.Command("git", "diff", "--cached", "--name-only", "--diff-filter=ACM").Output()
 	if err != nil {
-		return nil // No staged files — let the commit proceed
+		//nolint:nilerr // intentional: failed git diff means no staged files, let commit proceed
+		return nil
 	}
 
 	if len(out) == 0 {

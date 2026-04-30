@@ -85,7 +85,7 @@ func runUpdate(_ *cobra.Command, _ []string) error {
 		var answer string
 		fmt.Scanln(&answer) //nolint:errcheck
 		if strings.ToLower(strings.TrimSpace(answer)) != "y" {
-			printInfo("Cancelled. Run `korva update --yes` to skip this prompt.")
+			printInfo("Canceled. Run `korva update --yes` to skip this prompt.")
 			return nil
 		}
 	}
@@ -258,7 +258,7 @@ func extractTarGzBinaries(archivePath, destDir string, targets map[string]bool, 
 	if err != nil {
 		return nil, err
 	}
-	defer gz.Close()
+	defer func() { _ = gz.Close() }()
 
 	tr := tar.NewReader(gz)
 	for {
@@ -287,7 +287,7 @@ func extractZipBinaries(archivePath, destDir string, targets map[string]bool) (m
 	if err != nil {
 		return nil, err
 	}
-	defer r.Close()
+	defer func() { _ = r.Close() }()
 
 	result := make(map[string]string)
 	for _, f := range r.File {

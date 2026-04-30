@@ -210,7 +210,7 @@ func (sy *Syncer) importChunk(chunkPath string) (int, error) {
 	if err != nil {
 		return 0, fmt.Errorf("reading gzip: %w", err)
 	}
-	defer gz.Close()
+	defer func() { _ = gz.Close() }()
 
 	imported := 0
 	dec := json.NewDecoder(gz)
@@ -246,7 +246,7 @@ func readChunkIDs(chunkPath string, ids map[string]bool) error {
 	if err != nil {
 		return err
 	}
-	defer gz.Close()
+	defer func() { _ = gz.Close() }()
 
 	dec := json.NewDecoder(gz)
 	for dec.More() {

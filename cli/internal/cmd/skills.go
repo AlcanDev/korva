@@ -270,16 +270,16 @@ func reportSyncTelemetry(token string, count int, target string) {
 func buildSkillFileContent(name, body string, version int, updatedBy, updatedAt, syncedAt string) string {
 	var sb strings.Builder
 	sb.WriteString("---\n")
-	sb.WriteString(fmt.Sprintf("name: %s\n", name))
-	sb.WriteString(fmt.Sprintf("version: %d\n", version))
+	fmt.Fprintf(&sb, "name: %s\n", name)
+	fmt.Fprintf(&sb, "version: %d\n", version)
 	if updatedBy != "" {
-		sb.WriteString(fmt.Sprintf("updated_by: %s\n", updatedBy))
+		fmt.Fprintf(&sb, "updated_by: %s\n", updatedBy)
 	}
 	if updatedAt != "" {
-		sb.WriteString(fmt.Sprintf("updated_at: %s\n", updatedAt))
+		fmt.Fprintf(&sb, "updated_at: %s\n", updatedAt)
 	}
 	if syncedAt != "" {
-		sb.WriteString(fmt.Sprintf("synced_at: %s\n", syncedAt))
+		fmt.Fprintf(&sb, "synced_at: %s\n", syncedAt)
 	}
 	sb.WriteString("---\n\n")
 	sb.WriteString(body)
@@ -640,4 +640,3 @@ func removeHook(settings map[string]any) {
 		hooks["PreToolUse"] = filtered
 	}
 }
-

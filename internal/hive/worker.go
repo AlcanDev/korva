@@ -90,7 +90,7 @@ func (w *Worker) recordFailure(err error) {
 }
 
 // Run blocks until ctx is canceled, ticking every interval.
-// Honours the KORVA_HIVE_DISABLE=1 kill switch on every tick.
+// Honors the KORVA_HIVE_DISABLE=1 kill switch on every tick.
 func (w *Worker) Run(ctx context.Context) {
 	t := time.NewTicker(w.interval)
 	defer t.Stop()

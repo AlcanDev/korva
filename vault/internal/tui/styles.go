@@ -6,7 +6,7 @@ var (
 	colorAccent  = lipgloss.Color("#7C6AF7")
 	colorMuted   = lipgloss.Color("#555577")
 	colorSuccess = lipgloss.Color("#50FA7B")
-	colorWarning = lipgloss.Color("#FFB86C")
+	colorWarning = lipgloss.Color("#FFB86C") //nolint:unused // reserved for warning state UIs
 	colorError   = lipgloss.Color("#FF5555")
 	colorFg      = lipgloss.Color("#F8F8F2")
 	colorBg      = lipgloss.Color("#1A1A2E")

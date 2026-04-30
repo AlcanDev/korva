@@ -74,7 +74,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Cannot open vault store: %v", err)
 	}
-	defer s.Close()
+	defer func() { _ = s.Close() }()
 
 	// License — nil on community tier, safe for all feature checks.
 	lic, _ := license.Load(paths.LicenseFile)

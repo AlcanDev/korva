@@ -73,7 +73,7 @@ func runAdminRotate(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Print("Enter current admin key: ")
-	keyBytes, err := term.ReadPassword(int(syscall.Stdin))
+	keyBytes, err := term.ReadPassword(syscall.Stdin)
 	if err != nil {
 		return fmt.Errorf("reading admin key: %w", err)
 	}

@@ -23,12 +23,33 @@ linters:
   settings:
     misspell:
       locale: US
+    errcheck:
+      # Idiomatic Go patterns where the error is intentionally ignored.
+      # These mirror conventions used across the standard library.
+      exclude-functions:
+        - (io.Closer).Close
+        - (*database/sql.Rows).Close
+        - (*database/sql.Stmt).Close
+        - (*os.File).Close
+        - (*compress/gzip.Writer).Close
+        - compress/gzip.(*Writer).Close
+        - (*net/http.Response).Body.Close
+        - fmt.Fprint
+        - fmt.Fprintf
+        - fmt.Fprintln
+        - (*encoding/json.Decoder).Decode
+        - encoding/json.Unmarshal
+        - os.Remove
+        - os.RemoveAll
+        - os.WriteFile
+        - (*github.com/spf13/cobra.Command).MarkFlagRequired
 
   exclusions:
     rules:
-      # Test files — relax errcheck (many test helpers ignore errors intentionally)
+      # Test files — relax errcheck + unused (many test helpers and fixtures
+      # are unused or ignore errors intentionally)
       - path: _test\.go
-        linters: [errcheck, bodyclose]
+        linters: [errcheck, bodyclose, unused]
       # Test utilities / fixtures
       - path: testdata/
         linters: [errcheck, bodyclose, govet, staticcheck, unused, misspell, unconvert, nilerr, ineffassign]

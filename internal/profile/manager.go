@@ -214,10 +214,11 @@ func (m *Manager) ActiveProfileID() (string, error) {
 	}
 	data, err := os.ReadFile(m.paths.ConfigFile)
 	if err != nil {
-		return "", nil
+		// Missing config file is normal — no active profile yet.
+		return "", nil //nolint:nilerr
 	}
 	var ap activeProfile
-	json.Unmarshal(data, &ap)
+	_ = json.Unmarshal(data, &ap)
 	return ap.ProfileID, nil
 }
 

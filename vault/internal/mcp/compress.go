@@ -127,21 +127,21 @@ func stripArticles(text string) string {
 
 // abbreviations maps common technical phrases to terse equivalents.
 var abbreviations = map[string]string{
-	"because":          "bc",
-	"with":             "w/",
-	"without":          "w/o",
-	"function":         "fn",
-	"variable":         "var",
-	"return":           "ret",
-	"following":        "below",
-	"approximately":    "~",
-	"configuration":    "config",
-	"implementation":   "impl",
-	"information":      "info",
-	"documentation":    "docs",
-	"environment":      "env",
-	"directory":        "dir",
-	"and":              "&",
+	"because":        "bc",
+	"with":           "w/",
+	"without":        "w/o",
+	"function":       "fn",
+	"variable":       "var",
+	"return":         "ret",
+	"following":      "below",
+	"approximately":  "~",
+	"configuration":  "config",
+	"implementation": "impl",
+	"information":    "info",
+	"documentation":  "docs",
+	"environment":    "env",
+	"directory":      "dir",
+	"and":            "&",
 }
 
 func abbreviate(text string) string {

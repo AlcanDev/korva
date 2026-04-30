@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -97,9 +98,10 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 
 	// Check admin key
 	_, err = admin.Load(paths.AdminKey)
-	if err == admin.ErrNoAdminKey {
+	switch {
+	case errors.Is(err, admin.ErrNoAdminKey):
 		fmt.Printf("  ○ Admin key: not configured (only needed for the admin)\n")
-	} else if err == nil {
+	case err == nil:
 		check("Admin key", true, "")
 	}
 
@@ -124,9 +126,10 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 		req, _ := http.NewRequest("GET", fmt.Sprintf("http://127.0.0.1:%d/auth/me", cfg.Vault.Port), nil)
 		req.Header.Set("X-Session-Token", sessionToken)
 		if r, err := sessClient.Do(req); err == nil {
-			defer r.Body.Close()
+			defer func() { _ = r.Body.Close() }()
 			raw, _ := io.ReadAll(r.Body)
-			if r.StatusCode == http.StatusOK {
+			switch r.StatusCode {
+			case http.StatusOK:
 				var me struct {
 					Email     string `json:"email"`
 					Team      string `json:"team"`
@@ -143,7 +146,7 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 						fmt.Printf("  ✓ Valid until %s\n", t.Local().Format("2006-01-02"))
 					}
 				}
-			} else if r.StatusCode == http.StatusUnauthorized {
+			case http.StatusUnauthorized:
 				fmt.Printf("  ✗ Session expired — run 'korva auth redeem <invite-token>'\n")
 				allGood = false
 			}

@@ -9,11 +9,11 @@ import (
 // EmergingPattern represents a cluster of related observations that haven't
 // been explicitly saved as a pattern, suggesting an implicit convention.
 type EmergingPattern struct {
-	Topic       string   `json:"topic"`       // shared word cluster
-	Count       int      `json:"count"`       // number of observations in cluster
-	Examples    []string `json:"examples"`    // up to 3 observation titles
-	ExampleIDs  []string `json:"example_ids"` // corresponding IDs
-	Suggestion  string   `json:"suggestion"`  // actionable prompt for the AI
+	Topic      string   `json:"topic"`       // shared word cluster
+	Count      int      `json:"count"`       // number of observations in cluster
+	Examples   []string `json:"examples"`    // up to 3 observation titles
+	ExampleIDs []string `json:"example_ids"` // corresponding IDs
+	Suggestion string   `json:"suggestion"`  // actionable prompt for the AI
 }
 
 // MinePatterns scans recent observations for co-occurring word clusters that

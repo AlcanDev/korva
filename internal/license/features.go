@@ -4,10 +4,11 @@ package license
 // Add new features here, then gate via license.HasFeature(FeatureX).
 //
 // Tier assignment:
-//   Teams    → FeatureAdminSkills, FeatureCustomWhitelist, FeatureAuditLog,
-//              FeaturePrivateScrolls, FeatureSmartSkillLoader
-//   Business → above + FeatureCodeHealth, FeaturePatternMine, FeatureMultiProfile,
-//              FeatureCloudPrivate
+//
+//	Teams    → FeatureAdminSkills, FeatureCustomWhitelist, FeatureAuditLog,
+//	           FeaturePrivateScrolls, FeatureSmartSkillLoader
+//	Business → above + FeatureCodeHealth, FeaturePatternMine, FeatureMultiProfile,
+//	           FeatureCloudPrivate
 const (
 	// Teams tier
 	FeatureAdminSkills      = "admin_skills"       // Skills Hub editor in Beacon + vault_skill_match

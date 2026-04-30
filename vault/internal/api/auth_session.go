@@ -149,7 +149,7 @@ func authMe(s *store.Store) http.HandlerFunc {
 
 		// Fetch team name (role is already in sess via requireSession JOIN)
 		var teamName string
-		s.DB().QueryRowContext(r.Context(), //nolint:errcheck
+		_ = s.DB().QueryRowContext(r.Context(),
 			`SELECT name FROM teams WHERE id=?`, sess.teamID).Scan(&teamName)
 
 		writeJSON(w, http.StatusOK, map[string]any{
@@ -170,7 +170,7 @@ func authLogout(s *store.Store) http.HandlerFunc {
 		if !ok {
 			return
 		}
-		s.DB().ExecContext(r.Context(),
+		_, _ = s.DB().ExecContext(r.Context(),
 			`DELETE FROM member_sessions WHERE id=?`, sess.id)
 		writeJSON(w, http.StatusOK, map[string]string{"status": "logged out"})
 	}

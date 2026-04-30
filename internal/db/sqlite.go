@@ -21,12 +21,12 @@ func Open(dbPath string) (*sql.DB, error) {
 	}
 
 	if err := configure(db); err != nil {
-		db.Close()
+		_ = db.Close()
 		return nil, fmt.Errorf("configuring sqlite: %w", err)
 	}
 
 	if err := Migrate(db); err != nil {
-		db.Close()
+		_ = db.Close()
 		return nil, fmt.Errorf("running migrations: %w", err)
 	}
 
@@ -42,12 +42,12 @@ func OpenMemory() (*sql.DB, error) {
 	}
 
 	if err := configure(db); err != nil {
-		db.Close()
+		_ = db.Close()
 		return nil, fmt.Errorf("configuring in-memory sqlite: %w", err)
 	}
 
 	if err := Migrate(db); err != nil {
-		db.Close()
+		_ = db.Close()
 		return nil, fmt.Errorf("migrating in-memory sqlite: %w", err)
 	}
 

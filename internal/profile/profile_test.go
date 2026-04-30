@@ -101,16 +101,16 @@ func TestValidate_InvalidMergeStrategy(t *testing.T) {
 	p := validProfile()
 	p.Overrides.Instructions = &config.InstructionsOverride{MergeStrategy: "overwrite"}
 	if err := Validate(p, nil); err == nil {
-		t.Error("expected error for invalid merge_strategy")
+		t.Error("expected error for invalid merge_strategyegy")
 	}
 }
 
 func TestValidate_ValidMergeStrategies(t *testing.T) {
-	for _, strat := range []string{"append", "replace", ""} {
+	for _, strategy := range []string{"append", "replace", ""} {
 		p := validProfile()
-		p.Overrides.Instructions = &config.InstructionsOverride{MergeStrategy: strat}
+		p.Overrides.Instructions = &config.InstructionsOverride{MergeStrategy: strategy}
 		if err := Validate(p, nil); err != nil {
-			t.Errorf("unexpected error for merge_strategy %q: %v", strat, err)
+			t.Errorf("unexpected error for merge_strategyegy %q: %v", strategy, err)
 		}
 	}
 }

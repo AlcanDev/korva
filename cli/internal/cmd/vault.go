@@ -143,15 +143,17 @@ func runVaultStop(cmd *cobra.Command, args []string) error {
 
 	pid, err := readVaultPID(paths)
 	if err != nil {
+		// intentional: missing PID file means vault isn't running
 		printInfo("Vault is not running (no PID file found)")
-		return nil
+		return nil //nolint:nilerr
 	}
 
 	proc, err := os.FindProcess(pid)
 	if err != nil {
-		os.Remove(paths.VaultPIDFile()) //nolint:errcheck
+		_ = os.Remove(paths.VaultPIDFile())
+		// intentional: stale PID file, treat as already-stopped
 		printInfo("Vault process not found")
-		return nil
+		return nil //nolint:nilerr
 	}
 
 	if err := proc.Signal(os.Interrupt); err != nil {
@@ -221,7 +223,7 @@ func runVaultClean(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return fmt.Errorf("opening vault database: %w", err)
 	}
-	defer sqlDB.Close()
+	defer func() { _ = sqlDB.Close() }()
 
 	// Build queries — scoped to a project when provided, global otherwise.
 	var totalQ, dupQ, deleteQ string

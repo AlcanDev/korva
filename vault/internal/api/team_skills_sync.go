@@ -84,7 +84,7 @@ func teamSyncSkills(s *store.Store) http.HandlerFunc {
 			writeError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
-		defer rows.Close()
+		defer func() { _ = rows.Close() }()
 
 		skills := make([]skillSyncRow, 0)
 		for rows.Next() {

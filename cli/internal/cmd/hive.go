@@ -171,10 +171,10 @@ func openOutbox() (*hive.Outbox, vaultHandle, error) {
 		return nil, vaultHandle{}, fmt.Errorf("opening vault: %w", err)
 	}
 	if err := db.Migrate(d); err != nil {
-		d.Close()
+		_ = d.Close()
 		return nil, vaultHandle{}, fmt.Errorf("migrating vault: %w", err)
 	}
-	return hive.NewOutbox(d), vaultHandle{closer: func() { d.Close() }}, nil
+	return hive.NewOutbox(d), vaultHandle{closer: func() { _ = d.Close() }}, nil
 }
 
 // buildHiveWorker wires Outbox + Client + Filter ready for a one-shot flush.

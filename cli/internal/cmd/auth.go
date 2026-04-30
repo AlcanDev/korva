@@ -190,7 +190,9 @@ func runAuthLogout(cmd *cobra.Command, args []string) error {
 
 	req, _ := http.NewRequestWithContext(ctx, "DELETE", vaultBase()+"/auth/session", nil)
 	req.Header.Set("X-Session-Token", sessionToken)
-	http.DefaultClient.Do(req) //nolint:errcheck — best-effort server logout
+	if resp, _ := http.DefaultClient.Do(req); resp != nil { // best-effort server logout
+		_ = resp.Body.Close()
+	}
 
 	os.Remove(paths.SessionTokenFile)
 	printSuccess("Logged out")

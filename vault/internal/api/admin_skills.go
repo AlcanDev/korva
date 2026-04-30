@@ -58,7 +58,7 @@ func writeSkillList(w http.ResponseWriter, r *http.Request, s *store.Store, team
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	defer sqlRows.Close()
+	defer func() { _ = sqlRows.Close() }()
 	var skills []skillRow
 	for sqlRows.Next() {
 		var sk skillRow

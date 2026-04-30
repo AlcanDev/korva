@@ -53,10 +53,10 @@ func TestBuildReasoningHint(t *testing.T) {
 			contains: []string{"tagged:", "nestjs"},
 		},
 		{
-			name:     "context type mid-age returns empty",
-			obs:      Observation{Type: TypeContext, CreatedAt: now.Add(-60 * 24 * time.Hour)},
-			query:    "",
-			empty:    true,
+			name:  "context type mid-age returns empty",
+			obs:   Observation{Type: TypeContext, CreatedAt: now.Add(-60 * 24 * time.Hour)},
+			query: "",
+			empty: true,
 		},
 		{
 			name:     "separator dot between multiple signals",

@@ -47,7 +47,9 @@ func korvaVaultBin() string {
 	return "korva-vault"
 }
 
-// mcpConfig is the MCP server entry for korva-vault.
+// mcpServerEntry is the MCP server entry for korva-vault.
+//
+//nolint:unused // referenced indirectly via JSON marshaling in editor manifests
 type mcpServerEntry struct {
 	Command string   `json:"command"`
 	Args    []string `json:"args"`

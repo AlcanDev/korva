@@ -32,14 +32,14 @@ type codeHealthProject struct {
 }
 
 type recentCheckpoint struct {
-	ID          string `json:"id"`
-	Project     string `json:"project"`
-	Phase       string `json:"phase"`
-	Status      string `json:"status"`
-	Score       int    `json:"score"`
-	GatePassed  bool   `json:"gate_passed"`
-	Notes       string `json:"notes"`
-	CreatedAt   string `json:"created_at"`
+	ID         string `json:"id"`
+	Project    string `json:"project"`
+	Phase      string `json:"phase"`
+	Status     string `json:"status"`
+	Score      int    `json:"score"`
+	GatePassed bool   `json:"gate_passed"`
+	Notes      string `json:"notes"`
+	CreatedAt  string `json:"created_at"`
 }
 
 // adminCodeHealth returns an aggregated code-health view suitable for

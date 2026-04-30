@@ -32,8 +32,8 @@ var conflictPairs = [][2]string{
 type ConflictWarning struct {
 	ExistingID    string `json:"existing_id"`
 	ExistingTitle string `json:"existing_title"`
-	ConflictWord  string `json:"conflict_word"`  // word in new decision
-	OppositeWord  string `json:"opposite_word"`  // contradicting word in existing decision
+	ConflictWord  string `json:"conflict_word"` // word in new decision
+	OppositeWord  string `json:"opposite_word"` // contradicting word in existing decision
 	Explanation   string `json:"explanation"`
 }
 
