@@ -176,7 +176,7 @@ func TestApplyOverrides_PrivatePatternsAreAppended(t *testing.T) {
 	// Use patterns that are NOT in DefaultConfig to avoid deduplication
 	p := validProfile()
 	p.Overrides.Vault = &config.VaultOverride{
-		PrivatePatterns: []string{"consumerKey", "consumerSecret", "fif.tech"},
+		PrivatePatterns: []string{"consumerKey", "consumerSecret", "internal.your-company.com"},
 	}
 
 	result := ApplyOverrides(base, p)
@@ -235,7 +235,7 @@ func TestApplyOverrides_LoreScrollsMerged(t *testing.T) {
 	p := validProfile()
 	p.Overrides.Lore = &config.LoreOverride{
 		ScrollPriority: "private_first",
-		ActiveScrolls:  []string{"nestjs-hexagonal", "apigee-fif"},
+		ActiveScrolls:  []string{"nestjs-hexagonal", "apigee-oauth2"},
 	}
 
 	result := ApplyOverrides(base, p)

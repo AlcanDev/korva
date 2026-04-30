@@ -43,9 +43,9 @@ CMD ["node", "dist/main"]
 ## GitLab CI — pipeline structure
 
 ```yaml
-# Standard FIF pipeline structure
+# Standard pipeline structure
 include:
-  - project: 'fif/dx/fif-jobs'
+  - project: 'your-org/shared-jobs'
     ref: main
     file: '/templates/node-build.gitlab-ci.yml'
 
@@ -134,7 +134,7 @@ Never mount secrets as environment variables from ConfigMaps. Never `kubectl cre
 
 ```hcl
 # vault/qa.hcl — paths and policies
-path "secret/data/fif/apps/insurance/qa/*" {
+path "secret/data/your-org/apps/your-app/qa/*" {
   capabilities = ["read"]
 }
 ```
@@ -143,10 +143,10 @@ path "secret/data/fif/apps/insurance/qa/*" {
 # Deployment annotation for Vault Agent Injector
 annotations:
   vault.hashicorp.com/agent-inject: "true"
-  vault.hashicorp.com/role: "insurance-qa"
-  vault.hashicorp.com/agent-inject-secret-config: "secret/data/fif/apps/insurance/qa/config"
+  vault.hashicorp.com/role: "your-app-qa"
+  vault.hashicorp.com/agent-inject-secret-config: "secret/data/your-org/apps/your-app/qa/config"
   vault.hashicorp.com/agent-inject-template-config: |
-    {{- with secret "secret/data/fif/apps/insurance/qa/config" -}}
+    {{- with secret "secret/data/your-org/apps/your-app/qa/config" -}}
     APP_SECRET={{ .Data.data.app_secret }}
     {{- end }}
 ```
