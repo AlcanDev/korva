@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.0](https://github.com/AlcanDev/korva/compare/v0.1.2...v1.0.0) (2026-04-30)
+
+
+### release
+
+* v1.0.0 prep — docs rewrite + new scrolls + cleanup ([#7](https://github.com/AlcanDev/korva/issues/7)) ([0334902](https://github.com/AlcanDev/korva/commit/033490236ea2efafdd8975c13845c7f6be4e379f))
+
 ## [0.1.2](https://github.com/AlcanDev/korva/compare/v0.1.1...v0.1.2) (2026-04-30)
 
 
