@@ -33,6 +33,7 @@ services:
     environment:
       KORVA_VAULT_DB: /data/vault.db
       KORVA_VAULT_PORT: 7437
+      KORVA_VAULT_HOST: 0.0.0.0
       KORVA_VAULT_MODE: http
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:7437/healthz"]
