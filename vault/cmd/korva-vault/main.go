@@ -31,9 +31,27 @@ import (
 
 func main() {
 	mode := flag.String("mode", "both", "Server mode: mcp | http | both | tui")
-	port := flag.Int("port", 7437, "HTTP server port")
+	port := flag.Int("port", 7437, "HTTP server port (env: KORVA_VAULT_PORT)")
+	host := flag.String("host", "127.0.0.1", "HTTP bind address (env: KORVA_VAULT_HOST)")
 	dbPath := flag.String("db", "", "SQLite database path (default: ~/.korva/vault/observations.db)")
 	flag.Parse()
+
+	// Environment variables override flags — makes Docker / Coolify config easy.
+	if v := os.Getenv("KORVA_VAULT_PORT"); v != "" {
+		var p int
+		if _, err := fmt.Sscanf(v, "%d", &p); err == nil {
+			*port = p
+		}
+	}
+	if v := os.Getenv("KORVA_VAULT_HOST"); v != "" {
+		*host = v
+	}
+	if v := os.Getenv("KORVA_VAULT_DB"); v != "" && *dbPath == "" {
+		*dbPath = v
+	}
+	if v := os.Getenv("KORVA_VAULT_MODE"); v != "" {
+		*mode = v
+	}
 
 	// Root context — canceled on SIGINT/SIGTERM so all goroutines can clean up.
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -108,11 +126,11 @@ func main() {
 	case "mcp":
 		runMCP(s, hiveResult.Client, lic)
 	case "http":
-		runHTTP(ctx, s, routerCfg, *port)
+		runHTTP(ctx, s, routerCfg, *host, *port)
 	case "tui":
 		runTUI(s)
 	case "both":
-		go runHTTP(ctx, s, routerCfg, *port)
+		go runHTTP(ctx, s, routerCfg, *host, *port)
 		runMCP(s, hiveResult.Client, lic)
 		// MCP exited (stdin closed) — trigger HTTP shutdown.
 		stop()
@@ -303,7 +321,7 @@ func runTUI(s *store.Store) {
 //	/api/v1/*      →  vault REST API (direct access from CLI / curl)
 //	/admin/*       →  vault admin API (direct access)
 //	/*             →  Beacon SPA (static files + SPA fallback to index.html)
-func runHTTP(ctx context.Context, s *store.Store, cfg api.RouterConfig, port int) {
+func runHTTP(ctx context.Context, s *store.Store, cfg api.RouterConfig, host string, port int) {
 	vaultAPI := api.Router(s, cfg)
 
 	// beaconDev is the URL to redirect to when the UI is not embedded.
@@ -343,7 +361,7 @@ func runHTTP(ctx context.Context, s *store.Store, cfg api.RouterConfig, port int
 		spaHandler.ServeHTTP(w, r)
 	})
 
-	addr := fmt.Sprintf("127.0.0.1:%d", port)
+	addr := fmt.Sprintf("%s:%d", host, port)
 	srv := &http.Server{
 		Addr:         addr,
 		Handler:      baseHandler,
