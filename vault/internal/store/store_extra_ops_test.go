@@ -268,7 +268,7 @@ func TestSave_ContentHashDedup_CrossSession_NotDeduped(t *testing.T) {
 	}
 }
 
-// --- SDD phase (gentle-ai) ---
+// --- SDD phase ---
 
 func TestSDDPhase_DefaultExplore(t *testing.T) {
 	s := newTestStore(t)
@@ -308,7 +308,7 @@ func TestSDDPhase_Update(t *testing.T) {
 	}
 }
 
-// --- OpenSpec (gentle-ai) ---
+// --- Project conventions ---
 
 func TestOpenSpec_EmptyByDefault(t *testing.T) {
 	s := newTestStore(t)

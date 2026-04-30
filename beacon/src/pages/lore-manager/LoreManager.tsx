@@ -5,11 +5,18 @@ const CURATED_SCROLLS = [
   { id: 'nestjs-bff', team: 'backend', description: 'BFF patterns — stateless, typed HTTP client, Vault secrets' },
   { id: 'typescript', team: 'all', description: 'Strict TypeScript — branded types, Zod, Result<T,E>' },
   { id: 'testing-jest', team: 'all', description: 'Co-located specs, port mocking, coverage thresholds' },
-  { id: 'nx-monorepo', team: 'all', description: 'Nx workspace @home-api — affected, libs, boundaries' },
+  { id: 'nx-monorepo', team: 'all', description: 'Nx workspace — affected, libs, module boundaries' },
   { id: 'gitlab-ci', team: 'devops', description: 'GitLab CI pipelines, Docker, HashiCorp Vault secrets' },
-  { id: 'angular-wc', team: 'frontend', description: 'Angular 20 Elements + @df/wc-connector' },
-  { id: 'tomaco-ui', team: 'frontend', description: 'Tomaco design system — Sass variables, utility classes' },
+  { id: 'angular-wc', team: 'frontend', description: 'Angular 20 Elements + host postMessage bridge' },
+  { id: 'design-system', team: 'frontend', description: 'Design system — Sass variables, utility classes, tokens' },
   { id: 'forge-sdd', team: 'all', description: '5-phase SDD workflow for AI-assisted development' },
+  { id: 'skill-authoring', team: 'all', description: 'Meta-guide — how to write a Korva skill' },
+  { id: 'release-engineering', team: 'devops', description: 'Conventional Commits, semver, release-please pipelines' },
+  { id: 'sqlite-concurrency', team: 'backend', description: 'SQLite under load — write queue, WAL, batching' },
+  { id: 'observability', team: 'backend', description: 'Structured logs, RED/USE metrics, OpenTelemetry traces' },
+  { id: 'plugin-architecture', team: 'backend', description: 'Plugin manifests, capabilities, host versioning' },
+  { id: 'error-handling', team: 'backend', description: 'Sentinel errors, wrapping, Result<T,E>, panic recovery' },
+  { id: 'cloud-sync', team: 'backend', description: 'Content-addressed chunks, outbox, idempotent uploads' },
 ]
 
 const TEAM_COLORS: Record<string, string> = {

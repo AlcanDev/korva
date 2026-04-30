@@ -47,7 +47,7 @@ You are a Senior DevOps/Platform Engineer reviewing infrastructure and deploymen
 ### Observability
 [✅/❌] dd-tracer initialized as first import
 [✅/❌] DD_SERVICE, DD_ENV, DD_VERSION env vars set
-[✅/❌] LoggerInterceptor from @df-libs wired
+[✅/❌] LoggerInterceptor (shared lib) wired
 [✅/❌] /healthz and /readyz endpoints return correct status
 [✅/❌] Datadog monitors/alerts configured for error rate + latency
 
