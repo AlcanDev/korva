@@ -77,17 +77,24 @@ jobs:
         env:
           GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
 
-      # Determine whether to skip GPG signing (when key is not configured).
+      # Determine which GoReleaser steps to skip based on which secrets exist.
+      # GPG signing and Homebrew tap publishing are both optional — the release
+      # still ships binaries and a GitHub Release without them.
       - name: Compute GoReleaser flags
         id: flags
         env:
           HAS_GPG: ${{ secrets.GPG_PRIVATE_KEY != '' }}
+          HAS_BREW: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN != '' }}
         run: |
-          if [ "$HAS_GPG" = "true" ]; then
-            echo "args=release --clean" >> "$GITHUB_OUTPUT"
-          else
-            echo "args=release --clean --skip=sign" >> "$GITHUB_OUTPUT"
+          args="release --clean"
+          if [ "$HAS_GPG" != "true" ]; then
+            args="$args --skip=sign"
           fi
+          if [ "$HAS_BREW" != "true" ]; then
+            args="$args --skip=homebrew"
+          fi
+          echo "args=$args" >> "$GITHUB_OUTPUT"
+          echo "Resolved args: $args"
 
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v6
