@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.2](https://github.com/AlcanDev/korva/compare/v0.1.1...v0.1.2) (2026-04-30)
+
+
+### 🐛 Bug Fixes
+
+* **security:** remove all company-specific internal references ([#5](https://github.com/AlcanDev/korva/issues/5)) ([56933b8](https://github.com/AlcanDev/korva/commit/56933b8d18fbef366f0889d4093af8f2bf14a1b7))
+
 ## [0.1.1](https://github.com/AlcanDev/korva/compare/v0.1.0...v0.1.1) (2026-04-30)
 
 
