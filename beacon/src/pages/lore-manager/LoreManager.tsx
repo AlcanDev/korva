@@ -2,7 +2,7 @@ import { BookOpen } from 'lucide-react'
 
 const CURATED_SCROLLS = [
   { id: 'nestjs-hexagonal', team: 'backend', description: 'Hexagonal architecture with NestJS + Fastify' },
-  { id: 'nestjs-bff', team: 'backend', description: 'BFF patterns — stateless, FifHttpService, Vault secrets' },
+  { id: 'nestjs-bff', team: 'backend', description: 'BFF patterns — stateless, typed HTTP client, Vault secrets' },
   { id: 'typescript', team: 'all', description: 'Strict TypeScript — branded types, Zod, Result<T,E>' },
   { id: 'testing-jest', team: 'all', description: 'Co-located specs, port mocking, coverage thresholds' },
   { id: 'nx-monorepo', team: 'all', description: 'Nx workspace @home-api — affected, libs, boundaries' },

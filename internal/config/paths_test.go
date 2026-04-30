@@ -55,7 +55,7 @@ func TestProfileDirSanitization(t *testing.T) {
 		id   string
 		safe bool
 	}{
-		{"falabella-financiero", true},
+		{"acme-corp", true},
 		{"../../../etc", false},
 		{"my_team", true},
 		{"team/with/slash", false},
@@ -169,7 +169,7 @@ func TestSanitizeProfileID(t *testing.T) {
 		input    string
 		wantSafe bool
 	}{
-		{"falabella-financiero", true},
+		{"acme-corp", true},
 		{"my_team_v2", true},
 		{"../../../etc/passwd", false}, // must not contain ..
 		{"team/slash", false},          // must not contain /
