@@ -3,6 +3,7 @@ id: api-design
 version: 1.0.0
 team: backend
 stack: NestJS, OpenAPI, Swagger, REST, TypeScript, class-validator
+last_updated: 2026-04-30
 ---
 
 # Scroll: API Design — REST, OpenAPI, Versioning, Response Patterns

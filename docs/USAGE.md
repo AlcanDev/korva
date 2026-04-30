@@ -1058,3 +1058,5 @@ GET  /api/v1/observations/<id>             Get by ID
 GET  /api/v1/stats                         Statistics
 GET  /admin/stats          (admin key)     Admin statistics
 ```
+
+*Last updated: 2026-04-30*

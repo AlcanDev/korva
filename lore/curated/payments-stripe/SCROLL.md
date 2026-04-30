@@ -3,6 +3,7 @@ id: payments-stripe
 version: 1.0.0
 team: backend
 stack: Stripe, Node.js, TypeScript, Python, any
+last_updated: 2026-04-30
 ---
 
 # Scroll: Stripe Payments — Battle-Tested Patterns

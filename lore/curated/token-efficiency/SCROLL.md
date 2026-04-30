@@ -3,6 +3,7 @@ id: token-efficiency
 version: 1.0.0
 team: all
 stack: Claude Code, Cursor, Copilot, any AI agent
+last_updated: 2026-04-30
 ---
 
 # Scroll: Token-Efficient AI Sessions

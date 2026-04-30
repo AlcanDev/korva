@@ -3,6 +3,7 @@ id: frontend-design
 version: 1.0.0
 team: frontend
 stack: React, Next.js, HTML/CSS, TypeScript, Tailwind CSS, Motion
+last_updated: 2026-04-30
 ---
 
 # Scroll: Frontend Design — Production-Grade UI

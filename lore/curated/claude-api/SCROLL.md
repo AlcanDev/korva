@@ -3,6 +3,7 @@ id: claude-api
 version: 1.0.0
 team: all
 stack: Anthropic SDK, TypeScript, Python, Go, Claude API
+last_updated: 2026-04-30
 ---
 
 # Scroll: Building with the Claude API

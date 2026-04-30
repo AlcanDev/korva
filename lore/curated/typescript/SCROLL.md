@@ -3,6 +3,7 @@ id: typescript
 version: 1.0.0
 team: backend
 stack: TypeScript 5, NestJS, Zod, strict mode
+last_updated: 2026-04-30
 ---
 
 # Scroll: TypeScript Strict Patterns

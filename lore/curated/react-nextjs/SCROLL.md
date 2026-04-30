@@ -3,6 +3,7 @@ id: react-nextjs
 version: 1.0.0
 team: frontend
 stack: React 19, Next.js 15, TypeScript, App Router
+last_updated: 2026-04-30
 ---
 
 # Scroll: React & Next.js — App Router Patterns

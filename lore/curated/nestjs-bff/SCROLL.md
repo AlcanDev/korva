@@ -3,6 +3,7 @@ id: nestjs-bff
 version: 1.1.0
 team: backend
 stack: NestJS, Fastify, TypeScript, HashiCorp Vault, Docker, Kubernetes
+last_updated: 2026-04-30
 ---
 
 # Scroll: NestJS BFF Patterns
