@@ -24,16 +24,16 @@ Production GitLab CI pipelines pull Docker images from a private registry and in
 ```yaml
 # .gitlab-ci.yml
 include:
-  - project: 'your-org/dx/configurable-pipelines'
+  - project: 'your-org/configurable-pipelines'
     ref: 'v5'
     file:
       - '/templates/node-bff.gitlab-ci.yml'
 
 variables:
-  APP_NAME: your-app
+  APP_NAME: home-api
   NODE_VERSION: "20"
   HARBOR_REGISTRY: registry.your-company.com
-  IMAGE_NAME: registry.your-company.com/home/your-app
+  IMAGE_NAME: registry.your-company.com/home/home-api
 ```
 
 Do not rewrite pipeline stages that `configurable-pipelines` already defines (lint, test, build, publish). Extend or override only when truly necessary.
@@ -44,8 +44,8 @@ All base images must come from the internal Harbor registry. This ensures vulner
 
 ```dockerfile
 # CORRECT
-FROM registry.your-company.com/base/node:20-latest AS development
-FROM registry.your-company.com/base/node:20-latest AS production
+FROM node:20-latest AS development
+FROM node:20-latest AS production
 
 # WRONG
 FROM node:20-alpine      # public registry, not allowed
@@ -108,14 +108,14 @@ Never add a `staging.hcl` or `dev.hcl` — use the `qa` policy for all non-produ
 # Dockerfile
 ARG APP_VERSION=local
 
-FROM registry.your-company.com/base/node:20-latest AS development
+FROM node:20-latest AS development
 WORKDIR /app
 COPY package*.json ./
 RUN npm ci                         # deterministic — always npm ci, never npm install
 COPY . .
 RUN npm run build
 
-FROM registry.your-company.com/base/node:20-latest AS production
+FROM node:20-latest AS production
 WORKDIR /app
 ENV NODE_ENV=production
 ARG APP_VERSION
@@ -190,7 +190,7 @@ FROM node:20-alpine
 
 ```dockerfile
 # GOOD
-FROM registry.your-company.com/base/node:20-latest
+FROM node:20-latest
 ```
 
 ### BAD: npm install instead of npm ci in Dockerfile
@@ -207,7 +207,7 @@ RUN npm ci
 ### BAD: Running production container as root
 ```dockerfile
 # BAD — no USER instruction, process runs as root
-FROM registry.your-company.com/base/node:20-latest
+FROM node:20-latest
 COPY --from=development /app/dist ./dist
 CMD ["node", "dist/main.js"]
 ```

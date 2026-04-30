@@ -77,7 +77,7 @@ export class InsuranceNotFoundFilter implements ExceptionFilter {
 
 ## HTTP Client
 
-Use `HttpService` from `@internal/libs/rest-client` — never raw `axios` or `HttpModule`.
+Use a typed HTTP client wrapper (e.g. `HttpService` from your internal shared library) — never raw `axios` or `HttpModule`.
 
 ## Logging
 

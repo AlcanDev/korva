@@ -125,7 +125,7 @@ go test github.com/alcandev/korva/...
 # Lint per workspace module (matches CI)
 cd vault && golangci-lint run --config=$(pwd)/../.golangci.yml ./...
 
-# Beacon (UI) — public registry only, no internal.example.com
+# Beacon (UI) — uses public npm registry (see beacon/.npmrc)
 cd beacon && npm run build && npm test
 
 # Sentinel self-check

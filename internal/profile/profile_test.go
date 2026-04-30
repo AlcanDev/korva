@@ -176,7 +176,7 @@ func TestApplyOverrides_PrivatePatternsAreAppended(t *testing.T) {
 	// Use patterns that are NOT in DefaultConfig to avoid deduplication
 	p := validProfile()
 	p.Overrides.Vault = &config.VaultOverride{
-		PrivatePatterns: []string{"consumerKey", "consumerSecret", "internal.example.com"},
+		PrivatePatterns: []string{"consumerKey", "consumerSecret", "internal.your-company.com"},
 	}
 
 	result := ApplyOverrides(base, p)
