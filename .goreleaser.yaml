@@ -2,11 +2,10 @@ version: 2
 
 project_name: korva
 
-# Pre-release hooks: sync workspace, generate completions, generate any go:generate targets.
+# Pre-release hooks: sync workspace, generate completion scripts.
 before:
   hooks:
     - go work sync
-    - go generate ./...
     # Generate shell completion scripts that ship inside release archives.
     - mkdir -p completions
     - sh -c "go run ./cli/cmd/korva completion bash  > completions/korva.bash"
