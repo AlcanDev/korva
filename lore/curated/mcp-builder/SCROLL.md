@@ -3,6 +3,7 @@ id: mcp-builder
 version: 1.0.0
 team: all
 stack: TypeScript, Python, MCP SDK, FastMCP, Model Context Protocol
+last_updated: 2026-04-30
 ---
 
 # Scroll: Building MCP Servers

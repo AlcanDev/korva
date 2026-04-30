@@ -321,3 +321,5 @@ target: 'https://tu-vault.railway.app'
 | VPS (DigitalOcean/Vultr) | $6–12 | ⭐⭐⭐ Media | 99.99% |
 
 **Recomendación para empezar:** Railway — 10 minutos de setup, $5/mes, zero mantenimiento.
+
+*Last updated: 2026-04-30*

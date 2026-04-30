@@ -225,3 +225,7 @@ See [CONTRIBUTING.md](./CONTRIBUTING.md) for how to get started.
 ---
 
 *This roadmap is a living document. It evolves based on community feedback, usage patterns, and the broader AI tooling landscape. Submit a GitHub Issue to propose additions or changes.*
+
+---
+
+*Last updated: 2026-04-30*

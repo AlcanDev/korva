@@ -155,7 +155,7 @@ annotations:
 
 ```typescript
 // Every NestJS app must have:
-// 1. LoggerInterceptor (shared lib from @internal/libs) — logs all requests/responses
+// 1. LoggerInterceptor (shared lib) — logs all requests/responses
 // 2. OTel APM tracer initialized BEFORE any imports (main.ts)
 import './tracer';  // ← must be first import
 

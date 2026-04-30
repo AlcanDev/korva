@@ -103,3 +103,7 @@ Types: `feat`, `fix`, `docs`, `test`, `chore`, `refactor`
 ## Questions?
 
 Open a GitHub Discussion or file an Issue. We're happy to help.
+
+---
+
+*Last updated: 2026-04-30*

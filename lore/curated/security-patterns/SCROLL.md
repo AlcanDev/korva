@@ -3,6 +3,7 @@ id: security-patterns
 version: 1.0.0
 team: backend
 stack: Node.js, TypeScript, Python, Go, any
+last_updated: 2026-04-30
 ---
 
 # Scroll: Security Patterns — Production Hardening

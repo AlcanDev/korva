@@ -102,3 +102,7 @@ Korva nace para resolver el problema de los equipos que usan IA sin instruccione
 El equipo destino usa NestJS hexagonal + Fastify + Nx monorepo + deploy en K8s AKS.
 El diseño de Korva debe ser genérico (open source MIT) pero el sistema de Team Profiles
 permite configuración privada por equipo sin tocar el repo público.
+
+---
+
+*Last updated: 2026-04-30*

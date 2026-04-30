@@ -3,6 +3,7 @@ id: nx-monorepo
 version: 1.1.0
 team: backend
 stack: Nx, NestJS, TypeScript, Node 20
+last_updated: 2026-04-30
 ---
 
 # Scroll: Nx Monorepo Rules

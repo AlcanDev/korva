@@ -213,3 +213,7 @@ The more teams use Korva, the richer the community knowledge base. Every scroll 
 ---
 
 *Korva is MIT licensed. The code is yours. The knowledge is yours. The future is collaborative.*
+
+---
+
+*Last updated: 2026-04-30*

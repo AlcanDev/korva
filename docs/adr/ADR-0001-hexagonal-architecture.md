@@ -91,3 +91,5 @@ src/
 ```
 
 See `.github/instructions/backend.instructions.md` for naming conventions and code examples.
+
+*Last updated: 2026-04-30*

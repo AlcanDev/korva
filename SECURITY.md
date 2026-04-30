@@ -43,3 +43,7 @@ Korva is designed with these security properties:
 ### Git Sync
 - The sync manifest explicitly excludes `*.key` files
 - Observations are privacy-filtered before export
+
+---
+
+*Last updated: 2026-04-30*

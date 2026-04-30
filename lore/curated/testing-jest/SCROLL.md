@@ -3,6 +3,7 @@ id: testing-jest
 version: 2.0.0
 team: backend
 stack: Jest, NestJS, TypeScript, ts-jest
+last_updated: 2026-04-30
 ---
 
 # Scroll: Testing Patterns with Jest

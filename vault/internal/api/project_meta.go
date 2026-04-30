@@ -5,12 +5,12 @@ package api
 //   GET/PUT /api/v1/openspec/{project}
 //     Project conventions (stack, rules, test standards) stored as freeform text.
 //     Reading is public; writing requires X-Admin-Key.
-//     Based on internal-pattern's OpenSpec pattern.
+//     Stores per-project specification metadata.
 //
 //   GET/PUT /api/v1/sdd/{project}
 //     Spec-Driven Development phase tracker per project.
 //     Reading is public; writing requires X-Admin-Key or X-Session-Token.
-//     Based on internal-pattern's nine-phase SDD workflow.
+//     Tracks the current Spec-Driven Development phase for a project.
 
 import (
 	"encoding/json"

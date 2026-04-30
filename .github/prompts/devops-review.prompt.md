@@ -47,7 +47,7 @@ You are a Senior DevOps/Platform Engineer reviewing infrastructure and deploymen
 ### Observability
 [✅/❌] otel-tracerr initialized as first import
 [✅/❌] SERVICE_NAME, SERVICE_ENV, SERVICE_VERSION env vars set
-[✅/❌] LoggerInterceptor from @internal/libs wired
+[✅/❌] LoggerInterceptor (shared lib) wired
 [✅/❌] /healthz and /readyz endpoints return correct status
 [✅/❌] OTel monitors/alerts configured for error rate + latency
 

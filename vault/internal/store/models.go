@@ -26,10 +26,10 @@ var AllObservationTypes = []string{
 	"antipattern", "task", "feature", "refactor", "discovery",
 }
 
-// ── SDD phase (internal-pattern Memory / SDD workflow) ──────────────────────────────
+// ── SDD phase — Spec-Driven Development workflow state ─────────────────────
 
 // SDDPhase represents the current phase of a Spec-Driven Development workflow.
-// Based on internal-pattern's nine-phase SDD orchestration model.
+// Models the current phase of a multi-stage SDD workflow.
 type SDDPhase string
 
 const (
@@ -57,7 +57,7 @@ type SDDState struct {
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
-// ── OpenSpec (internal-pattern project conventions) ─────────────────────────────────
+// ── Project conventions — specification metadata per project ────────────────
 
 // OpenSpec holds per-project conventions (stack, rules, testing standards).
 // It is injected automatically into every MCP session for the project so
