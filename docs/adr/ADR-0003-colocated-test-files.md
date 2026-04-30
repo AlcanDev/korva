@@ -36,3 +36,5 @@ Two conventions existed in the team simultaneously: some developers put tests in
 ## Implementation Notes
 
 Sentinel rule TEST-001 warns when spec files are found in `__tests__/` directories.
+
+*Last updated: 2026-04-30*

@@ -182,3 +182,5 @@ curl -X POST -H "X-Admin-Key: $KEY" $BASE/admin/purge
 - El panel usa `sessionStorage` — la sesión expira al cerrar el tab
 - Todas las llamadas a `/admin/*` incluyen el header `X-Admin-Key` en HTTPS
 - Si el servidor está en producción, asegúrate de que use HTTPS (Railway/Fly.io lo hacen automáticamente)
+
+*Last updated: 2026-04-30*

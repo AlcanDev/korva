@@ -3,6 +3,7 @@ id: gitlab-ci
 version: 1.0.0
 team: devops
 stack: GitLab CI, Docker, HashiCorp Vault, Kubernetes, Harbor
+last_updated: 2026-04-30
 ---
 
 # Scroll: GitLab CI Patterns
@@ -30,10 +31,10 @@ include:
       - '/templates/node-bff.gitlab-ci.yml'
 
 variables:
-  APP_NAME: home-api
+  APP_NAME: your-app
   NODE_VERSION: "20"
   HARBOR_REGISTRY: registry.your-company.com
-  IMAGE_NAME: registry.your-company.com/home/home-api
+  IMAGE_NAME: registry.your-company.com/your-org/your-app
 ```
 
 Do not rewrite pipeline stages that `configurable-pipelines` already defines (lint, test, build, publish). Extend or override only when truly necessary.
@@ -70,7 +71,7 @@ build:
 
 ```hcl
 # CORRECT — vault/prod.hcl declares which Vault paths the app can read
-path "secret/data/home-api/prod/cigo" {
+path "secret/data/your-app/prod/external-api" {
   capabilities = ["read"]
 }
 ```
@@ -88,14 +89,14 @@ apps/cl/
 
 ```hcl
 # vault/qa.hcl
-path "secret/data/home-api/qa/*" {
+path "secret/data/your-app/qa/*" {
   capabilities = ["read"]
 }
 ```
 
 ```hcl
 # vault/prod.hcl
-path "secret/data/home-api/prod/*" {
+path "secret/data/your-app/prod/*" {
   capabilities = ["read"]
 }
 ```
@@ -171,13 +172,13 @@ IMAGE_TAG: latest
 ```yaml
 # BAD — secrets visible in pipeline logs and stored in repo
 variables:
-  CIGO_API_KEY: "abc123"
+  EXTERNAL_API_KEY: "abc123"
   DB_PASSWORD: "supersecret"
 ```
 
 ```hcl
 # GOOD — secrets declared as Vault paths, injected at runtime
-path "secret/data/home-api/prod/cigo" {
+path "secret/data/your-app/prod/external-api" {
   capabilities = ["read"]
 }
 ```

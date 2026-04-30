@@ -249,3 +249,5 @@ triggers:
 - **The `admin.key` is local-only** — it never enters any Git repo, not even the private one.
   Only the person who ran `korva init --admin` has it on their machine.
 - **Audit with `korva doctor`** — checks that all local paths are consistent with the active profile.
+
+*Last updated: 2026-04-30*

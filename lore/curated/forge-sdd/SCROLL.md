@@ -3,6 +3,7 @@ id: forge-sdd
 version: 2.0.0
 team: all
 stack: Korva Forge, Korva Vault, AI-assisted development workflow
+last_updated: 2026-04-30
 ---
 
 # Scroll: Forge SDD Workflow

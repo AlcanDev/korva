@@ -3,6 +3,7 @@ id: angular-wc
 version: 1.1.0
 team: frontend
 stack: Angular 20, Angular Elements, TypeScript, Signals, wc-connector
+last_updated: 2026-04-30
 ---
 
 # Scroll: Angular Web Components

@@ -3,6 +3,7 @@ id: playwright-e2e
 version: 1.0.0
 team: qa
 stack: Playwright, TypeScript, Jest, Supertest
+last_updated: 2026-04-30
 ---
 
 # Scroll: E2E Testing — Playwright & Supertest

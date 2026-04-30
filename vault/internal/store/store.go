@@ -718,7 +718,7 @@ func (s *Store) Dedup(project string, dryRun bool) (DedupResult, error) {
 	return result, nil
 }
 
-// ── SDD phase (gentle-ai) ─────────────────────────────────────────────────────
+// ── SDD phase store ops ─────────────────────────────────────────────────────
 
 // GetSDDPhase returns the current SDD phase for a project.
 // Returns SDDExplore as default when no phase has been set.
@@ -760,7 +760,7 @@ func (s *Store) SetSDDPhase(project string, phase SDDPhase) error {
 	return err
 }
 
-// ── OpenSpec (gentle-ai project conventions) ─────────────────────────────────
+// ── Project conventions store ops ────────────────────────────────────────────
 
 // GetOpenSpec returns the project conventions stored for project.
 // Returns an empty OpenSpec (no error) when nothing has been set yet.

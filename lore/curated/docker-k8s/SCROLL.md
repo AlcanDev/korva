@@ -3,6 +3,7 @@ id: docker-k8s
 version: 1.0.0
 team: devops
 stack: Docker, Kubernetes, Helm, Istio, HPA
+last_updated: 2026-04-30
 ---
 
 # Scroll: Docker & Kubernetes — Production Hardening

@@ -231,7 +231,7 @@ var migrations = []string{
 	`ALTER TABLE observations ADD COLUMN content_hash TEXT NOT NULL DEFAULT ''`,
 	`CREATE INDEX IF NOT EXISTS idx_observations_hash ON observations(content_hash)`,
 
-	// ── gentle-ai integration: SDD phase state ───────────────────────────────
+	// ── SDD phase state — Spec-Driven Development workflow ──────────────────────
 	// Tracks the current Spec-Driven Development phase per project.
 	// Phases: explore → propose → spec → design → tasks → apply → verify → archive → onboard
 	`CREATE TABLE IF NOT EXISTS sdd_state (
@@ -240,7 +240,7 @@ var migrations = []string{
 		updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 	)`,
 
-	// ── gentle-ai integration: OpenSpec project conventions ──────────────────
+	// ── Project conventions table — per-project specification metadata ──────────
 	// Stores per-project conventions (stack, architecture rules, testing standards)
 	// injected automatically into every MCP session for that project.
 	`CREATE TABLE IF NOT EXISTS openspec (

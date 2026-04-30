@@ -270,3 +270,5 @@ The vault verifies the license **without any network call** on startup:
 | License key share | Seat limit enforces per-machine activation; sharing a key across > N machines returns 402 |
 | JWS replay | Expiry embedded in payload; revocation via `deactivate` removes the DB row |
 | Key pinning bypass | `pubkey.pem` is compiled into the binary via `//go:embed` — tampering requires rebuilding |
+
+*Last updated: 2026-04-30*

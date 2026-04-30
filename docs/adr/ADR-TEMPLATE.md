@@ -80,3 +80,5 @@ Be direct. State the key factors that drove the decision.]
 
 - [Link to design doc, Confluence page, or relevant issue]
 - [Link to related ADR if superseding or related]
+
+*Last updated: 2026-04-30*

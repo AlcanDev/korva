@@ -3,6 +3,7 @@ id: nestjs-hexagonal
 version: 1.1.0
 team: backend
 stack: NestJS, TypeScript, Hexagonal Architecture, DDD
+last_updated: 2026-04-30
 ---
 
 # Scroll: NestJS Hexagonal Architecture

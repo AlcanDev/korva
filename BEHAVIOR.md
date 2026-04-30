@@ -146,3 +146,7 @@ find beacon/src \( -name '*.ts' -o -name '*.tsx' \) | /tmp/korva-sentinel --form
 
 If you finish a task and your diff includes lines that don't trace to the
 user's request, the next iteration must remove them.
+
+---
+
+*Last updated: 2026-04-30*
