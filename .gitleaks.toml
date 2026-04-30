@@ -82,6 +82,12 @@
     '''^.*\.md$''',
     '''^docs/.*''',
     '''^lore/.*''',
+    # Example env files — documentation by definition, never real secrets
+    '''(^|/)\.env\.example$''',
+    '''(^|/)\.env\.sample$''',
+    # Presentation / marketing HTML — contain fake demo keys for illustration
+    '''^korva-presentation\.html$''',
+    '''^korva-enterprise\.html$''',
     # Test fixtures (TypeScript + Go)
     '''^.*/__fixtures__/.*''',
     '''^.*\.spec\.ts$''',
