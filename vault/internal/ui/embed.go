@@ -2,9 +2,12 @@
 
 package ui
 
-import "embed"
+import (
+	"embed"
+	"io/fs"
+)
 
-// DistFS holds the compiled Beacon SPA (dist/ directory).
+// distFS holds the compiled Beacon SPA (dist/ directory).
 // It is populated at build time when the embedui tag is provided.
 //
 // The dist/ directory must be present inside vault/internal/ui/ before
@@ -13,4 +16,8 @@ import "embed"
 //	make vault-full   →  beacon npm build → cp beacon/dist vault/internal/ui/dist → go build -tags embedui
 //
 //go:embed all:dist
-var DistFS embed.FS
+var distFS embed.FS
+
+// DistFS exposes the embedded SPA via the fs.FS interface so callers
+// can use the same type whether or not the embedui tag is set.
+var DistFS fs.FS = distFS
