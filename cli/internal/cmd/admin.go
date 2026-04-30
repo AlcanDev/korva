@@ -73,7 +73,9 @@ func runAdminRotate(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Print("Enter current admin key: ")
-	keyBytes, err := term.ReadPassword(syscall.Stdin)
+	// syscall.Stdin is int on Unix and uintptr on Windows; the cast is needed
+	// for cross-platform compilation even though it's a no-op on Unix.
+	keyBytes, err := term.ReadPassword(int(syscall.Stdin)) //nolint:unconvert
 	if err != nil {
 		return fmt.Errorf("reading admin key: %w", err)
 	}
