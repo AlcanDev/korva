@@ -164,13 +164,36 @@ release:
 
     Full install docs: https://korva.dev/docs/install
 
+nfpms:
+  - id: korva-packages
+    package_name: korva
+    builds: [korva, korva-vault, korva-sentinel]
+    vendor: AlcanDev
+    homepage: https://korva.dev
+    maintainer: Korva Bot <bot@korva.dev>
+    description: AI ecosystem CLI for enterprise development teams
+    license: MIT
+    formats:
+      - deb
+      - rpm
+    bindir: /usr/bin
+    section: utils
+    priority: optional
+    contents:
+      - src: completions/korva.bash
+        dst: /usr/share/bash-completion/completions/korva
+      - src: completions/korva.zsh
+        dst: /usr/share/zsh/vendor-completions/_korva
+      - src: completions/korva.fish
+        dst: /usr/share/fish/vendor_completions.d/korva.fish
+
 brews:
   - repository:
       owner: alcandev
       name: homebrew-tap
       token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
     name: korva
-    description: "AI ecosystem for enterprise development teams"
+    description: "AI ecosystem CLI for enterprise development teams"
     homepage: "https://korva.dev"
     license: "MIT"
     commit_author:
@@ -180,5 +203,8 @@ brews:
       bin.install "korva"
       bin.install "korva-vault"
       bin.install "korva-sentinel"
+      bash_completion.install "completions/korva.bash" => "korva"
+      zsh_completion.install "completions/korva.zsh" => "_korva"
+      fish_completion.install "completions/korva.fish"
     test: |
       system "#{bin}/korva", "--version"
