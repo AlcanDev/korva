@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"flag"
@@ -351,10 +352,21 @@ func runHTTP(ctx context.Context, s *store.Store, cfg api.RouterConfig, host str
 		}
 
 		// Direct vault API paths (curl, CLI, MCP HTTP client)
-		if p == "/healthz" ||
-			strings.HasPrefix(p, "/api/") ||
-			strings.HasPrefix(p, "/admin/") {
+		if p == "/healthz" || strings.HasPrefix(p, "/api/") {
 			vaultAPI.ServeHTTP(w, r)
+			return
+		}
+
+		// /admin/* is shared between vault API routes and Beacon SPA routes.
+		// Try the API first; fall back to the SPA when no route matches (404).
+		if p == "/admin" || strings.HasPrefix(p, "/admin/") {
+			buf := &bufferedWriter{header: make(http.Header), code: http.StatusOK}
+			vaultAPI.ServeHTTP(buf, r)
+			if buf.code == http.StatusNotFound {
+				spaHandler.ServeHTTP(w, r)
+				return
+			}
+			buf.flush(w)
 			return
 		}
 
@@ -392,4 +404,37 @@ func runHTTP(ctx context.Context, s *store.Store, cfg api.RouterConfig, host str
 	if err := srv.Shutdown(shutCtx); err != nil {
 		log.Printf("HTTP shutdown error: %v", err)
 	}
+}
+
+// bufferedWriter captures an HTTP response so the caller can inspect the
+// status code before deciding whether to commit it or serve a fallback.
+type bufferedWriter struct {
+	header  http.Header
+	code    int
+	body    bytes.Buffer
+	written bool
+}
+
+func (b *bufferedWriter) Header() http.Header { return b.header }
+
+func (b *bufferedWriter) WriteHeader(code int) {
+	if !b.written {
+		b.code = code
+		b.written = true
+	}
+}
+
+func (b *bufferedWriter) Write(p []byte) (int, error) {
+	if !b.written {
+		b.written = true
+	}
+	return b.body.Write(p)
+}
+
+func (b *bufferedWriter) flush(w http.ResponseWriter) {
+	for k, v := range b.header {
+		w.Header()[k] = v
+	}
+	w.WriteHeader(b.code)
+	_, _ = w.Write(b.body.Bytes())
 }
