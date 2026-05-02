@@ -2,7 +2,7 @@ import _React, { useState } from 'react'
 import { NavLink, Routes, Route, Navigate } from 'react-router'
 import {
   LayoutDashboard, Database, BookOpen, LogOut,
-  Users, Wand2, Lock, ClipboardList, KeyRound, Menu, X, Activity
+  Users, Wand2, Lock, ClipboardList, KeyRound, Menu, X, Activity, Clock
 } from 'lucide-react'
 import { KorvaLogo } from '@/components/KorvaLogo'
 import { useAdminStore } from '@/stores/admin'
@@ -18,6 +18,7 @@ import AdminSkills from './AdminSkills'
 import AdminScrollsPrivate from './AdminScrollsPrivate'
 import AdminAudit from './AdminAudit'
 import AdminCodeHealth from './AdminCodeHealth'
+import AdminSessions from './AdminSessions'
 
 export default function Admin() {
   const { isAuthenticated, logout } = useAdminStore()
@@ -75,6 +76,7 @@ export default function Admin() {
             <Route path="scrolls-private" element={<TeamsGate><AdminScrollsPrivate /></TeamsGate>} />
             <Route path="audit" element={<TeamsGate><AdminAudit /></TeamsGate>} />
             <Route path="code-health" element={<AdminCodeHealth />} />
+            <Route path="sessions" element={<AdminSessions />} />
           </Routes>
         </main>
       </div>
@@ -134,6 +136,7 @@ function AdminSidebar({ onLogout, onNavigate }: { onLogout: () => void; onNaviga
   const communityItems = [
     { to: 'dashboard',   icon: LayoutDashboard, label: t.nav.dashboard },
     { to: 'vault',       icon: Database,        label: t.nav.vaultBrowser,  subtitle: t.nav.vaultSubtitle },
+    { to: 'sessions',    icon: Clock,           label: t.nav.sessions,      subtitle: t.nav.sessionsSubtitle },
     { to: 'scrolls',     icon: BookOpen,        label: t.nav.scrolls,       subtitle: t.nav.scrollsSubtitle },
     { to: 'code-health', icon: Activity,        label: t.nav.codeHealth,    subtitle: t.nav.codeHealthSubtitle },
     { to: 'license',     icon: KeyRound,        label: t.nav.license },

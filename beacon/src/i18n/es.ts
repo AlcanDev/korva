@@ -4,6 +4,8 @@ export const es = {
     vaultBrowser: 'Explorador de Vault',
     scrolls: 'Scrolls',
     codeHealth: 'Salud del Código',
+    sessions: 'Sesiones',
+    sessionsSubtitle: 'Historial de trabajo',
     license: 'Licencia',
     teams: 'Equipos',
     skills: 'Skills',

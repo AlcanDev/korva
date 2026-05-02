@@ -31,14 +31,33 @@ async function adminPost<T>(path: string, body?: unknown): Promise<T> {
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
+export interface DailyCount {
+  date: string  // "2026-05-01"
+  count: number
+}
+
+export interface SessionRow {
+  id: string
+  project: string
+  goal: string
+  agent: string
+  obs_count: number
+  started_at: string
+  ended_at?: string
+  duration_min: number
+}
+
 export interface AdminStats {
   total_observations: number
   total_sessions: number
   total_prompts: number
+  total_content_len: number
   by_type: Record<string, number>
   by_project: Record<string, number>
   by_team: Record<string, number>
   by_country: Record<string, number>
+  daily_activity: DailyCount[]
+  recent_sessions: SessionRow[]
 }
 
 export interface Session {
@@ -109,6 +128,14 @@ export function useAdminSessions() {
   return useQuery({
     queryKey: ['admin', 'sessions'],
     queryFn: () => adminFetch<{ sessions: Session[] }>('/api/v1/sessions/all'),
+    retry: false,
+  })
+}
+
+export function useAdminSessionsWithStats() {
+  return useQuery({
+    queryKey: ['admin', 'sessions', 'stats'],
+    queryFn: () => adminFetch<{ sessions: SessionRow[]; total: number }>('/admin/sessions'),
     retry: false,
   })
 }

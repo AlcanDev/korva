@@ -415,6 +415,46 @@ func (s *Store) SavePrompt(name, content string, tags []string) error {
 
 // --- list_sessions ---
 
+// ListSessionsWithStats returns sessions enriched with obs_count and duration, up to limit.
+func (s *Store) ListSessionsWithStats(limit int) ([]SessionRow, error) {
+	if limit <= 0 {
+		limit = 50
+	}
+	rows, err := s.db.Query(`
+		SELECT s.id, s.project, COALESCE(s.goal,''), COALESCE(s.agent,''),
+		       COUNT(o.id) AS obs_count,
+		       s.started_at, s.ended_at,
+		       CASE WHEN s.ended_at IS NOT NULL
+		            THEN CAST((julianday(s.ended_at)-julianday(s.started_at))*1440 AS INTEGER)
+		            ELSE 0 END AS duration_min
+		FROM sessions s
+		LEFT JOIN observations o ON o.session_id = s.id
+		GROUP BY s.id
+		ORDER BY s.started_at DESC
+		LIMIT ?`, limit)
+	if err != nil {
+		return nil, fmt.Errorf("listing sessions with stats: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	var result []SessionRow
+	for rows.Next() {
+		var row SessionRow
+		var endedAt sql.NullString
+		if err := rows.Scan(&row.ID, &row.Project, &row.Goal, &row.Agent,
+			&row.ObsCount, &row.StartedAt, &endedAt, &row.DurationMin); err != nil {
+			return nil, err
+		}
+		if endedAt.Valid {
+			row.EndedAt = &endedAt.String
+		}
+		result = append(result, row)
+	}
+	if result == nil {
+		result = []SessionRow{}
+	}
+	return result, rows.Err()
+}
+
 // ListSessions returns the most recent sessions, up to limit.
 func (s *Store) ListSessions(limit int) ([]Session, error) {
 	if limit <= 0 {
@@ -487,6 +527,65 @@ func (s *Store) Stats() (*VaultStats, error) {
 	}
 	if err := scanGroupCount(s.db, `SELECT country, COUNT(*) FROM observations WHERE country != '' GROUP BY country`, stats.ByCountry); err != nil {
 		return nil, fmt.Errorf("stats by country: %w", err)
+	}
+
+	// Total content length (proxy for token savings estimate).
+	if err := s.db.QueryRow(`SELECT COALESCE(SUM(LENGTH(content)),0) FROM observations`).Scan(&stats.TotalContentLen); err != nil {
+		return nil, fmt.Errorf("stats content len: %w", err)
+	}
+
+	// Daily activity — last 30 days.
+	actRows, err := s.db.Query(`
+		SELECT date(created_at) AS day, COUNT(*) AS cnt
+		FROM observations
+		WHERE created_at >= date('now','-30 days')
+		GROUP BY day ORDER BY day ASC`)
+	if err != nil {
+		return nil, fmt.Errorf("stats daily activity: %w", err)
+	}
+	defer func() { _ = actRows.Close() }()
+	for actRows.Next() {
+		var d DailyCount
+		if err := actRows.Scan(&d.Date, &d.Count); err != nil {
+			return nil, err
+		}
+		stats.DailyActivity = append(stats.DailyActivity, d)
+	}
+	if stats.DailyActivity == nil {
+		stats.DailyActivity = []DailyCount{}
+	}
+
+	// Recent sessions with per-session observation count and duration.
+	sessRows, err := s.db.Query(`
+		SELECT s.id, s.project, COALESCE(s.goal,''), COALESCE(s.agent,''),
+		       COUNT(o.id) AS obs_count,
+		       s.started_at, s.ended_at,
+		       CASE WHEN s.ended_at IS NOT NULL
+		            THEN CAST((julianday(s.ended_at)-julianday(s.started_at))*1440 AS INTEGER)
+		            ELSE 0 END AS duration_min
+		FROM sessions s
+		LEFT JOIN observations o ON o.session_id = s.id
+		GROUP BY s.id
+		ORDER BY s.started_at DESC
+		LIMIT 8`)
+	if err != nil {
+		return nil, fmt.Errorf("stats recent sessions: %w", err)
+	}
+	defer func() { _ = sessRows.Close() }()
+	for sessRows.Next() {
+		var row SessionRow
+		var endedAt sql.NullString
+		if err := sessRows.Scan(&row.ID, &row.Project, &row.Goal, &row.Agent,
+			&row.ObsCount, &row.StartedAt, &endedAt, &row.DurationMin); err != nil {
+			return nil, err
+		}
+		if endedAt.Valid {
+			row.EndedAt = &endedAt.String
+		}
+		stats.RecentSessions = append(stats.RecentSessions, row)
+	}
+	if stats.RecentSessions == nil {
+		stats.RecentSessions = []SessionRow{}
 	}
 
 	return stats, nil

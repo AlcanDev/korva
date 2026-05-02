@@ -224,10 +224,31 @@ type VaultStats struct {
 	TotalObservations int            `json:"total_observations"`
 	TotalSessions     int            `json:"total_sessions"`
 	TotalPrompts      int            `json:"total_prompts"`
+	TotalContentLen   int            `json:"total_content_len"` // sum of content char lengths
 	ByType            map[string]int `json:"by_type"`
 	ByProject         map[string]int `json:"by_project"`
 	ByTeam            map[string]int `json:"by_team"`
 	ByCountry         map[string]int `json:"by_country"`
+	DailyActivity     []DailyCount   `json:"daily_activity"`  // last 30 days
+	RecentSessions    []SessionRow   `json:"recent_sessions"` // last 8 sessions
+}
+
+// DailyCount is an observation count for one calendar day.
+type DailyCount struct {
+	Date  string `json:"date"`  // "2026-05-01"
+	Count int    `json:"count"`
+}
+
+// SessionRow is a compact session summary for the dashboard.
+type SessionRow struct {
+	ID          string  `json:"id"`
+	Project     string  `json:"project"`
+	Goal        string  `json:"goal"`
+	Agent       string  `json:"agent"`
+	ObsCount    int     `json:"obs_count"`
+	StartedAt   string  `json:"started_at"`
+	EndedAt     *string `json:"ended_at,omitempty"`
+	DurationMin int     `json:"duration_min"`
 }
 
 // ProjectSummary is a high-level summary of knowledge for a project.

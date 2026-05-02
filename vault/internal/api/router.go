@@ -127,6 +127,7 @@ func Router(s *store.Store, cfg RouterConfig) http.Handler {
 	mux.Handle("GET /admin/export", adminMW(withCORS(adminExport(s, actor))))
 	mux.Handle("DELETE /admin/observations/{id}", adminMW(withCORS(adminDeleteObservation(s))))
 	mux.Handle("GET /admin/stats", adminMW(withCORS(adminFullStats(s))))
+	mux.Handle("GET /admin/sessions", adminMW(withCORS(adminListSessions(s))))
 
 	// License — available to all authenticated admin callers
 	mux.Handle("GET /admin/license/status", adminMW(withCORS(licenseStatusHandler(cfg.LicensePath, cfg.LicenseStatePath))))
@@ -492,6 +493,17 @@ func adminDeleteObservation(s *store.Store) http.HandlerFunc {
 
 func adminFullStats(s *store.Store) http.HandlerFunc {
 	return stats(s)
+}
+
+func adminListSessions(s *store.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		sessions, err := s.ListSessionsWithStats(100)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"sessions": sessions, "total": len(sessions)})
+	}
 }
 
 // --- helpers ---
