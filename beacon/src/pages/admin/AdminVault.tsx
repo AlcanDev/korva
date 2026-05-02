@@ -1,10 +1,13 @@
 import { useState } from 'react'
-import { Search, Trash2, Tag, Calendar, User, AlertCircle, ChevronLeft, ChevronRight, Database } from 'lucide-react'
+import { Search, Trash2, Tag, Calendar, User, AlertCircle, ChevronLeft, ChevronRight, Database, Copy, Check, Globe, Users } from 'lucide-react'
 import { useAdminSearch, useAdminDeleteObservation, type Observation } from '@/api/admin'
 import { PageHeader } from '@/components/PageHeader'
 import { useI18n } from '@/contexts/i18n'
 
-const TYPE_OPTIONS = ['', 'decision', 'pattern', 'bugfix', 'learning', 'context', 'antipattern', 'task']
+const TYPE_OPTIONS = [
+  '', 'decision', 'pattern', 'bugfix', 'learning', 'context',
+  'antipattern', 'task', 'feature', 'refactor', 'discovery',
+]
 const PAGE_SIZE = 20
 
 export default function AdminVault() {
@@ -14,7 +17,15 @@ export default function AdminVault() {
   const [offset, setOffset] = useState(0)
   const [selected, setSelected] = useState<Observation | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
+  const [copied, setCopied] = useState(false)
   const { t } = useI18n()
+
+  const copyContent = (content: string) => {
+    navigator.clipboard.writeText(content).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    })
+  }
 
   const { data, isLoading } = useAdminSearch(query, project, type, PAGE_SIZE, offset)
   const deleteMutation = useAdminDeleteObservation()
@@ -153,32 +164,63 @@ export default function AdminVault() {
         {/* Detail panel */}
         {selected && (
           <div className="w-full lg:w-80 lg:flex-shrink-0 bg-[#161b22] border border-[#21262d] rounded-xl p-5 space-y-4 self-start lg:sticky lg:top-0">
-            <div>
-              <TypeBadge type={selected.type} />
-              <h3 className="text-sm font-semibold text-[#e6edf3] mt-2">{selected.title}</h3>
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <TypeBadge type={selected.type} />
+                <h3 className="text-sm font-semibold text-[#e6edf3] mt-2 leading-snug">{selected.title}</h3>
+              </div>
             </div>
-            <p className="text-xs text-[#8b949e] leading-relaxed whitespace-pre-wrap">
-              {selected.content}
-            </p>
+            <div className="relative group">
+              <p className="text-xs text-[#8b949e] leading-relaxed whitespace-pre-wrap max-h-48 overflow-y-auto pr-6">
+                {selected.content}
+              </p>
+              <button
+                onClick={() => copyContent(selected.content)}
+                className="absolute top-0 right-0 text-[#484f58] hover:text-[#8b949e] opacity-0 group-hover:opacity-100 transition-opacity"
+                title={t.vault.copyContent}
+              >
+                {copied ? <Check size={12} className="text-[#3fb950]" /> : <Copy size={12} />}
+              </button>
+            </div>
             <div className="space-y-2 text-xs text-[#8b949e]">
               <div className="flex items-center gap-2">
-                <User size={11} />
-                <span className="font-mono">{selected.project}</span>
+                <User size={11} className="flex-shrink-0" />
+                <span className="font-mono truncate">{selected.project || '—'}</span>
               </div>
+              {selected.author && (
+                <div className="flex items-center gap-2">
+                  <User size={11} className="flex-shrink-0 text-[#484f58]" />
+                  <span className="truncate text-[#484f58]">{selected.author}</span>
+                </div>
+              )}
+              {selected.team && (
+                <div className="flex items-center gap-2">
+                  <Users size={11} className="flex-shrink-0" />
+                  <span>{selected.team}</span>
+                </div>
+              )}
+              {selected.country && (
+                <div className="flex items-center gap-2">
+                  <Globe size={11} className="flex-shrink-0" />
+                  <span>{selected.country}</span>
+                </div>
+              )}
               <div className="flex items-center gap-2">
-                <Calendar size={11} />
+                <Calendar size={11} className="flex-shrink-0" />
                 <span>{new Date(selected.created_at).toLocaleString()}</span>
               </div>
               {selected.tags?.length > 0 && (
-                <div className="flex items-center gap-2 flex-wrap">
-                  <Tag size={11} />
-                  {selected.tags.map(tg => (
-                    <span key={tg} className="bg-[#21262d] px-2 py-0.5 rounded text-[10px]">{tg}</span>
-                  ))}
+                <div className="flex items-start gap-2 flex-wrap">
+                  <Tag size={11} className="flex-shrink-0 mt-px" />
+                  <div className="flex flex-wrap gap-1">
+                    {selected.tags.map(tg => (
+                      <span key={tg} className="bg-[#21262d] px-2 py-0.5 rounded text-[10px]">{tg}</span>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
-            <div className="text-[10px] font-mono text-[#484f58] break-all">{selected.id}</div>
+            <div className="text-[9px] font-mono text-[#30363d] break-all">{selected.id}</div>
           </div>
         )}
       </div>

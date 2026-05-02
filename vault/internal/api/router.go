@@ -4,6 +4,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"log"
 	"net/http"
 	"os"
 	"strconv"
@@ -16,6 +17,19 @@ import (
 	"github.com/alcandev/korva/vault/internal/email"
 	"github.com/alcandev/korva/vault/internal/store"
 )
+
+// maxBodyBytes is the maximum size we accept for any write request body.
+// 1 MiB is generous for all legitimate vault payloads.
+const maxBodyBytes = 1 << 20 // 1 MiB
+
+// withBodyLimit wraps a handler with a 1 MiB body size limit.
+// It prevents memory-bomb attacks on public write endpoints.
+func withBodyLimit(h http.Handler) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		r.Body = http.MaxBytesReader(w, r.Body, maxBodyBytes)
+		h.ServeHTTP(w, r)
+	}
+}
 
 // RouterConfig holds all dependencies for the Vault HTTP router.
 // Using a config struct avoids positional argument churn as the router grows.
@@ -75,15 +89,15 @@ func Router(s *store.Store, cfg RouterConfig) http.Handler {
 	mux.HandleFunc("GET /api/v1/metrics", withCORS(metricsHandler(s)))
 
 	// Observations
-	mux.HandleFunc("POST /api/v1/observations", withCORS(saveObservation(s, cfg.WebhookURL)))
+	mux.HandleFunc("POST /api/v1/observations", withBodyLimit(withCORS(saveObservation(s, cfg.WebhookURL))))
 	mux.HandleFunc("GET /api/v1/observations/{id}", withCORS(getObservation(s)))
 	mux.HandleFunc("GET /api/v1/search", withCORS(searchObservations(s, cfg.HiveClient)))
 	mux.HandleFunc("GET /api/v1/context/{project}", withCORS(contextObservations(s)))
 	mux.HandleFunc("GET /api/v1/timeline/{project}", withCORS(timeline(s)))
 
 	// Sessions
-	mux.HandleFunc("POST /api/v1/sessions", withCORS(startSession(s)))
-	mux.HandleFunc("PUT /api/v1/sessions/{id}", withCORS(endSession(s)))
+	mux.HandleFunc("POST /api/v1/sessions", withBodyLimit(withCORS(startSession(s))))
+	mux.HandleFunc("PUT /api/v1/sessions/{id}", withBodyLimit(withCORS(endSession(s))))
 
 	// Summary and stats
 	mux.HandleFunc("GET /api/v1/summary/{project}", withCORS(summary(s)))
@@ -99,11 +113,8 @@ func Router(s *store.Store, cfg RouterConfig) http.Handler {
 
 	// Lore export moved to authenticated team route — see sessMW block below
 
-	// Prompts
-	mux.HandleFunc("POST /api/v1/prompts", withCORS(savePrompt(s)))
-
-	// Sessions — all (admin-level listing)
-	mux.HandleFunc("GET /api/v1/sessions/all", withCORS(listAllSessions(s)))
+	// Prompts — write is unauthenticated so MCP can save without admin key
+	mux.HandleFunc("POST /api/v1/prompts", withBodyLimit(withCORS(savePrompt(s))))
 
 	// Auth — public; member redeems invite → session token
 	mux.HandleFunc("POST /auth/redeem", withCORS(authRedeem(s)))
@@ -126,8 +137,15 @@ func Router(s *store.Store, cfg RouterConfig) http.Handler {
 	mux.Handle("POST /admin/purge", adminMW(withCORS(adminPurgeHandler(s, actor))))
 	mux.Handle("GET /admin/export", adminMW(withCORS(adminExport(s, actor))))
 	mux.Handle("DELETE /admin/observations/{id}", adminMW(withCORS(adminDeleteObservation(s))))
-	mux.Handle("GET /admin/stats", adminMW(withCORS(adminFullStats(s))))
+	mux.Handle("GET /admin/stats", adminMW(withCORS(stats(s))))
 	mux.Handle("GET /admin/sessions", adminMW(withCORS(adminListSessions(s))))
+	// Sessions — all — admin-only (was previously unauthenticated at /api/v1/sessions/all)
+	mux.Handle("GET /admin/sessions/all", adminMW(withCORS(listAllSessions(s))))
+
+	// Prompts — admin CRUD (read + delete)
+	mux.Handle("GET /admin/prompts", adminMW(withCORS(adminListPrompts(s))))
+	mux.Handle("GET /admin/prompts/{name}", adminMW(withCORS(adminGetPrompt(s))))
+	mux.Handle("DELETE /admin/prompts/{name}", adminMW(withCORS(adminDeletePrompt(s))))
 
 	// License — available to all authenticated admin callers
 	mux.Handle("GET /admin/license/status", adminMW(withCORS(licenseStatusHandler(cfg.LicensePath, cfg.LicenseStatePath))))
@@ -491,10 +509,6 @@ func adminDeleteObservation(s *store.Store) http.HandlerFunc {
 	}
 }
 
-func adminFullStats(s *store.Store) http.HandlerFunc {
-	return stats(s)
-}
-
 func adminListSessions(s *store.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		sessions, err := s.ListSessionsWithStats(100)
@@ -515,7 +529,55 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 }
 
 func writeError(w http.ResponseWriter, status int, msg string) {
+	if status >= 500 {
+		log.Printf("vault API error %d: %s", status, msg)
+	}
 	writeJSON(w, status, map[string]string{"error": msg})
+}
+
+// --- prompts admin handlers ---
+
+func adminListPrompts(s *store.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		prompts, err := s.ListPrompts()
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"prompts": prompts, "total": len(prompts)})
+	}
+}
+
+func adminGetPrompt(s *store.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		name := r.PathValue("name")
+		p, err := s.GetPrompt(name)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		if p == nil {
+			writeError(w, http.StatusNotFound, "prompt not found")
+			return
+		}
+		writeJSON(w, http.StatusOK, p)
+	}
+}
+
+func adminDeletePrompt(s *store.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		name := r.PathValue("name")
+		deleted, err := s.DeletePrompt(name)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		if !deleted {
+			writeError(w, http.StatusNotFound, "prompt not found")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]string{"status": "deleted", "name": name})
+	}
 }
 
 func corsOrigin() string {

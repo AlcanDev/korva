@@ -1182,6 +1182,82 @@ func (s *Store) ExportScrolls(opts ExportScrollsOptions) ([]ScrollExportNote, in
 	return out, total, rows.Err()
 }
 
+// ── vault_prompts ─────────────────────────────────────────────────────────────
+
+// ListPrompts returns all stored prompt templates ordered by name.
+func (s *Store) ListPrompts() ([]Prompt, error) {
+	rows, err := s.db.Query(`
+		SELECT id, name, content, tags, created_at, updated_at
+		FROM prompts
+		ORDER BY name ASC`)
+	if err != nil {
+		return nil, fmt.Errorf("listing prompts: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	return scanPrompts(rows)
+}
+
+// GetPrompt retrieves a single prompt by name. Returns (nil, nil) when not found.
+func (s *Store) GetPrompt(name string) (*Prompt, error) {
+	row := s.db.QueryRow(`
+		SELECT id, name, content, tags, created_at, updated_at
+		FROM prompts WHERE name = ?`, name)
+	p, err := scanPrompt(row)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	return p, err
+}
+
+// DeletePrompt removes a prompt by name. Returns (true, nil) when deleted.
+func (s *Store) DeletePrompt(name string) (bool, error) {
+	res, err := s.db.Exec(`DELETE FROM prompts WHERE name = ?`, name)
+	if err != nil {
+		return false, fmt.Errorf("delete prompt %q: %w", name, err)
+	}
+	n, _ := res.RowsAffected()
+	return n > 0, nil
+}
+
+func scanPrompts(rows *sql.Rows) ([]Prompt, error) {
+	var result []Prompt
+	for rows.Next() {
+		p, err := scanPrompt(rows)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, *p)
+	}
+	if result == nil {
+		result = []Prompt{}
+	}
+	return result, rows.Err()
+}
+
+type promptScanner interface {
+	Scan(dest ...any) error
+}
+
+func scanPrompt(sc promptScanner) (*Prompt, error) {
+	var p Prompt
+	var tagsJSON, createdAt, updatedAt string
+	err := sc.Scan(&p.ID, &p.Name, &p.Content, &tagsJSON, &createdAt, &updatedAt)
+	if err != nil {
+		return nil, err
+	}
+	if tagsJSON != "" {
+		if err := json.Unmarshal([]byte(tagsJSON), &p.Tags); err != nil {
+			return nil, fmt.Errorf("scan prompt tags: %w", err)
+		}
+	}
+	if p.Tags == nil {
+		p.Tags = []string{}
+	}
+	p.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
+	p.UpdatedAt, _ = time.Parse(time.RFC3339, updatedAt)
+	return &p, nil
+}
+
 func nullString(s string) *string {
 	if s == "" {
 		return nil

@@ -2,7 +2,7 @@ import _React, { useState } from 'react'
 import { NavLink, Routes, Route, Navigate } from 'react-router'
 import {
   LayoutDashboard, Database, BookOpen, LogOut,
-  Users, Wand2, Lock, ClipboardList, KeyRound, Menu, X, Activity, Clock
+  Users, Wand2, Lock, ClipboardList, KeyRound, Menu, X, Activity, Clock, BookMarked
 } from 'lucide-react'
 import { KorvaLogo } from '@/components/KorvaLogo'
 import { useAdminStore } from '@/stores/admin'
@@ -19,6 +19,7 @@ import AdminScrollsPrivate from './AdminScrollsPrivate'
 import AdminAudit from './AdminAudit'
 import AdminCodeHealth from './AdminCodeHealth'
 import AdminSessions from './AdminSessions'
+import AdminPrompts from './AdminPrompts'
 
 export default function Admin() {
   const { isAuthenticated, logout } = useAdminStore()
@@ -77,6 +78,7 @@ export default function Admin() {
             <Route path="audit" element={<TeamsGate><AdminAudit /></TeamsGate>} />
             <Route path="code-health" element={<AdminCodeHealth />} />
             <Route path="sessions" element={<AdminSessions />} />
+            <Route path="prompts" element={<AdminPrompts />} />
           </Routes>
         </main>
       </div>
@@ -137,6 +139,7 @@ function AdminSidebar({ onLogout, onNavigate }: { onLogout: () => void; onNaviga
     { to: 'dashboard',   icon: LayoutDashboard, label: t.nav.dashboard },
     { to: 'vault',       icon: Database,        label: t.nav.vaultBrowser,  subtitle: t.nav.vaultSubtitle },
     { to: 'sessions',    icon: Clock,           label: t.nav.sessions,      subtitle: t.nav.sessionsSubtitle },
+    { to: 'prompts',     icon: BookMarked,      label: t.nav.prompts,       subtitle: t.nav.promptsSubtitle },
     { to: 'scrolls',     icon: BookOpen,        label: t.nav.scrolls,       subtitle: t.nav.scrollsSubtitle },
     { to: 'code-health', icon: Activity,        label: t.nav.codeHealth,    subtitle: t.nav.codeHealthSubtitle },
     { to: 'license',     icon: KeyRound,        label: t.nav.license },
@@ -207,7 +210,7 @@ function AdminSidebar({ onLogout, onNavigate }: { onLogout: () => void; onNaviga
             ? 'bg-[#388bfd20] text-[#388bfd] border-[#388bfd30]'
             : 'bg-[#21262d] text-[#484f58] border-[#30363d]'
         }`}>
-          {isTeams ? 'Teams' : 'Community'}
+          {isTeams ? t.nav.tierTeams : t.nav.tierCommunity}
         </span>
         <span className="text-[9px] text-[#30363d] font-mono">v1.0.0</span>
       </div>

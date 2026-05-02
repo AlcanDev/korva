@@ -2,11 +2,13 @@ import { useState, useMemo } from 'react'
 import { Clock, FolderGit2, Bot, Layers, Search, X } from 'lucide-react'
 import { useAdminSessionsWithStats, type SessionRow } from '@/api/admin'
 import { PageHeader } from '@/components/PageHeader'
+import { useI18n } from '@/contexts/i18n'
 
 export default function AdminSessions() {
   const { data, isLoading, error } = useAdminSessionsWithStats()
   const [search, setSearch] = useState('')
   const [filterProject, setFilterProject] = useState('')
+  const { t } = useI18n()
 
   const sessions = data?.sessions ?? []
 
@@ -41,7 +43,7 @@ export default function AdminSessions() {
   if (error) {
     return (
       <div className="m-6 bg-[#f8514912] border border-[#f8514930] rounded-xl p-5">
-        <p className="text-[#f85149] text-sm font-medium">Could not load sessions</p>
+        <p className="text-[#f85149] text-sm font-medium">{t.sessions.couldNotLoad}</p>
         <p className="text-[#8b949e] text-xs mt-1">{error.message}</p>
       </div>
     )
@@ -52,9 +54,9 @@ export default function AdminSessions() {
       <PageHeader
         icon={<Clock size={17} />}
         iconColor="#3fb950"
-        title="Sessions"
-        description="All recorded work sessions with observation counts and duration."
-        hint={{ command: 'korva status', label: 'view active session' }}
+        title={t.sessions.title}
+        description={t.sessions.description}
+        hint={{ command: 'korva status', label: t.sessions.hintLabel }}
       />
 
       {/* Filters */}
@@ -63,7 +65,7 @@ export default function AdminSessions() {
           <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#484f58]" />
           <input
             type="text"
-            placeholder="Search by project, goal, or agent…"
+            placeholder={t.sessions.searchPlaceholder}
             value={search}
             onChange={e => setSearch(e.target.value)}
             className="w-full pl-8 pr-8 py-2 bg-[#161b22] border border-[#30363d] rounded-lg text-sm text-[#e6edf3] placeholder-[#484f58] focus:outline-none focus:border-[#388bfd] transition-colors"
@@ -80,7 +82,7 @@ export default function AdminSessions() {
           onChange={e => setFilterProject(e.target.value)}
           className="sm:w-52 bg-[#161b22] border border-[#30363d] rounded-lg px-3 py-2 text-sm text-[#e6edf3] focus:outline-none focus:border-[#388bfd] transition-colors"
         >
-          <option value="">All projects</option>
+          <option value="">{t.sessions.allProjects}</option>
           {projects.map(p => (
             <option key={p} value={p}>{p}</option>
           ))}
@@ -89,24 +91,24 @@ export default function AdminSessions() {
 
       {/* Count */}
       <div className="text-xs text-[#484f58]">
-        {filtered.length} of {data?.total ?? sessions.length} sessions
+        {t.sessions.count(filtered.length, data?.total ?? sessions.length)}
       </div>
 
       {/* Sessions list */}
       {filtered.length === 0 ? (
         <div className="bg-[#161b22] border border-[#21262d] rounded-xl p-10 text-center">
-          <p className="text-[#484f58] text-sm">No sessions found</p>
+          <p className="text-[#484f58] text-sm">{t.sessions.noSessions}</p>
         </div>
       ) : (
         <div className="space-y-2">
-          {filtered.map(s => <SessionCard key={s.id} session={s} />)}
+          {filtered.map(s => <SessionCard key={s.id} session={s} noGoalLabel={t.sessions.noGoal} />)}
         </div>
       )}
     </div>
   )
 }
 
-function SessionCard({ session: s }: { session: SessionRow }) {
+function SessionCard({ session: s, noGoalLabel }: { session: SessionRow; noGoalLabel: string }) {
   return (
     <div className="bg-[#161b22] border border-[#21262d] rounded-xl p-4 hover:border-[#30363d] transition-colors">
       <div className="flex items-start justify-between gap-4">
@@ -133,7 +135,7 @@ function SessionCard({ session: s }: { session: SessionRow }) {
           {s.goal ? (
             <p className="text-sm text-[#e6edf3] line-clamp-2 leading-snug">{s.goal}</p>
           ) : (
-            <p className="text-xs text-[#484f58] italic">No goal recorded</p>
+            <p className="text-xs text-[#484f58] italic">{noGoalLabel}</p>
           )}
 
           {/* Session ID */}

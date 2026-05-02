@@ -346,4 +346,11 @@ var migrations = []string{
 	`CREATE INDEX IF NOT EXISTS idx_skill_activations_skill   ON skill_activations(skill_id)`,
 	`CREATE INDEX IF NOT EXISTS idx_skill_activations_team    ON skill_activations(team_id)`,
 	`CREATE INDEX IF NOT EXISTS idx_skill_activations_project ON skill_activations(project)`,
+
+	// ── Performance indexes ───────────────────────────────────────────────────────
+	// Composite index for the most frequent query pattern: project + recency sort.
+	// Speeds up Context(), Timeline(), and project-scoped search significantly.
+	`CREATE INDEX IF NOT EXISTS idx_observations_project_created ON observations(project, created_at DESC)`,
+	// Sessions ordered by start time — used by ListSessions, ListSessionsWithStats, Stats.
+	`CREATE INDEX IF NOT EXISTS idx_sessions_started_at ON sessions(started_at DESC)`,
 }

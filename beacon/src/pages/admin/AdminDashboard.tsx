@@ -61,10 +61,10 @@ export default function AdminDashboard() {
           label={t.dashboard.activeProjects} value={Object.keys(stats.by_project).length} color="orange" />
         <KpiCard
           icon={<Zap size={18} className="text-[#a371f7]" />}
-          label="Context tokens"
+          label={t.dashboard.contextTokens}
           value={estTokens}
           color="purple"
-          hint="Estimated tokens stored as reusable AI context"
+          hint={t.dashboard.contextTokensHint}
         />
       </div>
 
@@ -158,6 +158,7 @@ export default function AdminDashboard() {
 // ── Activity Chart ────────────────────────────────────────────────────────────
 
 function ActivityChart({ data }: { data: DailyCount[] }) {
+  const { t } = useI18n()
   const max = Math.max(...data.map(d => d.count), 1)
   const total = data.reduce((s, d) => s + d.count, 0)
 
@@ -166,9 +167,9 @@ function ActivityChart({ data }: { data: DailyCount[] }) {
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <TrendingUp size={15} className="text-[#8b949e]" />
-          <h3 className="text-sm font-medium text-[#e6edf3]">Activity — last 30 days</h3>
+          <h3 className="text-sm font-medium text-[#e6edf3]">{t.dashboard.activityTitle}</h3>
         </div>
-        <span className="text-xs text-[#8b949e]">{total} observations</span>
+        <span className="text-xs text-[#8b949e]">{t.dashboard.activityTotal(total)}</span>
       </div>
       <div className="flex items-end gap-[3px] h-16">
         {data.map((d) => (
@@ -195,16 +196,17 @@ function ActivityChart({ data }: { data: DailyCount[] }) {
 // ── Recent Sessions ───────────────────────────────────────────────────────────
 
 function RecentSessions({ sessions }: { sessions: SessionRow[] }) {
+  const { t } = useI18n()
   return (
     <div className="bg-[#161b22] border border-[#21262d] rounded-xl p-5">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <Clock size={15} className="text-[#8b949e]" />
-          <h3 className="text-sm font-medium text-[#e6edf3]">Recent sessions</h3>
+          <h3 className="text-sm font-medium text-[#e6edf3]">{t.dashboard.recentSessions}</h3>
         </div>
         <NavLink to="sessions" relative="route"
           className="flex items-center gap-1 text-xs text-[#388bfd] hover:text-[#58a6ff] transition-colors">
-          View all <ArrowRight size={11} />
+          {t.dashboard.viewAll} <ArrowRight size={11} />
         </NavLink>
       </div>
       <div className="space-y-2">

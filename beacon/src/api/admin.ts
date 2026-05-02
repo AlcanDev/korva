@@ -95,6 +95,11 @@ export interface Prompt {
   updated_at: string
 }
 
+export interface PromptsResponse {
+  prompts: Prompt[]
+  total: number
+}
+
 // ── Hooks ─────────────────────────────────────────────────────────────────────
 
 export function useAdminStats() {
@@ -156,6 +161,32 @@ export function useAdminPurge() {
   return useMutation({
     mutationFn: () => adminPost<void>('/admin/purge'),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['admin'] }),
+  })
+}
+
+export function useAdminPrompts() {
+  return useQuery({
+    queryKey: ['admin', 'prompts'],
+    queryFn: () => adminFetch<PromptsResponse>('/admin/prompts'),
+    retry: false,
+  })
+}
+
+export function useAdminSavePrompt() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (body: { name: string; content: string; tags: string[] }) =>
+      adminPost<{ status: string }>('/api/v1/prompts', body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['admin', 'prompts'] }),
+  })
+}
+
+export function useAdminDeletePrompt() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (name: string) =>
+      adminFetch<void>(`/admin/prompts/${encodeURIComponent(name)}`, { method: 'DELETE' }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['admin', 'prompts'] }),
   })
 }
 
