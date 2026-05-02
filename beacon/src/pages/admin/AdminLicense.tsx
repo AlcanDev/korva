@@ -1,6 +1,6 @@
 import _React, { useState } from 'react'
 import { ShieldCheck, ShieldOff, RefreshCw, KeyRound, ShieldX, AlertTriangle } from 'lucide-react'
-import { useLicenseStatus, useLicenseActivate, useLicenseDeactivate } from '@/api/license'
+import { useLicenseStatus, useLicenseActivate, useLicenseDeactivate, isPaidTier } from '@/api/license'
 import { PageHeader, InfoCallout } from '@/components/PageHeader'
 import { useI18n } from '@/contexts/i18n'
 
@@ -41,7 +41,7 @@ export default function AdminLicense() {
     return <PageShell t={t}><p className="text-[#8b949e] text-sm">{t.license.loading}</p></PageShell>
   }
 
-  const isTeams = data?.tier === 'teams'
+  const isTeams = isPaidTier(data?.tier)
   const graceWarning = data && !data.grace_ok
 
   return (
@@ -88,11 +88,11 @@ export default function AdminLicense() {
           )}
         </div>
 
-        {isTeams && data.features.length > 0 && (
+        {isTeams && data && data.features.length > 0 && (
           <div className="mt-4">
             <p className="text-[10px] text-[#8b949e] uppercase tracking-wider mb-2">{t.license.activeFeaturesLabel}</p>
             <div className="flex flex-wrap gap-1.5">
-              {data.features.map(f => (
+              {data?.features.map(f => (
                 <span key={f} className="px-2 py-0.5 rounded-full text-[10px] bg-[#388bfd20] text-[#388bfd] border border-[#388bfd30]">
                   {f}
                 </span>

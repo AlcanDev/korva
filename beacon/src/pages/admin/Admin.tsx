@@ -6,7 +6,7 @@ import {
 } from 'lucide-react'
 import { KorvaLogo } from '@/components/KorvaLogo'
 import { useAdminStore } from '@/stores/admin'
-import { useLicenseStatus } from '@/api/license'
+import { useLicenseStatus, isPaidTier } from '@/api/license'
 import { useI18n, type EditorKey, EDITOR_INTEGRATION } from '@/contexts/i18n'
 import AdminLogin from './AdminLogin'
 import AdminDashboard from './AdminDashboard'
@@ -95,7 +95,7 @@ function TeamsGate({ children }: { children: React.ReactNode }) {
     )
   }
 
-  if (!data || data.tier !== 'teams') {
+  if (!data || !isPaidTier(data.tier)) {
     return (
       <div className="p-4 sm:p-6 max-w-lg">
         <div className="rounded-lg border border-[#d29922] bg-[#d2992215] p-5">
@@ -129,7 +129,7 @@ const EDITOR_LABELS: Record<EditorKey, string> = Object.fromEntries(
 function AdminSidebar({ onLogout, onNavigate }: { onLogout: () => void; onNavigate: () => void }) {
   const { data: lic } = useLicenseStatus()
   const { t, lang, setLang, editor, setEditor } = useI18n()
-  const isTeams = lic?.tier === 'teams'
+  const isTeams = isPaidTier(lic?.tier)
 
   const communityItems = [
     { to: 'dashboard',   icon: LayoutDashboard, label: t.nav.dashboard },

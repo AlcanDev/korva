@@ -21,8 +21,10 @@ async function adminPost<T>(path: string, body?: unknown): Promise<T> {
   return adminFetch<T>(path, { method: 'POST', body: body ? JSON.stringify(body) : undefined })
 }
 
+export type LicenseTier = 'community' | 'teams' | 'business' | 'enterprise'
+
 export interface LicenseStatus {
-  tier: 'community' | 'teams'
+  tier: LicenseTier
   license_id?: string
   features: string[]
   seats?: number
@@ -30,6 +32,11 @@ export interface LicenseStatus {
   last_heartbeat?: string
   grace_ok: boolean
   grace_remaining_hours?: number
+}
+
+/** Returns true for any paid tier that unlocks Teams features. */
+export function isPaidTier(tier: LicenseTier | undefined): boolean {
+  return tier === 'teams' || tier === 'business' || tier === 'enterprise'
 }
 
 export function useLicenseStatus() {
