@@ -9,15 +9,20 @@ import (
 )
 
 // licenseStatusHandler returns the current license tier, features, and grace window.
-// Returns community tier JSON when no license is installed.
-func licenseStatusHandler(lic *license.License, statePath string) http.HandlerFunc {
+// Reads from disk on every call so activation takes effect without a restart.
+func licenseStatusHandler(licensePath, statePath string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if lic == nil {
+		lic, err := license.Load(licensePath)
+		if err == license.ErrMissing {
 			writeJSON(w, http.StatusOK, map[string]any{
 				"tier":     "community",
 				"features": []string{},
 				"grace_ok": true,
 			})
+			return
+		}
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "load license: "+err.Error())
 			return
 		}
 
@@ -93,10 +98,12 @@ func licenseDeactivateHandler(licensePath, statePath string) http.HandlerFunc {
 }
 
 // requireFeature returns a middleware that rejects requests when the license
-// does not include featureName. Returns 402 Payment Required.
-func requireFeature(lic *license.License, featureName string) func(http.Handler) http.Handler {
+// does not include featureName. Reads from disk so activation takes effect
+// without a restart. Returns 402 Payment Required when the feature is absent.
+func requireFeature(licensePath, featureName string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			lic, _ := license.Load(licensePath)
 			if !lic.HasFeature(featureName) {
 				writeError(w, http.StatusPaymentRequired, "feature '"+featureName+"' requires Korva for Teams license")
 				return

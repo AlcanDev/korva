@@ -129,13 +129,13 @@ func Router(s *store.Store, cfg RouterConfig) http.Handler {
 	mux.Handle("GET /admin/stats", adminMW(withCORS(adminFullStats(s))))
 
 	// License — available to all authenticated admin callers
-	mux.Handle("GET /admin/license/status", adminMW(withCORS(licenseStatusHandler(lic, cfg.LicenseStatePath))))
+	mux.Handle("GET /admin/license/status", adminMW(withCORS(licenseStatusHandler(cfg.LicensePath, cfg.LicenseStatePath))))
 	mux.Handle("POST /admin/license/activate", adminMW(withCORS(licenseActivateHandler(cfg.ActivationURL, cfg.InstallID, cfg.LicensePath, cfg.LicenseStatePath))))
 	mux.Handle("POST /admin/license/deactivate", adminMW(withCORS(licenseDeactivateHandler(cfg.LicensePath, cfg.LicenseStatePath))))
 
 	// --- Teams (feature-gated) ---
 
-	teamsFeat := requireFeature(lic, license.FeatureAdminSkills)
+	teamsFeat := requireFeature(cfg.LicensePath, license.FeatureAdminSkills)
 
 	mux.Handle("GET /admin/teams/profile/active", adminMW(withCORS(adminActiveProfile(s))))
 	mux.Handle("GET /admin/teams", adminMW(withCORS(adminListTeams(s))))
@@ -154,11 +154,11 @@ func Router(s *store.Store, cfg RouterConfig) http.Handler {
 	mux.Handle("DELETE /admin/teams/{team_id}/sessions/{session_id}", adminMW(teamsFeat(withCORS(adminRevokeSession(s, actor)))))
 
 	// Audit log
-	auditFeat := requireFeature(lic, license.FeatureAuditLog)
+	auditFeat := requireFeature(cfg.LicensePath, license.FeatureAuditLog)
 	mux.Handle("GET /admin/audit", adminMW(auditFeat(withCORS(adminListAudit(s)))))
 
 	// Skills
-	skillsFeat := requireFeature(lic, license.FeatureAdminSkills)
+	skillsFeat := requireFeature(cfg.LicensePath, license.FeatureAdminSkills)
 	mux.Handle("GET /admin/code-health", adminMW(withCORS(adminCodeHealth(s))))
 	mux.Handle("GET /admin/skills", adminMW(skillsFeat(withCORS(adminListSkills(s)))))
 	mux.Handle("GET /admin/skills/sync-status", adminMW(skillsFeat(withCORS(adminSkillsSyncStatus(s)))))
@@ -168,7 +168,7 @@ func Router(s *store.Store, cfg RouterConfig) http.Handler {
 	mux.Handle("DELETE /admin/skills/{id}", adminMW(skillsFeat(withCORS(adminDeleteSkill(s, actor)))))
 
 	// Private Scrolls
-	scrollsFeat := requireFeature(lic, license.FeaturePrivateScrolls)
+	scrollsFeat := requireFeature(cfg.LicensePath, license.FeaturePrivateScrolls)
 	mux.Handle("GET /admin/scrolls/private", adminMW(scrollsFeat(withCORS(adminListPrivateScrolls(s)))))
 	mux.Handle("POST /admin/scrolls/private", adminMW(scrollsFeat(withCORS(adminSavePrivateScroll(s, actor)))))
 	mux.Handle("DELETE /admin/scrolls/private/{scroll_id}", adminMW(scrollsFeat(withCORS(adminDeletePrivateScroll(s, actor)))))
