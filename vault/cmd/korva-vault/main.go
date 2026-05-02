@@ -105,8 +105,12 @@ func main() {
 		activationURL = strings.TrimRight(ep, "/") + "/v1/activate"
 	}
 
-	// InstallID is needed for license activate — tolerate missing file.
-	installID, _ := identity.LoadInstallID(paths.InstallID)
+	// InstallID is needed for license activate — auto-generate if missing.
+	installID, err := identity.EnsureInstallID(paths.InstallID)
+	if err != nil {
+		log.Printf("install.id: could not ensure (%v) — license activation will be unavailable", err)
+		installID = ""
+	}
 
 	routerCfg := api.RouterConfig{
 		AdminKeyPath:     paths.AdminKey,
@@ -164,7 +168,7 @@ func bootLicense(ctx context.Context, lic *license.License, cfg config.KorvaConf
 	}
 
 	// Wire the 24-h heartbeat to keep the Teams license current.
-	installID, err := identity.LoadInstallID(paths.InstallID)
+	installID, err := identity.EnsureInstallID(paths.InstallID)
 	if err != nil {
 		log.Printf("license heartbeat: cannot load install.id (%v) — heartbeat disabled", err)
 		return
