@@ -21,8 +21,9 @@ var rootCmd = &cobra.Command{
 	// PersistentPreRun fires before every sub-command and triggers a
 	// non-blocking background update check (at most once every 24 h).
 	// The hint is printed to stderr so it never interferes with command output.
-	PersistentPreRun: func(_ *cobra.Command, _ []string) {
+	PersistentPreRun: func(cmd *cobra.Command, _ []string) {
 		go CheckUpdateHint()
+		sendUsageEvent("command_run", map[string]any{"command": cmd.CommandPath()})
 	},
 }
 

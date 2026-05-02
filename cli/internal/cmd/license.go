@@ -72,6 +72,7 @@ func runLicenseActivate(cmd *cobra.Command, args []string) error {
 	if !lic.ExpiresAt.IsZero() {
 		printInfo(fmt.Sprintf("Expires: %s", lic.ExpiresAt.Format("2006-01-02")))
 	}
+	sendUsageEvent("license_activated", map[string]any{"tier": lic.Tier})
 	return nil
 }
 
