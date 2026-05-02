@@ -108,7 +108,12 @@ func (p *Paths) EnsureAll() error {
 }
 
 // baseDir returns the platform-specific base directory for korva data.
+// KORVA_HOME overrides the default when set — useful for container deployments
+// where the home directory is ephemeral but a persistent volume is available.
 func baseDir() (string, error) {
+	if override := os.Getenv("KORVA_HOME"); override != "" {
+		return override, nil
+	}
 	switch runtime.GOOS {
 	case "windows":
 		appData := os.Getenv("APPDATA")
