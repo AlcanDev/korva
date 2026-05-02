@@ -67,7 +67,8 @@ func licenseActivateHandler(activationURL, installID, licensePath, statePath str
 		}
 		lic, err := license.Activate(r.Context(), activationURL, body.LicenseKey, installID, licensePath, statePath)
 		if err != nil {
-			writeError(w, http.StatusBadGateway, "activation failed: "+err.Error())
+			// Use 422 so the error body reaches the client — 502 is intercepted by Cloudflare.
+			writeError(w, http.StatusUnprocessableEntity, "activation failed: "+err.Error())
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]any{
