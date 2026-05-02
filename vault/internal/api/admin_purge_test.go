@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"context"
 	"testing"
 
 	"github.com/alcandev/korva/internal/admin"
@@ -28,7 +29,7 @@ func newStoreWithAdmin(t *testing.T) (*store.Store, http.Handler, string) {
 		t.Fatalf("admin.Generate: %v", err)
 	}
 
-	return s, Router(s, RouterConfig{AdminKeyPath: keyPath}), cfg.Key
+	return s, Router(context.Background(), s, RouterConfig{AdminKeyPath: keyPath}), cfg.Key
 }
 
 func purgeReq(t *testing.T, h http.Handler, body map[string]any, adminKey string) *httptest.ResponseRecorder {

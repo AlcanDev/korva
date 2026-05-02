@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
@@ -78,7 +79,7 @@ func newTeamTestEnv(t *testing.T) *teamTestEnv {
 		},
 		ExpiresAt: time.Now().Add(365 * 24 * time.Hour),
 	}
-	h := Router(s, RouterConfig{License: testLic})
+	h := Router(context.Background(), s, RouterConfig{License: testLic})
 
 	return &teamTestEnv{
 		store:       s,

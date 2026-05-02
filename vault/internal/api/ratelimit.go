@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"net"
 	"net/http"
 	"strconv"
@@ -18,10 +19,6 @@ type ipState struct {
 
 // RateLimiter implements a per-IP fixed-window rate limiter using only stdlib.
 // Suitable for the vault HTTP server (local or LAN deployment).
-//
-// Stale entries are not proactively cleaned — they survive in the sync.Map
-// until the IP makes a new request inside a fresh window. For the vault's
-// expected load (dozens of IPs at most) this is fine.
 type RateLimiter struct {
 	entries sync.Map
 	limit   int
@@ -56,6 +53,35 @@ func (rl *RateLimiter) check(ip string) (allowed bool, remaining int, resetAt ti
 func (rl *RateLimiter) Allow(ip string) bool {
 	ok, _, _ := rl.check(ip)
 	return ok
+}
+
+// StartCleanup launches a background goroutine that removes stale per-IP entries
+// once per interval. Without this, the sync.Map would grow unboundedly in
+// deployments exposed to many distinct IPs (e.g. reverse-proxy behind Cloudflare).
+// The goroutine stops when ctx is canceled.
+func (rl *RateLimiter) StartCleanup(ctx context.Context, interval time.Duration) {
+	go func() {
+		t := time.NewTicker(interval)
+		defer t.Stop()
+		for {
+			select {
+			case <-t.C:
+				now := time.Now()
+				rl.entries.Range(func(k, v any) bool {
+					s := v.(*ipState) //nolint:forcetypeassert
+					s.mu.Lock()
+					expired := now.After(s.resetAt)
+					s.mu.Unlock()
+					if expired {
+						rl.entries.Delete(k)
+					}
+					return true
+				})
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
 }
 
 // Middleware wraps h with IP-based rate limiting and injects X-RateLimit-*

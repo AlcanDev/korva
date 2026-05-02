@@ -18,6 +18,9 @@ import (
 	"github.com/alcandev/korva/vault/internal/store"
 )
 
+// cleanupInterval is how often the rate-limiter sweeps stale per-IP entries.
+const cleanupInterval = 5 * time.Minute
+
 // maxBodyBytes is the maximum size we accept for any write request body.
 // 1 MiB is generous for all legitimate vault payloads.
 const maxBodyBytes = 1 << 20 // 1 MiB
@@ -68,10 +71,12 @@ type RouterConfig struct {
 }
 
 // Router builds the HTTP mux for the Vault API.
-// Pass a zero-value RouterConfig for a minimal Community-tier server.
+// ctx is used to stop the background rate-limiter cleanup goroutine when the
+// server shuts down. Pass a zero-value RouterConfig for a minimal Community-tier
+// server.
 //
 // All routes are wrapped with a per-IP rate limiter (120 req/min).
-func Router(s *store.Store, cfg RouterConfig) http.Handler {
+func Router(ctx context.Context, s *store.Store, cfg RouterConfig) http.Handler {
 	mux := http.NewServeMux()
 
 	// Resolve a nil mailer to the noop implementation so handlers never nil-check.
@@ -148,13 +153,13 @@ func Router(s *store.Store, cfg RouterConfig) http.Handler {
 	mux.Handle("DELETE /admin/prompts/{name}", adminMW(withCORS(adminDeletePrompt(s))))
 
 	// License — available to all authenticated admin callers
-	mux.Handle("GET /admin/license/status", adminMW(withCORS(licenseStatusHandler(cfg.LicensePath, cfg.LicenseStatePath))))
+	mux.Handle("GET /admin/license/status", adminMW(withCORS(licenseStatusHandler(cfg.License, cfg.LicenseStatePath))))
 	mux.Handle("POST /admin/license/activate", adminMW(withCORS(licenseActivateHandler(cfg.ActivationURL, cfg.InstallID, cfg.LicensePath, cfg.LicenseStatePath))))
 	mux.Handle("POST /admin/license/deactivate", adminMW(withCORS(licenseDeactivateHandler(cfg.LicensePath, cfg.LicenseStatePath))))
 
 	// --- Teams (feature-gated) ---
 
-	teamsFeat := requireFeature(cfg.LicensePath, license.FeatureAdminSkills)
+	teamsFeat := requireFeature(cfg.License, license.FeatureAdminSkills)
 
 	mux.Handle("GET /admin/teams/profile/active", adminMW(withCORS(adminActiveProfile(s))))
 	mux.Handle("GET /admin/teams", adminMW(withCORS(adminListTeams(s))))
@@ -173,11 +178,11 @@ func Router(s *store.Store, cfg RouterConfig) http.Handler {
 	mux.Handle("DELETE /admin/teams/{team_id}/sessions/{session_id}", adminMW(teamsFeat(withCORS(adminRevokeSession(s, actor)))))
 
 	// Audit log
-	auditFeat := requireFeature(cfg.LicensePath, license.FeatureAuditLog)
+	auditFeat := requireFeature(cfg.License, license.FeatureAuditLog)
 	mux.Handle("GET /admin/audit", adminMW(auditFeat(withCORS(adminListAudit(s)))))
 
 	// Skills
-	skillsFeat := requireFeature(cfg.LicensePath, license.FeatureAdminSkills)
+	skillsFeat := requireFeature(cfg.License, license.FeatureAdminSkills)
 	mux.Handle("GET /admin/code-health", adminMW(withCORS(adminCodeHealth(s))))
 	mux.Handle("GET /admin/skills", adminMW(skillsFeat(withCORS(adminListSkills(s)))))
 	mux.Handle("GET /admin/skills/sync-status", adminMW(skillsFeat(withCORS(adminSkillsSyncStatus(s)))))
@@ -187,7 +192,7 @@ func Router(s *store.Store, cfg RouterConfig) http.Handler {
 	mux.Handle("DELETE /admin/skills/{id}", adminMW(skillsFeat(withCORS(adminDeleteSkill(s, actor)))))
 
 	// Private Scrolls
-	scrollsFeat := requireFeature(cfg.LicensePath, license.FeaturePrivateScrolls)
+	scrollsFeat := requireFeature(cfg.License, license.FeaturePrivateScrolls)
 	mux.Handle("GET /admin/scrolls/private", adminMW(scrollsFeat(withCORS(adminListPrivateScrolls(s)))))
 	mux.Handle("POST /admin/scrolls/private", adminMW(scrollsFeat(withCORS(adminSavePrivateScroll(s, actor)))))
 	mux.Handle("DELETE /admin/scrolls/private/{scroll_id}", adminMW(scrollsFeat(withCORS(adminDeletePrivateScroll(s, actor)))))
@@ -219,6 +224,7 @@ func Router(s *store.Store, cfg RouterConfig) http.Handler {
 	// Wrap the entire mux with a per-IP fixed-window rate limiter.
 	// 120 req/min is generous for AI editor usage; prevents runaway loops.
 	limiter := NewRateLimiter(120, time.Minute)
+	limiter.StartCleanup(ctx, cleanupInterval)
 	return limiter.Middleware(mux)
 }
 
@@ -233,6 +239,10 @@ func saveObservation(s *store.Store, webhookURL string) http.HandlerFunc {
 		var obs store.Observation
 		if err := json.NewDecoder(r.Body).Decode(&obs); err != nil {
 			writeError(w, http.StatusBadRequest, "invalid request body")
+			return
+		}
+		if err := validateObservation(&obs); err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
 			return
 		}
 		id, err := s.Save(obs)
@@ -410,6 +420,10 @@ func startSession(s *store.Store) http.HandlerFunc {
 			writeError(w, http.StatusBadRequest, "invalid request body")
 			return
 		}
+		if err := validateSession(body.Project, body.Team, body.Country, body.Agent, body.Goal); err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
 		id, err := s.SessionStart(body.Project, body.Team, body.Country, body.Agent, body.Goal)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, err.Error())
@@ -425,7 +439,8 @@ func endSession(s *store.Store) http.HandlerFunc {
 		var body struct {
 			Summary string `json:"summary"`
 		}
-		json.NewDecoder(r.Body).Decode(&body) //nolint:errcheck
+		// Body is optional — an empty or malformed body is treated as no summary.
+		_ = json.NewDecoder(r.Body).Decode(&body)
 		if err := s.SessionEnd(id, body.Summary); err != nil {
 			writeError(w, http.StatusInternalServerError, err.Error())
 			return
@@ -466,6 +481,10 @@ func savePrompt(s *store.Store) http.HandlerFunc {
 		}
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 			writeError(w, http.StatusBadRequest, "invalid request body")
+			return
+		}
+		if err := validatePrompt(body.Name, body.Content); err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
 			return
 		}
 		if err := s.SavePrompt(body.Name, body.Content, body.Tags); err != nil {

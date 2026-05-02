@@ -328,7 +328,7 @@ func runTUI(s *store.Store) {
 //	/admin/*       →  vault admin API (direct access)
 //	/*             →  Beacon SPA (static files + SPA fallback to index.html)
 func runHTTP(ctx context.Context, s *store.Store, cfg api.RouterConfig, host string, port int) {
-	vaultAPI := api.Router(s, cfg)
+	vaultAPI := api.Router(ctx, s, cfg)
 
 	// beaconDev is the URL to redirect to when the UI is not embedded.
 	// In development, Vite runs on :5173 and proxies /vault-api → :7437 itself.

@@ -5,12 +5,16 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"context"
 	"testing"
 
 	"github.com/alcandev/korva/vault/internal/store"
 )
 
+const testAdminKey = "test-admin-key"
+
 // newTestRouter creates an API router backed by an in-memory store.
+// Admin endpoints are accessible using testAdminKey via X-Admin-Key header.
 func newTestRouter(t *testing.T) http.Handler {
 	t.Helper()
 	s, err := store.NewMemory(nil)
@@ -18,8 +22,7 @@ func newTestRouter(t *testing.T) http.Handler {
 		t.Fatalf("store.NewMemory: %v", err)
 	}
 	t.Cleanup(func() { s.Close() })
-	// No admin key file — admin endpoints will 403; nil license = community tier
-	return Router(s, RouterConfig{AdminKeyPath: "/nonexistent/admin.key"})
+	return Router(context.Background(), s, RouterConfig{AdminKeyOverride: testAdminKey})
 }
 
 func TestHealthz(t *testing.T) {
@@ -298,12 +301,13 @@ func TestAdminPurge_Forbidden_NoKey(t *testing.T) {
 
 func TestListAllSessions_ReturnsOK(t *testing.T) {
 	h := newTestRouter(t)
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/sessions/all", nil)
+	req := httptest.NewRequest(http.MethodGet, "/admin/sessions/all", nil)
+	req.Header.Set("X-Admin-Key", testAdminKey)
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusOK {
-		t.Errorf("GET /api/v1/sessions/all = %d, want 200", rec.Code)
+		t.Errorf("GET /admin/sessions/all = %d, want 200", rec.Code)
 	}
 	var resp map[string]any
 	json.NewDecoder(rec.Body).Decode(&resp)

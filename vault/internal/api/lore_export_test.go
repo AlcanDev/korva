@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"context"
 	"path/filepath"
 	"testing"
 	"time"
@@ -206,7 +207,7 @@ func TestAdminLoreExport_AllTeams(t *testing.T) {
 	if err != nil {
 		t.Fatalf("admin.Generate: %v", err)
 	}
-	h := Router(env.store, RouterConfig{AdminKeyPath: keyPath})
+	h := Router(context.Background(), env.store, RouterConfig{AdminKeyPath: keyPath})
 
 	db := env.store.DB()
 	now := time.Now().UTC().Format(time.RFC3339)

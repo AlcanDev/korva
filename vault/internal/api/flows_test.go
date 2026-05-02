@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"context"
 	"path/filepath"
 	"testing"
 	"time"
@@ -69,7 +70,7 @@ func newTestRouterWithAdminAndLicense(t *testing.T, lic *license.License) (http.
 		t.Fatalf("admin.Generate: %v", err)
 	}
 
-	return Router(s, RouterConfig{AdminKeyPath: keyPath, License: lic}), cfg.Key
+	return Router(context.Background(), s, RouterConfig{AdminKeyPath: keyPath, License: lic}), cfg.Key
 }
 
 // post sends a POST request with a JSON body to h and returns the recorder.
@@ -215,8 +216,8 @@ func TestFlow_SessionLifecycle(t *testing.T) {
 		t.Fatalf("end session: want 200, got %d — %s", rec2.Code, rec2.Body.String())
 	}
 
-	// List all — session must appear
-	rec3 := get(t, h, "/api/v1/sessions/all")
+	// List all — admin-only endpoint; session must appear
+	rec3 := adminReq(t, h, http.MethodGet, "/admin/sessions/all", nil, testAdminKey)
 	if rec3.Code != http.StatusOK {
 		t.Fatalf("list sessions: want 200, got %d", rec3.Code)
 	}

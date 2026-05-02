@@ -82,8 +82,16 @@ func (s *Store) PreviewFilter(title, content string) (filteredTitle, filteredCon
 //     exists (same title, content, and project) the existing ID is returned without
 //     a new row, preventing observation loops in multi-turn sessions.
 func (s *Store) Save(obs Observation) (string, error) {
+	// Trim whitespace on all string fields before any processing so stored data
+	// is consistently clean regardless of how the caller formatted the values.
+	obs.Title = strings.TrimSpace(obs.Title)
+	obs.Project = strings.TrimSpace(obs.Project)
+	obs.Team = strings.TrimSpace(obs.Team)
+	obs.Country = strings.TrimSpace(obs.Country)
+	obs.Author = strings.TrimSpace(obs.Author)
+
 	// 1. Ghost detection: at least one of title/content must be non-empty.
-	if strings.TrimSpace(obs.Title) == "" && strings.TrimSpace(obs.Content) == "" {
+	if obs.Title == "" && strings.TrimSpace(obs.Content) == "" {
 		return "", fmt.Errorf("vault_save: observation has neither title nor content")
 	}
 
@@ -334,6 +342,11 @@ func (s *Store) Timeline(project string, from, to time.Time) ([]Observation, err
 // SessionStart creates a new session and returns its ID.
 func (s *Store) SessionStart(project, team, country, agent, goal string) (string, error) {
 	id := newID()
+	project = strings.TrimSpace(project)
+	team = strings.TrimSpace(team)
+	country = strings.TrimSpace(country)
+	agent = strings.TrimSpace(agent)
+	goal = strings.TrimSpace(goal)
 	_, err := s.db.Exec(`
 		INSERT INTO sessions (id, project, team, country, agent, goal, started_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?)`,
@@ -474,7 +487,7 @@ func (s *Store) ListSessions(limit int) ([]Session, error) {
 	var sessions []Session
 	for rows.Next() {
 		var sess Session
-		var startedAt, endedAt string
+		var startedAt string
 		var endedAtNull sql.NullString
 		err := rows.Scan(
 			&sess.ID, &sess.Project, &sess.Team, &sess.Country,
@@ -484,7 +497,6 @@ func (s *Store) ListSessions(limit int) ([]Session, error) {
 		if err != nil {
 			return nil, err
 		}
-		_ = endedAt
 		sess.StartedAt, _ = time.Parse(time.RFC3339, startedAt)
 		if endedAtNull.Valid {
 			t, _ := time.Parse(time.RFC3339, endedAtNull.String)

@@ -13,17 +13,17 @@ const (
 	TypeContext     ObservationType = "context"
 	TypeAntiPattern ObservationType = "antipattern"
 	TypeTask        ObservationType = "task"
-	// From claude-mem: richer vocabulary for development workflows.
-	TypeFeature   ObservationType = "feature"   // new capability added to the codebase
-	TypeRefactor  ObservationType = "refactor"  // structural improvement without behavior change
-	TypeDiscovery ObservationType = "discovery" // unexpected finding worth remembering
+	TypeFeature     ObservationType = "feature"   // new capability added to the codebase
+	TypeRefactor    ObservationType = "refactor"  // structural improvement without behavior change
+	TypeDiscovery   ObservationType = "discovery" // unexpected finding worth remembering
+	TypeIncident    ObservationType = "incident"  // production issue or operational event
 )
 
 // AllObservationTypes lists every valid ObservationType.
 // Used for enum validation and documentation.
 var AllObservationTypes = []string{
 	"decision", "pattern", "bugfix", "learning", "context",
-	"antipattern", "task", "feature", "refactor", "discovery",
+	"antipattern", "task", "feature", "refactor", "discovery", "incident",
 }
 
 // ── SDD phase — Spec-Driven Development workflow state ─────────────────────

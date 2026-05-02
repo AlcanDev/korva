@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"context"
 	"testing"
 	"time"
 
@@ -41,7 +42,7 @@ func TestSearch_Pagination(t *testing.T) {
 		})
 	}
 
-	h := Router(s, RouterConfig{})
+	h := Router(context.Background(), s, RouterConfig{})
 
 	// Page 1: offset=0, limit=2 — expect 2 results, total=5.
 	r := httptest.NewRequest(http.MethodGet, "/api/v1/search?project=pg&limit=2&offset=0", nil)
@@ -97,7 +98,7 @@ func TestSearch_FTSNoTotal(t *testing.T) {
 	}
 	defer s.Close()
 
-	h := Router(s, RouterConfig{})
+	h := Router(context.Background(), s, RouterConfig{})
 
 	// Empty query → uses the recent path (no FTS); total IS included.
 	r := httptest.NewRequest(http.MethodGet, "/api/v1/search?project=noproject", nil)
@@ -140,7 +141,7 @@ func TestWebhook_Fires(t *testing.T) {
 	}
 	defer s.Close()
 
-	h := Router(s, RouterConfig{WebhookURL: webhookSrv.URL})
+	h := Router(context.Background(), s, RouterConfig{WebhookURL: webhookSrv.URL})
 
 	body := `{"project":"wh","type":"pattern","title":"t","content":"c"}`
 	r := httptest.NewRequest(http.MethodPost, "/api/v1/observations",
@@ -179,7 +180,7 @@ func TestWebhook_Disabled(t *testing.T) {
 	defer s.Close()
 
 	// Empty WebhookURL — no webhook should fire.
-	h := Router(s, RouterConfig{})
+	h := Router(context.Background(), s, RouterConfig{})
 
 	body := `{"project":"wh","type":"pattern","title":"t","content":"c"}`
 	r := httptest.NewRequest(http.MethodPost, "/api/v1/observations", stringReader(body))
