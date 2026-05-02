@@ -11,6 +11,7 @@ import (
 
 	"github.com/alcandev/korva/internal/admin"
 	"github.com/alcandev/korva/internal/config"
+	"github.com/alcandev/korva/internal/license"
 )
 
 var statusCmd = &cobra.Command{
@@ -36,6 +37,19 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	fmt.Printf("  Project:  %s\n", cfg.Project)
 	fmt.Printf("  Team:     %s\n", cfg.Team)
 	fmt.Printf("  Country:  %s\n", cfg.Country)
+
+	// License
+	if lic, err := license.Load(paths.LicenseFile); err == nil {
+		state, _ := license.LoadState(paths.LicenseStateFile)
+		tier := lic.CurrentTier(state)
+		exp := ""
+		if !lic.ExpiresAt.IsZero() {
+			exp = fmt.Sprintf("  · expires %s", lic.ExpiresAt.Format("2006-01-02"))
+		}
+		fmt.Printf("  License:  ● %s%s\n", tier, exp)
+	} else {
+		fmt.Printf("  License:  community (free)\n")
+	}
 
 	// Admin key
 	if _, err := admin.Load(paths.AdminKey); err == nil {
