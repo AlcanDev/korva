@@ -22,6 +22,9 @@ import (
 type RouterConfig struct {
 	// AdminKeyPath is the filesystem path to the admin.key file.
 	AdminKeyPath string
+	// AdminKeyOverride, when non-empty, is used directly instead of reading
+	// AdminKeyPath. Set from KORVA_ADMIN_KEY env var for container deployments.
+	AdminKeyOverride string
 	// License is the active license; nil means Community tier.
 	License *license.License
 	// LicensePath is the filesystem path to the JWS license file.
@@ -109,7 +112,7 @@ func Router(s *store.Store, cfg RouterConfig) http.Handler {
 
 	// --- Admin-protected endpoints (X-Admin-Key required) ---
 
-	adminMW := admin.Middleware(cfg.AdminKeyPath)
+	adminMW := admin.MiddlewareWithOverride(cfg.AdminKeyPath, cfg.AdminKeyOverride)
 	const actor = "admin"
 
 	// OpenSpec PUT + SDD PUT (write requires admin key)

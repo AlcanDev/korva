@@ -109,6 +109,7 @@ func main() {
 
 	routerCfg := api.RouterConfig{
 		AdminKeyPath:     paths.AdminKey,
+		AdminKeyOverride: os.Getenv("KORVA_ADMIN_KEY"),
 		License:          lic,
 		LicensePath:      paths.LicenseFile,
 		LicenseStatePath: paths.LicenseStateFile,
