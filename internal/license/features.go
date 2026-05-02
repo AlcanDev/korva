@@ -28,7 +28,8 @@ const (
 type Tier string
 
 const (
-	TierCommunity Tier = "community" // free — core vault + basic MCP tools
-	TierTeams     Tier = "teams"     // paid — Skills Hub, team profiles, smart loader
-	TierBusiness  Tier = "business"  // paid — + code health, pattern mining, multi-profile
+	TierCommunity Tier = "community"  // free — core vault + basic MCP tools
+	TierTeams     Tier = "teams"      // paid — Skills Hub, team profiles, smart loader
+	TierBusiness  Tier = "business"   // paid — + code health, pattern mining, multi-profile
+	TierEnterprise Tier = "enterprise" // paid — all features + extended seat limits
 )
