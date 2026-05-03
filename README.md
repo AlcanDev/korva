@@ -25,9 +25,9 @@
 
 <div align="center">
 
-![Korva demo — Sin Korva vs Con Korva](docs/demo/korva_demo_v2.gif)
+![Korva demo — Sin Korva vs Con Korva](docs/demo/korva_live_demo.gif)
 
-*25 seconds · 8 scenes · all 6 services · real vault data*
+*32 seconds · 8 scenes · all 6 services · real vault data*
 
 </div>
 
