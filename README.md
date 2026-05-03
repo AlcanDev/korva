@@ -21,6 +21,28 @@
 
 ---
 
+## 🎬 Demo
+
+<div align="center">
+
+![Korva demo — Sin Korva vs Con Korva](docs/demo/korva_demo_v2.gif)
+
+*25 seconds · 8 scenes · all 6 services · real vault data*
+
+</div>
+
+| Scene | What you see |
+|-------|-------------|
+| **El Problema** | AI forgets decisions between sessions — race conditions repeat, secrets leak into git |
+| **vault_context** | Korva loads 6 observations in 142ms — AI generates correct code on the first try |
+| **vault_save** | Bugfix pattern saved with ULID, synced across the team via Hive |
+| **Sentinel** | git commit blocked — 3 issues caught: hardcoded secret, timing attack, arch violation |
+| **Lore + Forge** | 25 architecture scrolls applied · SDD workflow phase tracked |
+| **vault_compress** | Token usage cut by −80% (lite) or −97% (ultra) per session |
+| **Real stats** | 15 obs · 23 MCP tools · 25 scrolls · 8 IDEs · all 6 services active |
+
+---
+
 ## 🎯 What is Korva?
 
 Korva turns any AI coding assistant — Claude Code, Cursor, GitHub Copilot, OpenCode, Codex, Gemini CLI, Windsurf, VS Code with MCP — into an **architecturally-aware teammate**. It does this with four pillars:

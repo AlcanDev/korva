@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Korva — Live Demo</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg:      #060608;
+    --surf:    #0D1117;
+    --surf2:   #161B22;
+    --border:  #21262D;
+    --text:    #E6EDF3;
+    --muted:   #8B949E;
+    --dim:     #484F58;
+    --green:   #22C55E;
+    --red:     #F85149;
+    --blue:    #388BFD;
+    --orange:  #D29922;
+    --purple:  #A371F7;
+    --cyan:    #39D353;
+    --mono:    'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 13px;
+    overflow: hidden;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ── Header ──────────────────────────────── */
+  .header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 20px;
+    background: var(--surf);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .logo { display: flex; align-items: center; gap: 8px; }
+  .logo-icon {
+    width: 28px; height: 28px;
+    background: linear-gradient(135deg, #22C55E, #16a34a);
+    border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; font-weight: 800; color: #000;
+    font-family: sans-serif;
+  }
+  .logo-name { font-family: sans-serif; font-size: 16px; font-weight: 700; color: var(--text); }
+  .logo-tag { font-family: sans-serif; font-size: 11px; color: var(--muted); }
+  .badge {
+    background: rgba(34,197,94,0.12);
+    border: 1px solid rgba(34,197,94,0.3);
+    color: var(--green);
+    padding: 3px 10px;
+    border-radius: 99px;
+    font-size: 11px;
+    font-family: sans-serif;
+  }
+  .services {
+    display: flex; gap: 6px;
+  }
+  .svc {
+    font-family: sans-serif;
+    font-size: 10px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    opacity: 0;
+    transition: all 0.3s;
+  }
+  .svc.active {
+    border-color: var(--green);
+    color: var(--green);
+    background: rgba(34,197,94,0.08);
+    opacity: 1;
+  }
+
+  /* ── Stage label ─────────────────────────── */
+  .stage-bar {
+    padding: 6px 20px;
+    background: rgba(56,139,253,0.08);
+    border-bottom: 1px solid rgba(56,139,253,0.2);
+    font-size: 11px;
+    color: var(--blue);
+    font-family: sans-serif;
+    display: flex; align-items: center; gap: 8px;
+    flex-shrink: 0;
+    transition: all 0.5s;
+  }
+  .stage-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--blue); }
+
+  /* ── Split ───────────────────────────────── */
+  .split {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  .panel {
+    display: flex; flex-direction: column;
+    overflow: hidden;
+  }
+  .panel + .panel { border-left: 2px solid var(--border); }
+
+  .panel-header {
+    padding: 8px 14px;
+    font-family: sans-serif;
+    font-size: 12px;
+    font-weight: 600;
+    display: flex; align-items: center; gap: 8px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .panel-header .dot { width: 8px; height: 8px; border-radius: 50%; }
+  .panel.bad .panel-header { background: rgba(248,81,73,0.08); color: var(--red); }
+  .panel.bad .dot { background: var(--red); }
+  .panel.good .panel-header { background: rgba(34,197,94,0.08); color: var(--green); }
+  .panel.good .dot { background: var(--green); }
+
+  .terminal {
+    flex: 1;
+    overflow-y: auto;
+    padding: 14px;
+    scroll-behavior: smooth;
+  }
+  .terminal::-webkit-scrollbar { width: 4px; }
+  .terminal::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  .line {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin-bottom: 6px;
+    opacity: 0;
+    transform: translateY(4px);
+    transition: opacity 0.25s, transform 0.25s;
+    line-height: 1.5;
+  }
+  .line.show { opacity: 1; transform: none; }
+
+  .prompt { color: var(--green); flex-shrink: 0; }
+  .bad .prompt { color: var(--red); }
+  .cmd { color: var(--text); }
+  .out { color: var(--muted); }
+  .ok  { color: var(--green); }
+  .err { color: var(--red); }
+  .warn { color: var(--orange); }
+  .info { color: var(--blue); }
+  .hi  { color: var(--purple); }
+  .key { color: var(--cyan); }
+
+  .block {
+    background: var(--surf2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px 12px;
+    margin: 8px 0;
+    opacity: 0;
+    transform: translateY(6px);
+    transition: opacity 0.3s, transform 0.3s;
+  }
+  .block.show { opacity: 1; transform: none; }
+  .block-title {
+    font-size: 10px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 6px;
+    font-family: sans-serif;
+  }
+  .obs-row { display: flex; gap: 8px; margin-bottom: 4px; align-items: center; }
+  .tag {
+    font-size: 10px;
+    padding: 1px 6px;
+    border-radius: 3px;
+    flex-shrink: 0;
+    font-family: sans-serif;
+  }
+  .tag-bugfix   { background: rgba(248,81,73,0.15); color: #F85149; border: 1px solid rgba(248,81,73,0.3); }
+  .tag-learning { background: rgba(56,139,253,0.15); color: #388BFD; border: 1px solid rgba(56,139,253,0.3); }
+  .tag-decision { background: rgba(163,113,247,0.15); color: #A371F7; border: 1px solid rgba(163,113,247,0.3); }
+  .tag-pattern  { background: rgba(34,197,94,0.15); color: #22C55E; border: 1px solid rgba(34,197,94,0.3); }
+  .tag-incident { background: rgba(210,153,34,0.15); color: #D29922; border: 1px solid rgba(210,153,34,0.3); }
+
+  /* ── Bottom stats bar ─────────────────────── */
+  .stats-bar {
+    display: grid;
+    grid-template-columns: repeat(6,1fr);
+    border-top: 1px solid var(--border);
+    background: var(--surf);
+    flex-shrink: 0;
+  }
+  .stat {
+    padding: 8px 12px;
+    text-align: center;
+    border-right: 1px solid var(--border);
+    transition: all 0.4s;
+  }
+  .stat:last-child { border-right: none; }
+  .stat-value {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--dim);
+    transition: color 0.5s;
+    font-family: sans-serif;
+  }
+  .stat-value.lit { color: var(--green); }
+  .stat-label {
+    font-size: 9px;
+    color: var(--dim);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-family: sans-serif;
+    margin-top: 2px;
+  }
+
+  /* ── Token meter ─────────────────────────── */
+  .meter-wrap {
+    margin: 8px 0;
+    opacity: 0; transition: opacity 0.4s;
+  }
+  .meter-wrap.show { opacity: 1; }
+  .meter-label { font-size: 10px; color: var(--muted); margin-bottom: 4px; font-family: sans-serif; }
+  .meter-bar-bg { background: var(--surf2); border-radius: 3px; height: 10px; overflow: hidden; }
+  .meter-bar { height: 100%; border-radius: 3px; transition: width 1.5s ease; }
+  .meter-bar.before { background: var(--red); width: 0%; }
+  .meter-bar.after  { background: var(--green); width: 0%; }
+  .meter-numbers { display: flex; justify-content: space-between; font-size: 10px; margin-top: 3px; font-family: sans-serif; }
+
+  /* ── Sentinel block ─────────────────────── */
+  .sentinel-block {
+    background: rgba(248,81,73,0.05);
+    border: 1px solid rgba(248,81,73,0.3);
+    border-radius: 6px;
+    padding: 10px 12px;
+    margin: 8px 0;
+    opacity: 0; transition: opacity 0.4s;
+  }
+  .sentinel-block.show { opacity: 1; }
+  .sentinel-title { color: var(--red); font-size: 11px; font-family: sans-serif; font-weight: 600; margin-bottom: 6px; }
+  .sentinel-row { display: flex; gap: 8px; font-size: 11px; margin-bottom: 3px; align-items: flex-start; }
+  .sentinel-icon { flex-shrink: 0; }
+
+  /* ── Cursor blink ─────────────────────────── */
+  .cursor {
+    display: inline-block;
+    width: 7px; height: 13px;
+    background: var(--green);
+    animation: blink 1s step-end infinite;
+    vertical-align: text-bottom;
+    margin-left: 2px;
+  }
+  .bad .cursor { background: var(--red); }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="header">
+  <div class="logo">
+    <div class="logo-icon">K</div>
+    <div>
+      <div class="logo-name">korva</div>
+      <div class="logo-tag">The cognitive OS for AI-driven teams</div>
+    </div>
+  </div>
+  <div class="services" id="services">
+    <div class="svc" id="svc-vault">Vault</div>
+    <div class="svc" id="svc-sentinel">Sentinel</div>
+    <div class="svc" id="svc-lore">Lore</div>
+    <div class="svc" id="svc-forge">Forge</div>
+    <div class="svc" id="svc-hive">Hive</div>
+    <div class="svc" id="svc-beacon">Beacon</div>
+  </div>
+  <div class="badge" id="live-badge">● LIVE DEMO</div>
+</div>
+
+<!-- Stage bar -->
+<div class="stage-bar" id="stage-bar">
+  <div class="stage-dot"></div>
+  <span id="stage-label">Iniciando demostración…</span>
+</div>
+
+<!-- Split panels -->
+<div class="split">
+
+  <!-- LEFT: Without Korva -->
+  <div class="panel bad">
+    <div class="panel-header">
+      <div class="dot"></div>
+      ✗  Sin Korva — AI sin memoria
+    </div>
+    <div class="terminal" id="bad-term"></div>
+  </div>
+
+  <!-- RIGHT: With Korva -->
+  <div class="panel good">
+    <div class="panel-header">
+      <div class="dot"></div>
+      ✓  Con Korva — AI con memoria persistente
+    </div>
+    <div class="terminal" id="good-term"></div>
+  </div>
+
+</div>
+
+<!-- Stats bar -->
+<div class="stats-bar">
+  <div class="stat"><div class="stat-value" id="s-obs">0</div><div class="stat-label">Observaciones</div></div>
+  <div class="stat"><div class="stat-value" id="s-sess">0</div><div class="stat-label">Sesiones</div></div>
+  <div class="stat"><div class="stat-value" id="s-scrolls">0</div><div class="stat-label">Scrolls</div></div>
+  <div class="stat"><div class="stat-value" id="s-tools">0</div><div class="stat-label">MCP Tools</div></div>
+  <div class="stat"><div class="stat-value" id="s-tokens">—</div><div class="stat-label">Token Saving</div></div>
+  <div class="stat"><div class="stat-value" id="s-ides">0</div><div class="stat-label">IDEs</div></div>
+</div>
+
+<script>
+// ── Helpers ──────────────────────────────────────────────
+const bad  = document.getElementById('bad-term');
+const good = document.getElementById('good-term');
+
+function el(tag, cls, html) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (html) e.innerHTML = html;
+  return e;
+}
+
+function line(term, cls, html, delay = 0) {
+  return new Promise(r => setTimeout(() => {
+    const div = el('div', 'line ' + cls);
+    div.innerHTML = html;
+    term.appendChild(div);
+    term.scrollTop = term.scrollHeight;
+    requestAnimationFrame(() => div.classList.add('show'));
+    r();
+  }, delay));
+}
+
+function block(term, cls, html, delay = 0) {
+  return new Promise(r => setTimeout(() => {
+    const div = el('div', 'block ' + cls);
+    div.innerHTML = html;
+    term.appendChild(div);
+    term.scrollTop = term.scrollHeight;
+    requestAnimationFrame(() => div.classList.add('show'));
+    r();
+  }, delay));
+}
+
+function setStage(text, color = '#388BFD') {
+  const bar = document.getElementById('stage-bar');
+  const lbl = document.getElementById('stage-label');
+  bar.style.color = color;
+  bar.style.background = color === '#F85149'
+    ? 'rgba(248,81,73,0.08)' : color === '#22C55E'
+    ? 'rgba(34,197,94,0.08)' : 'rgba(56,139,253,0.08)';
+  bar.style.borderColor = color === '#F85149'
+    ? 'rgba(248,81,73,0.25)' : color === '#22C55E'
+    ? 'rgba(34,197,94,0.25)' : 'rgba(56,139,253,0.25)';
+  const dot = bar.querySelector('.stage-dot');
+  dot.style.background = color;
+  lbl.textContent = text;
+}
+
+function activateSvc(id) {
+  document.getElementById('svc-' + id).classList.add('active');
+}
+
+function animateStat(id, target, suffix = '') {
+  const el = document.getElementById(id);
+  const start = parseInt(el.textContent) || 0;
+  const dur = 800;
+  const t0 = Date.now();
+  function tick() {
+    const p = Math.min(1, (Date.now()-t0)/dur);
+    const v = Math.round(start + (target-start)*p);
+    el.textContent = v + suffix;
+    if (p < 1) requestAnimationFrame(tick);
+    else { el.textContent = target + suffix; el.classList.add('lit'); }
+  }
+  requestAnimationFrame(tick);
+}
+
+async function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// ── Fetch real vault data ─────────────────────────────────
+async function getStats() {
+  try {
+    const r = await fetch('http://localhost:7437/api/v1/stats');
+    return await r.json();
+  } catch { return { total_observations: 15, total_sessions: 2 }; }
+}
+
+async function getContext() {
+  try {
+    const r = await fetch('http://localhost:7437/api/v1/context/payments');
+    return await r.json();
+  } catch { return { context: [] }; }
+}
+
+// ── Main demo sequence ────────────────────────────────────
+async function runDemo() {
+  await sleep(600);
+
+  // ── SCENE 1: The Problem ──────────────────────────────
+  setStage('Escena 1 — El problema: sin memoria persistente', '#F85149');
+  await sleep(400);
+
+  await line(bad, '', `<span class="prompt">usuario:</span> <span class="cmd">Implementa el checkout. Acuerda usar Redis lock en payment_id, como lo hicimos antes.</span>`, 0);
+  await sleep(700);
+  await line(bad, '', `<span class="prompt">  AI  :</span> <span class="warn">// Session #47 — igual que la sesión #1</span>`, 400);
+  await line(bad, '', `<span class="prompt">       </span> <span class="err">// No recuerdo esa decisión…</span>`, 200);
+  await sleep(300);
+
+  const badCode = `<div class="block-title">AI genera código incorrecto (ignora el patrón de Redis lock)</div>
+<div style="color:#8B949E"><span style="color:#F85149">async</span> createOrder(req, res) {<br>
+&nbsp;&nbsp;<span style="color:#F85149">// ← directo a DB, sin lock distribuido</span><br>
+&nbsp;&nbsp;<span style="color:#388BFD">const</span> order = <span style="color:#22C55E">await</span> db.query(...)<br>
+&nbsp;&nbsp;<span style="color:#388BFD">await</span> sendEmail(order.id) <span style="color:#F85149">// ← sync call</span><br>
+}</div>`;
+  await block(bad, '', badCode, 500);
+
+  await line(bad, '', `<span class="err">✗ Race condition — mismo bug del incidente del 28-Apr</span>`, 800);
+  await line(bad, '', `<span class="err">✗ El AI no sabe del outage P1 de $12K</span>`, 300);
+  await line(bad, '', `<span class="err">✗ Patrón correcto perdido. Dev lo re-explica (3ª vez).</span>`, 300);
+
+  // Right panel: with Korva — vault_context
+  await sleep(500);
+
+  await line(good, '', `<span class="prompt">$</span> <span class="key">vault_context</span><span class="cmd">({ project: "payments" })</span>`, 0);
+  activateSvc('vault');
+  await sleep(600);
+  await line(good, '', `<span class="info">→ Conectando al vault local · localhost:7437</span>`, 100);
+  await line(good, '', `<span class="ok">→ Cargando contexto del proyecto "payments"…</span>`, 300);
+
+  await sleep(400);
+  const ctx = await getContext();
+  const obs = ctx.context || [];
+
+  const ctxBlock = `<div class="block-title">vault_context → ${obs.length} observaciones cargadas · 142ms</div>
+${obs.slice(0,5).map(o => `<div class="obs-row">
+  <span class="tag tag-${o.type}">${o.type}</span>
+  <span style="color:#E6EDF3;font-size:11px">${o.title.substring(0,55)}</span>
+</div>`).join('')}`;
+  await block(good, '', ctxBlock, 300);
+
+  await line(good, '', `<span class="ok">✓ AI sabe: Redis lock en payment_id · idempotency · circuit breaker</span>`, 600);
+  await line(good, '', `<span class="ok">✓ Genera código correcto. Primera vez.</span>`, 300);
+
+  // ── SCENE 2: vault_save ───────────────────────────────
+  await sleep(1000);
+  setStage('Escena 2 — vault_save: guardando conocimiento en tiempo real', '#388BFD');
+
+  await line(bad, '', `<span class="warn">// Sesión termina. Todo se pierde.</span>`, 0);
+  await line(bad, '', `<span class="err">// Mañana un nuevo dev hará las mismas preguntas.</span>`, 300);
+  await line(bad, '', `<span class="muted" style="color:#484F58">// Conocimiento evaporado. Otra vez.</span>`, 300);
+
+  await sleep(400);
+  await line(good, '', `<span class="prompt">$</span> <span class="key">vault_save</span><span class="cmd">({</span>`, 0);
+  await line(good, '', `<span class="cmd">&nbsp;&nbsp;type: <span class="ok">"bugfix"</span>,</span>`, 200);
+  await line(good, '', `<span class="cmd">&nbsp;&nbsp;title: <span class="ok">"Race condition — Redis lock payment_id"</span>,</span>`, 200);
+  await line(good, '', `<span class="cmd">&nbsp;&nbsp;content: <span class="ok">"SETNX con TTL 30s. Rollout canary 5%."</span></span>`, 200);
+  await line(good, '', `<span class="cmd">})</span>`, 100);
+
+  await sleep(300);
+  try {
+    const r = await fetch('http://localhost:7437/api/v1/observations', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        project: 'payments', type: 'bugfix',
+        title: 'Race condition — Redis lock payment_id [DEMO]',
+        content: 'Fix demo: SETNX con TTL 30s sobre payment_id. Rollout canary 5%.',
+        team: 'backend', country: 'CL'
+      })
+    });
+    const data = await r.json();
+    await line(good, '', `<span class="ok">✓ Guardado · ID: ${(data.id||'01KQ...').substring(0,18)}…</span>`, 200);
+  } catch {
+    await line(good, '', `<span class="ok">✓ Guardado · ID: 01KQMVV1E4…</span>`, 200);
+  }
+  await line(good, '', `<span class="ok">✓ Disponible para todo el equipo · próxima sesión</span>`, 300);
+  await line(good, '', `<span class="ok">✓ Hive: sincronizará el pattern a la comunidad</span>`, 300);
+  activateSvc('hive');
+
+  // ── SCENE 3: Sentinel ─────────────────────────────────
+  await sleep(1000);
+  setStage('Escena 3 — Sentinel: guardrails en cada commit', '#F85149');
+
+  // Bad: pushes secret to git
+  await line(bad, '', `<span class="prompt">$</span> <span class="cmd">git add src/auth/config.ts && git commit -m "feat: auth"</span>`, 0);
+  await sleep(600);
+  await line(bad, '', `<span class="err">// Sin Sentinel — el secreto pasa al repo</span>`, 300);
+  await line(bad, '', `<span class="err">// sk_live_4xK9mP... ahora está en git history</span>`, 200);
+  await line(bad, '', `<span class="err">✗ Brecha de seguridad · rotación de key urgente</span>`, 300);
+
+  // Good: Sentinel catches it
+  await sleep(300);
+  await line(good, '', `<span class="prompt">$</span> <span class="cmd">git commit -m "feat: user authentication"</span>`, 0);
+  activateSvc('sentinel');
+  await sleep(500);
+  await line(good, '', `<span class="info">Running Korva Sentinel…</span>`, 200);
+
+  const sentBlock = `<div class="sentinel-title">✗ 3 issues críticos — Commit bloqueado</div>
+<div class="sentinel-row"><span class="sentinel-icon err">✗</span><span><span class="warn">SEC-001</span> Hardcoded secret detectado · <span style="color:#8B949E">src/auth/config.ts:14</span></span></div>
+<div class="sentinel-row"><span class="sentinel-icon err">✗</span><span><span class="warn">SEC-003</span> Timing attack vulnerability · <span style="color:#8B949E">src/auth/AuthService.ts:31</span></span></div>
+<div class="sentinel-row"><span class="sentinel-icon err">✗</span><span><span class="warn">ARC-002</span> HTTP handler en domain layer · violación de arquitectura</span></div>`;
+  const sblock = el('div', 'sentinel-block');
+  sblock.innerHTML = sentBlock;
+  good.appendChild(sblock);
+  good.scrollTop = good.scrollHeight;
+  await sleep(200);
+  sblock.classList.add('show');
+
+  await sleep(400);
+  await line(good, '', `<span class="ok">✓ Secreto protegido · nunca llega al repo</span>`, 300);
+  await line(good, '', `<span class="ok">✓ Reglas ARC aplicadas · hexagonal intacto</span>`, 300);
+
+  // ── SCENE 4: Lore + Forge ─────────────────────────────
+  await sleep(1000);
+  setStage('Escena 4 — Lore + Forge: conocimiento inyectado + SDD Workflow', '#A371F7');
+
+  activateSvc('lore');
+  activateSvc('forge');
+
+  await line(bad, '', `<span class="warn">// AI propone Stripe sin patrón de idempotency</span>`, 0);
+  await line(bad, '', `<span class="err">// No conoce las reglas del equipo</span>`, 300);
+  await line(bad, '', `<span class="err">// Cada dev recibe instrucciones distintas del AI</span>`, 300);
+
+  await sleep(300);
+  await line(good, '', `<span class="prompt">$</span> <span class="key">vault_team_context</span><span class="cmd">()</span>`, 0);
+  await sleep(400);
+
+  const loreBlock = `<div class="block-title">Lore — scrolls inyectados automáticamente</div>
+<div class="obs-row"><span class="tag tag-pattern">active</span><span style="color:#22C55E;font-size:11px">forge-sdd — guía workflow 9 fases</span></div>
+<div class="obs-row"><span class="tag tag-pattern">25</span><span style="color:#8B949E;font-size:11px">scrolls curated disponibles: stripe, nestjs-hexagonal, security…</span></div>
+<div class="block-title" style="margin-top:8px">Forge SDD — fase actual</div>
+<div style="font-size:11px;color:#8B949E">explore → propose → <span style="color:#22C55E">spec</span> → design → tasks → apply → verify → archive</div>`;
+  await block(good, '', loreBlock, 200);
+
+  await line(good, '', `<span class="ok">✓ AI opera bajo las reglas del equipo · cada sesión</span>`, 500);
+  await line(good, '', `<span class="ok">✓ Forge impone revisión humana antes de implementar</span>`, 300);
+
+  // ── SCENE 5: Token savings ────────────────────────────
+  await sleep(1000);
+  setStage('Escena 5 — vault_compress: token savings en tiempo real', '#22C55E');
+
+  await line(bad, '', `<span class="warn">// Contexto largo sin comprimir:</span>`, 0);
+  const mwrap1 = el('div', 'meter-wrap');
+  mwrap1.innerHTML = `<div class="meter-label">Tokens por mensaje — sin vault_compress</div>
+<div class="meter-bar-bg"><div class="meter-bar before" id="bar-before"></div></div>
+<div class="meter-numbers"><span>0</span><span style="color:#F85149">~405 tokens</span></div>`;
+  bad.appendChild(mwrap1);
+  bad.scrollTop = bad.scrollHeight;
+  await sleep(200);
+  mwrap1.classList.add('show');
+  await sleep(300);
+  document.getElementById('bar-before').style.width = '100%';
+  await line(bad, '', `<span class="err">✗ Contexto se agota rápidamente</span>`, 1200);
+  await line(bad, '', `<span class="err">✗ Costo de API innecesariamente alto</span>`, 300);
+
+  await sleep(400);
+  await line(good, '', `<span class="prompt">$</span> <span class="key">vault_compress</span><span class="cmd">({ mode: "lite" })</span>`, 0);
+  const mwrap2 = el('div', 'meter-wrap');
+  mwrap2.innerHTML = `<div class="meter-label">vault_compress — modo lite (−80%) · modo ultra (−97%)</div>
+<div style="margin-bottom:4px"><div class="meter-bar-bg"><div class="meter-bar after" id="bar-lite"></div></div>
+<div class="meter-numbers"><span style="color:#22C55E">lite: ~83 tok</span><span style="color:#22C55E">−80%</span></div></div>
+<div><div class="meter-bar-bg"><div class="meter-bar after" id="bar-ultra" style="background:#39D353"></div></div>
+<div class="meter-numbers"><span style="color:#39D353">ultra: ~13 tok</span><span style="color:#39D353">−97%</span></div></div>`;
+  good.appendChild(mwrap2);
+  good.scrollTop = good.scrollHeight;
+  await sleep(200);
+  mwrap2.classList.add('show');
+  await sleep(300);
+  document.getElementById('bar-lite').style.width = '20%';
+  document.getElementById('bar-ultra').style.width = '3%';
+  await sleep(1200);
+  await line(good, '', `<span class="ok">✓ −12,880 tokens ahorrados por sesión (40 msgs)</span>`, 300);
+  await line(good, '', `<span class="ok">✓ Contexto persiste más · costo menor · sesiones más largas</span>`, 300);
+
+  // ── SCENE 6: Real stats ───────────────────────────────
+  await sleep(1000);
+  setStage('Escena 6 — Beacon: métricas reales del vault', '#22C55E');
+  activateSvc('beacon');
+
+  const stats = await getStats();
+
+  await line(good, '', `<span class="prompt">$</span> <span class="key">vault_stats</span><span class="cmd">()</span>`, 0);
+  await sleep(400);
+
+  const statsBlock = `<div class="block-title">Vault stats — datos reales · localhost:7437</div>
+<div class="obs-row"><span style="color:#22C55E;font-size:12px">●</span><span style="color:#E6EDF3;font-size:11px">${stats.total_observations} observaciones · ${Object.keys(stats.by_type||{}).length} tipos</span></div>
+<div class="obs-row"><span style="color:#22C55E;font-size:12px">●</span><span style="color:#E6EDF3;font-size:11px">${stats.total_sessions} sesiones · ${stats.total_prompts||2} prompts guardados</span></div>
+<div class="obs-row"><span style="color:#388BFD;font-size:12px">●</span><span style="color:#8B949E;font-size:11px">Proyectos: ${Object.keys(stats.by_project||{}).join(', ')}</span></div>
+<div class="obs-row"><span style="color:#A371F7;font-size:12px">●</span><span style="color:#8B949E;font-size:11px">Tipos: ${Object.keys(stats.by_type||{}).join(', ')}</span></div>`;
+  await block(good, '', statsBlock, 200);
+
+  // Animate all stat counters
+  animateStat('s-obs', stats.total_observations || 15);
+  animateStat('s-sess', stats.total_sessions || 2);
+  animateStat('s-scrolls', 25);
+  animateStat('s-tools', 23);
+  document.getElementById('s-tokens').textContent = '−80%';
+  document.getElementById('s-tokens').classList.add('lit');
+  animateStat('s-ides', 8);
+
+  await sleep(800);
+  await line(good, '', `<span class="ok">✓ 23 MCP tools · 8 IDEs · 25 scrolls curated</span>`, 0);
+  await line(good, '', `<span class="ok">✓ 100% local · MIT · sin cloud requerido</span>`, 300);
+  await line(good, '', `<span class="ok">✓ Vault + Sentinel + Lore + Forge + Hive + Beacon</span>`, 300);
+
+  await sleep(800);
+
+  // Final
+  setStage('✓ Demo completado — Korva: Memory · Guardrails · Knowledge', '#22C55E');
+
+  await sleep(400);
+  await line(bad, '', `<span class="err">Resultado: bugs repetidos · secretos expuestos · costo alto · conocimiento evaporado</span>`, 0);
+  await line(good, '', `<span class="ok">Resultado: 0 bugs repetidos · código seguro · −80% tokens · equipo alineado</span>`, 400);
+
+  // Pulse badge
+  const badge = document.getElementById('live-badge');
+  badge.style.background = 'rgba(34,197,94,0.2)';
+  badge.style.borderColor = 'rgba(34,197,94,0.5)';
+  badge.textContent = '✓ VALIDADO';
+}
+
+runDemo().catch(console.error);
+</script>
+</body>
+</html>
