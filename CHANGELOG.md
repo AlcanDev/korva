@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.4.0](https://github.com/AlcanDev/korva/compare/v1.3.0...v1.4.0) (2026-05-05)
+
+
+### 🚀 Features
+
+* **vault:** topic_key upsert, vault_update/relate/capture/merge, project auto-detection ([82e0aca](https://github.com/AlcanDev/korva/commit/82e0acaaece87d2ee0588902fa86102fb59f38e5))
+
+
+### 🐛 Bug Fixes
+
+* **vault:** apply gofmt to models.go relation constants ([e7a5fa8](https://github.com/AlcanDev/korva/commit/e7a5fa8bd4f8178a374c137fd98eecca66d9db68))
+
 ## [1.3.0](https://github.com/AlcanDev/korva/compare/v1.2.0...v1.3.0) (2026-05-05)
 
 
