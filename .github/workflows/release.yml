@@ -90,14 +90,10 @@ jobs:
         id: flags
         env:
           HAS_GPG: ${{ secrets.GPG_PRIVATE_KEY != '' }}
-          HAS_BREW: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN != '' }}
         run: |
-          args="release --clean"
+          args="release --clean --skip=homebrew"
           if [ "$HAS_GPG" != "true" ]; then
             args="$args --skip=sign"
-          fi
-          if [ "$HAS_BREW" != "true" ]; then
-            args="$args --skip=homebrew"
           fi
           echo "args=$args" >> "$GITHUB_OUTPUT"
           echo "Resolved args: $args"
