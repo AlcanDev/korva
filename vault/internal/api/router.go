@@ -2,8 +2,10 @@
 package api
 
 import (
+	"compress/gzip"
 	"context"
 	"encoding/json"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -92,6 +94,13 @@ func Router(ctx context.Context, s *store.Store, cfg RouterConfig) http.Handler 
 	mux.HandleFunc("GET /healthz", healthz)
 	mux.HandleFunc("GET /api/v1/status", withCORS(statusHandler(s, lic)))
 	mux.HandleFunc("GET /api/v1/metrics", withCORS(metricsHandler(s)))
+
+	// --- Hive-compatible ingest API (/v1/...) ---
+	// These routes mirror the paths used by the Hive client so that any deployed
+	// Korva vault can act as a Hive sync target without a separate backend.
+	mux.HandleFunc("GET /v1/health", withCORS(http.HandlerFunc(hiveHealth)))
+	mux.HandleFunc("POST /v1/observations/batch", withBodyLimit(withCORS(hiveBatchIngest(s))))
+	mux.HandleFunc("GET /v1/search", withCORS(searchObservations(s, cfg.HiveClient)))
 
 	// Observations
 	mux.HandleFunc("POST /api/v1/observations", withBodyLimit(withCORS(saveObservation(s, cfg.WebhookURL))))
@@ -618,4 +627,85 @@ func withCORS(h http.Handler) http.HandlerFunc {
 		}
 		h.ServeHTTP(w, r)
 	}
+}
+
+// ── Hive-compatible ingest endpoints (/v1/...) ───────────────────────────────
+// These allow any Korva vault instance to act as a sync target for the Hive
+// client without requiring a separate cloud backend.
+
+// hiveHealth responds to GET /v1/health with a JSON ok so the Hive client's
+// online probe passes.
+func hiveHealth(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+// hiveBatchIngest accepts a gzip-encoded BatchRequest from the Hive client and
+// saves each observation into the local vault. Duplicate content-hashes are
+// silently skipped (the store dedup guard handles them).
+func hiveBatchIngest(s *store.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var body []byte
+		var err error
+
+		if r.Header.Get("Content-Encoding") == "gzip" {
+			gr, e := newGzipReader(r.Body)
+			if e != nil {
+				writeError(w, http.StatusBadRequest, "invalid gzip body")
+				return
+			}
+			defer gr.Close()
+			body, err = readLimited(gr, maxBodyBytes)
+		} else {
+			body, err = readLimited(r.Body, maxBodyBytes)
+		}
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "could not read body")
+			return
+		}
+
+		// BatchRequest: {client_id, batch_id, schema, observations:[]}
+		// Each observation is a map — we extract only the fields the store needs.
+		var batch struct {
+			Observations []json.RawMessage `json:"observations"`
+		}
+		if err := json.Unmarshal(body, &batch); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid batch JSON")
+			return
+		}
+
+		accepted := 0
+		var skipped []string
+		for _, raw := range batch.Observations {
+			var obs store.Observation
+			if err := json.Unmarshal(raw, &obs); err != nil {
+				skipped = append(skipped, "parse_error")
+				continue
+			}
+			if obs.Title == "" || obs.Content == "" {
+				skipped = append(skipped, obs.ID)
+				continue
+			}
+			if obs.Type == "" {
+				obs.Type = store.TypeLearning
+			}
+			if _, err := s.Save(obs); err != nil {
+				skipped = append(skipped, obs.ID)
+				continue
+			}
+			accepted++
+		}
+
+		writeJSON(w, http.StatusOK, map[string]any{
+			"accepted": accepted,
+			"skipped":  skipped,
+		})
+	}
+}
+
+func newGzipReader(r io.Reader) (*gzip.Reader, error) {
+	return gzip.NewReader(r)
+}
+
+func readLimited(r io.Reader, limit int64) ([]byte, error) {
+	return io.ReadAll(io.LimitReader(r, limit))
 }
