@@ -1,17 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { useAdminStore } from '@/stores/admin'
-
-const BASE = '/vault-api'
-
-async function adminFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const key = useAdminStore.getState().key
-  const res = await fetch(BASE + path, {
-    ...options,
-    headers: { 'Content-Type': 'application/json', 'X-Admin-Key': key, ...options.headers },
-  })
-  if (!res.ok) throw new Error(`${res.status}`)
-  return res.json() as Promise<T>
-}
+import { adminFetch } from './_fetch'
 
 export interface Skill {
   id: string

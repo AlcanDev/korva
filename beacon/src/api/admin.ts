@@ -7,17 +7,14 @@ const BASE = '/vault-api'
 
 async function adminFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
   const { key, sessionToken, authMode } = useAdminStore.getState()
-  const authHeader = authMode === 'session'
-    ? { 'X-Session-Token': sessionToken }
-    : { 'X-Admin-Key': key }
-  const res = await fetch(BASE + path, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...authHeader,
-      ...options.headers,
-    },
-  })
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  if (authMode === 'session') {
+    headers['X-Session-Token'] = sessionToken
+  } else {
+    headers['X-Admin-Key'] = key
+  }
+  if (options.headers) Object.assign(headers, options.headers)
+  const res = await fetch(BASE + path, { ...options, headers })
   if (res.status === 401 || res.status === 403) {
     throw new Error('UNAUTHORIZED')
   }
