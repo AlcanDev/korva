@@ -6,12 +6,15 @@ const BASE = '/vault-api'
 // ── Admin-authenticated fetch ─────────────────────────────────────────────────
 
 async function adminFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const key = useAdminStore.getState().key
+  const { key, sessionToken, authMode } = useAdminStore.getState()
+  const authHeader = authMode === 'session'
+    ? { 'X-Session-Token': sessionToken }
+    : { 'X-Admin-Key': key }
   const res = await fetch(BASE + path, {
     ...options,
     headers: {
       'Content-Type': 'application/json',
-      'X-Admin-Key': key,
+      ...authHeader,
       ...options.headers,
     },
   })
@@ -197,4 +200,15 @@ export async function checkAdminKey(key: string): Promise<boolean> {
     headers: { 'X-Admin-Key': key },
   })
   return res.ok
+}
+
+// checkSessionToken verifies a session token has role=admin.
+// Calls GET /auth/me and checks the returned role field.
+export async function checkSessionToken(token: string): Promise<boolean> {
+  const res = await fetch(`${BASE}/auth/me`, {
+    headers: { 'X-Session-Token': token },
+  })
+  if (!res.ok) return false
+  const data = await res.json() as { role?: string }
+  return data.role === 'admin'
 }

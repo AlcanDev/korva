@@ -12,7 +12,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/alcandev/korva/internal/admin"
 	"github.com/alcandev/korva/internal/hive"
 	"github.com/alcandev/korva/internal/license"
 	"github.com/alcandev/korva/internal/privacy/cloud"
@@ -138,7 +137,7 @@ func Router(ctx context.Context, s *store.Store, cfg RouterConfig) http.Handler 
 
 	// --- Admin-protected endpoints (X-Admin-Key required) ---
 
-	adminMW := admin.MiddlewareWithOverride(cfg.AdminKeyPath, cfg.AdminKeyOverride)
+	adminMW := withAdminOrSessionAdmin(cfg.AdminKeyPath, cfg.AdminKeyOverride, s)
 	const actor = "admin"
 
 	// OpenSpec PUT + SDD PUT (write requires admin key)

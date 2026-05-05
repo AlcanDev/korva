@@ -63,6 +63,12 @@ export const es = {
     errorVault: 'No se pudo conectar al Vault. Asegúrate de que korva-vault esté en ejecución.',
     keyTooShort: 'La clave parece muy corta — las claves de admin suelen tener 32+ caracteres.',
     rateLimited: (seconds: number) => `Demasiados intentos fallidos — intenta de nuevo en ${seconds}s.`,
+    tabKey: 'Clave Admin',
+    tabSession: 'Token de Sesión',
+    sessionLabel: 'Token de Sesión',
+    sessionPlaceholder: 'Pega tu token de sesión…',
+    sessionHint: 'Obtenido con korva auth redeem — tu rol en el equipo debe ser admin.',
+    errorSession: 'Token de sesión inválido o rol insuficiente (se requiere admin).',
   },
   license: {
     title: 'Licencia',
