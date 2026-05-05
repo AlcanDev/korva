@@ -740,6 +740,12 @@ func (s *Server) toolContext(args map[string]any) (any, error) {
 		}
 	}
 
+	// Update notice: if the CLI has cached a newer available version, surface it
+	// here so the AI can proactively inform the developer without any extra toolcall.
+	if notice := readUpdateNotice(); notice != nil {
+		resp["update_notice"] = notice
+	}
+
 	// Hybrid cloud context (Korva Hive): when a CloudSearcher is configured,
 	// query it in parallel with the local result set using a hard 3-second
 	// timeout. If the cloud is unreachable or returns an error we degrade
@@ -799,6 +805,59 @@ func estimateTokens(obs []store.Observation) int {
 		total += (len(o.Title) + len(o.Content) + 60) / 4
 	}
 	return total
+}
+
+// readUpdateNotice reads the CLI's version cache and returns a notice map when
+// a newer version is available. Returns nil if up-to-date or cache is missing.
+// This is fire-and-forget: any error is silently ignored.
+func readUpdateNotice() map[string]any {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return nil
+	}
+	cachePath := filepath.Join(home, ".korva", "version.check")
+	data, err := os.ReadFile(cachePath)
+	if err != nil {
+		return nil
+	}
+
+	var c struct {
+		Latest       string    `json:"latest"`
+		ReleaseNotes string    `json:"release_notes"`
+		ReleaseURL   string    `json:"release_url"`
+		LastCheck    time.Time `json:"last_check"`
+	}
+	if err := json.Unmarshal(data, &c); err != nil || c.Latest == "" {
+		return nil
+	}
+	// Only surface if the cached check is fresh (< 48 h) and different from running version.
+	if time.Since(c.LastCheck) > 48*time.Hour {
+		return nil
+	}
+	current := strings.TrimPrefix(version.Version, "v")
+	latest := strings.TrimPrefix(c.Latest, "v")
+	if latest == current || current == "dev" {
+		return nil
+	}
+
+	notice := map[string]any{
+		"available_version": "v" + latest,
+		"current_version":   version.Version,
+		"upgrade_command":   "korva update --yes",
+		"message":           "A new version of Korva is available. Inform the developer and suggest running `korva update --yes`.",
+	}
+	if c.ReleaseURL != "" {
+		notice["release_url"] = c.ReleaseURL
+	}
+	// Include a compact what's-new summary if available (first 300 chars).
+	if c.ReleaseNotes != "" {
+		notes := c.ReleaseNotes
+		if len(notes) > 300 {
+			notes = notes[:300] + "…"
+		}
+		notice["whats_new"] = notes
+	}
+	return notice
 }
 
 // toolTeamContext returns the team's custom skills and private scrolls.

@@ -23,8 +23,9 @@ import (
 )
 
 var updateFlags struct {
-	yes   bool // skip confirmation prompt
-	check bool // only check, don't install
+	yes       bool // skip confirmation prompt
+	check     bool // only check, don't install
+	changelog bool // show release notes without installing
 }
 
 var updateCmd = &cobra.Command{
@@ -38,8 +39,9 @@ The release archive is verified against the official SHA256 checksums
 before any binary is replaced.
 
 Flags:
-  --check   Only check for a newer version — do not download or install.
-  --yes     Skip the confirmation prompt and install automatically.
+  --check      Only check for a newer version — do not download or install.
+  --changelog  Show full release notes without installing.
+  --yes        Skip the confirmation prompt and install automatically.
 
 Environment:
   KORVA_NO_UPDATE_CHECK=1   Disable automatic update hints at startup.`,
@@ -49,6 +51,7 @@ Environment:
 func init() {
 	updateCmd.Flags().BoolVar(&updateFlags.yes, "yes", false, "skip confirmation prompt")
 	updateCmd.Flags().BoolVar(&updateFlags.check, "check", false, "only check, do not install")
+	updateCmd.Flags().BoolVar(&updateFlags.changelog, "changelog", false, "show release notes without installing")
 }
 
 func runUpdate(_ *cobra.Command, _ []string) error {
@@ -56,7 +59,7 @@ func runUpdate(_ *cobra.Command, _ []string) error {
 	fmt.Printf("  Current version : %s\n", current)
 	fmt.Printf("  Checking        : https://github.com/AlcanDev/korva/releases …\n\n")
 
-	latest, releaseURL, err := fetchLatestRelease()
+	latest, releaseURL, releaseBody, err := fetchLatestRelease()
 	if err != nil {
 		return fmt.Errorf("checking for updates: %w", err)
 	}
@@ -75,10 +78,18 @@ func runUpdate(_ *cobra.Command, _ []string) error {
 	fmt.Printf("  → New version available: %s\n", latest)
 	fmt.Printf("    Release notes: %s\n\n", releaseURL)
 
-	if updateFlags.check {
-		printUpgradeHint()
+	if updateFlags.changelog || updateFlags.check {
+		printReleaseNotes(releaseBody, true)
+		if !updateFlags.changelog {
+			fmt.Println()
+			printUpgradeHint()
+		}
 		return nil
 	}
+
+	// Show a compact "what's new" preview before asking to install.
+	printReleaseNotes(releaseBody, false)
+	fmt.Println()
 
 	if !updateFlags.yes {
 		fmt.Printf("  Install %s → %s? [y/N] ", current, latest)
@@ -90,7 +101,15 @@ func runUpdate(_ *cobra.Command, _ []string) error {
 		}
 	}
 
-	return installUpdate(latest)
+	if err := installUpdate(latest); err != nil {
+		return err
+	}
+
+	// Show what's new after a successful install.
+	fmt.Println()
+	fmt.Printf("  What's new in %s:\n", latest)
+	printReleaseNotes(releaseBody, false)
+	return nil
 }
 
 // installUpdate downloads, verifies, and installs the latest release.
@@ -191,7 +210,7 @@ func installUpdate(tag string) error {
 	}
 
 	// ── 7. Persist the new version check cache ────────────────────────────────
-	_ = saveVersionCache(normalizeTag(tag))
+	_ = saveVersionCache(normalizeTag(tag), "", "")
 
 	fmt.Printf("\n  ✓ Korva %s installed successfully!\n\n", tag)
 	fmt.Printf("    Run `korva version` to confirm.\n")
@@ -432,43 +451,44 @@ func downloadFile(url, path string) error {
 }
 
 // fetchLatestRelease queries GitHub Releases API.
-// Returns the tag name (e.g. "v1.2.3") and the HTML release URL.
-func fetchLatestRelease() (tag, htmlURL string, err error) {
+// Returns the tag name (e.g. "v1.2.3"), the HTML release URL, and the release body.
+func fetchLatestRelease() (tag, htmlURL, body string, err error) {
 	const apiURL = "https://api.github.com/repos/AlcanDev/korva/releases/latest"
 
 	client := &http.Client{Timeout: 10 * time.Second}
 	req, err := http.NewRequest("GET", apiURL, nil)
 	if err != nil {
-		return "", "", err
+		return "", "", "", err
 	}
 	req.Header.Set("Accept", "application/vnd.github+json")
 	req.Header.Set("User-Agent", fmt.Sprintf("korva-cli/%s (%s/%s)", version.Version, runtime.GOOS, runtime.GOARCH))
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return "", "", fmt.Errorf("network request failed: %w", err)
+		return "", "", "", fmt.Errorf("network request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusNotFound {
-		return "", "", fmt.Errorf("no releases published yet")
+		return "", "", "", fmt.Errorf("no releases published yet")
 	}
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return "", "", fmt.Errorf("GitHub API returned %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+		raw, _ := io.ReadAll(resp.Body)
+		return "", "", "", fmt.Errorf("GitHub API returned %d: %s", resp.StatusCode, strings.TrimSpace(string(raw)))
 	}
 
 	var release struct {
 		TagName string `json:"tag_name"`
 		HTMLURL string `json:"html_url"`
+		Body    string `json:"body"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&release); err != nil {
-		return "", "", fmt.Errorf("decoding GitHub response: %w", err)
+		return "", "", "", fmt.Errorf("decoding GitHub response: %w", err)
 	}
 	if release.TagName == "" {
-		return "", "", fmt.Errorf("unexpected response: missing tag_name")
+		return "", "", "", fmt.Errorf("unexpected response: missing tag_name")
 	}
-	return release.TagName, release.HTMLURL, nil
+	return release.TagName, release.HTMLURL, release.Body, nil
 }
 
 // normalizeTag strips a leading "v" so "v1.2.3" and "1.2.3" compare equal.
@@ -496,8 +516,10 @@ func printUpgradeHint() {
 // stored in ~/.korva/version.check (tiny JSON file).
 
 type versionCache struct {
-	LastCheck time.Time `json:"last_check"`
-	Latest    string    `json:"latest"`
+	LastCheck    time.Time `json:"last_check"`
+	Latest       string    `json:"latest"`
+	ReleaseNotes string    `json:"release_notes,omitempty"` // first ~400 chars of release body
+	ReleaseURL   string    `json:"release_url,omitempty"`
 }
 
 func versionCachePath() (string, error) {
@@ -524,17 +546,26 @@ func loadVersionCache() (*versionCache, error) {
 	return &c, nil
 }
 
-func saveVersionCache(latest string) error {
+func saveVersionCache(latest, releaseNotes, releaseURL string) error {
 	path, err := versionCachePath()
 	if err != nil {
 		return err
 	}
-	c := versionCache{LastCheck: time.Now(), Latest: latest}
+	notes := releaseNotes
+	if len(notes) > 600 {
+		notes = notes[:600]
+	}
+	c := versionCache{
+		LastCheck:    time.Now(),
+		Latest:       latest,
+		ReleaseNotes: notes,
+		ReleaseURL:   releaseURL,
+	}
 	data, _ := json.Marshal(c)
 	return os.WriteFile(path, data, 0o600)
 }
 
-// CheckUpdateHint prints a one-line hint to stderr when a newer version exists.
+// CheckUpdateHint prints an update hint to stderr when a newer version exists.
 // It reads/writes a 24-h cache at ~/.korva/version.check so it does not spam.
 // Called as a goroutine from the CLI root — never blocks the command.
 func CheckUpdateHint() {
@@ -548,10 +579,8 @@ func CheckUpdateHint() {
 	// Check the cache first — refresh at most once per 24 h.
 	if c, err := loadVersionCache(); err == nil {
 		if time.Since(c.LastCheck) < 24*time.Hour {
-			// Cache is fresh. Print hint if cached latest is newer.
 			if c.Latest != "" && normalizeTag(c.Latest) != normalizeTag(version.Version) {
-				fmt.Fprintf(os.Stderr, "\n  ℹ  Update available: %s → v%s  —  run `korva update`\n\n",
-					version.Version, c.Latest)
+				printUpdateBanner(c.Latest, c.ReleaseNotes, c.ReleaseURL, false)
 			}
 			return
 		}
@@ -575,16 +604,126 @@ func CheckUpdateHint() {
 
 	var release struct {
 		TagName string `json:"tag_name"`
+		Body    string `json:"body"`
+		HTMLURL string `json:"html_url"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&release); err != nil || release.TagName == "" {
 		return
 	}
 
 	latest := normalizeTag(release.TagName)
-	_ = saveVersionCache(latest)
+	_ = saveVersionCache(latest, release.Body, release.HTMLURL)
 
 	if latest != normalizeTag(version.Version) {
-		fmt.Fprintf(os.Stderr, "\n  ℹ  Update available: %s → v%s  —  run `korva update`\n\n",
-			version.Version, latest)
+		printUpdateBanner(latest, release.Body, release.HTMLURL, false)
 	}
+}
+
+// printUpdateBanner prints a styled update notification to stderr.
+// full=true shows all bullet points; false shows the first 3.
+func printUpdateBanner(latest, releaseNotes, releaseURL string, full bool) {
+	fmt.Fprintf(os.Stderr, "\n╭─────────────────────────────────────────────╮\n")
+	fmt.Fprintf(os.Stderr, "│  🚀  Korva %s is available  (you have %s)\n",
+		"v"+latest, version.Version)
+
+	bullets := extractBullets(releaseNotes)
+	if len(bullets) > 0 {
+		fmt.Fprintf(os.Stderr, "│\n│  What's new:\n")
+		limit := 3
+		if full || len(bullets) <= limit {
+			limit = len(bullets)
+		}
+		for _, b := range bullets[:limit] {
+			fmt.Fprintf(os.Stderr, "│    • %s\n", b)
+		}
+		if !full && len(bullets) > 3 {
+			fmt.Fprintf(os.Stderr, "│    … and %d more  (korva update --changelog)\n", len(bullets)-3)
+		}
+		fmt.Fprintf(os.Stderr, "│\n")
+	}
+
+	switch runtime.GOOS {
+	case "darwin", "linux":
+		fmt.Fprintf(os.Stderr, "│  brew upgrade alcandev/tap/korva\n")
+		fmt.Fprintf(os.Stderr, "│  korva update --yes\n")
+	case "windows":
+		fmt.Fprintf(os.Stderr, "│  korva update --yes\n")
+		fmt.Fprintf(os.Stderr, "│  irm https://korva.dev/install.ps1 | iex\n")
+	default:
+		fmt.Fprintf(os.Stderr, "│  korva update --yes\n")
+	}
+	if releaseURL != "" {
+		fmt.Fprintf(os.Stderr, "│  %s\n", releaseURL)
+	}
+	fmt.Fprintf(os.Stderr, "╰─────────────────────────────────────────────╯\n\n")
+}
+
+// printReleaseNotes formats and prints the GitHub release markdown body.
+// full=true prints everything; false prints first 3 bullets.
+func printReleaseNotes(body string, full bool) {
+	bullets := extractBullets(body)
+	if len(bullets) == 0 {
+		if body != "" {
+			lines := strings.Split(strings.TrimSpace(body), "\n")
+			limit := 5
+			if full || len(lines) <= limit {
+				limit = len(lines)
+			}
+			for _, l := range lines[:limit] {
+				fmt.Printf("    %s\n", l)
+			}
+		}
+		return
+	}
+
+	fmt.Printf("  What's new:\n")
+	limit := 3
+	if full || len(bullets) <= limit {
+		limit = len(bullets)
+	}
+	for _, b := range bullets[:limit] {
+		fmt.Printf("    • %s\n", b)
+	}
+	if !full && len(bullets) > 3 {
+		fmt.Printf("    … and %d more  (korva update --changelog)\n", len(bullets)-3)
+	}
+}
+
+// extractBullets pulls feature/fix lines from a GitHub release markdown body.
+// It extracts lines starting with "* " or "- " that contain real content.
+func extractBullets(body string) []string {
+	var out []string
+	for _, line := range strings.Split(body, "\n") {
+		line = strings.TrimSpace(line)
+		// Skip section headers and empty lines
+		if line == "" || strings.HasPrefix(line, "#") || strings.HasPrefix(line, "##") {
+			continue
+		}
+		// Extract bullet lines
+		text := ""
+		if strings.HasPrefix(line, "* ") {
+			text = strings.TrimPrefix(line, "* ")
+		} else if strings.HasPrefix(line, "- ") {
+			text = strings.TrimPrefix(line, "- ")
+		}
+		if text == "" {
+			continue
+		}
+		// Strip goreleaser commit-link suffixes: "thing ([abc123](url))"
+		if idx := strings.Index(text, " (["); idx > 0 {
+			text = strings.TrimSpace(text[:idx])
+		}
+		// Strip scope prefixes like "**feat(vault):**"
+		text = strings.TrimPrefix(text, "**")
+		if idx := strings.Index(text, "**"); idx > 0 {
+			text = strings.TrimSpace(text[idx+2:])
+		}
+		if len(text) > 80 {
+			text = text[:77] + "…"
+		}
+		if text != "" {
+			out = append(out, text)
+		}
+	}
+	return out
 }
