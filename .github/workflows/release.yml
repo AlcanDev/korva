@@ -112,3 +112,20 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
           GPG_FINGERPRINT: ${{ steps.import_gpg.outputs.fingerprint || '' }}
+
+      # Trigger a korva-ui rebuild so the published docs site reflects the new
+      # release version immediately. Requires KORVA_UI_DEPLOY_TOKEN secret:
+      # a fine-grained PAT with Actions: write scope on the AlcanDev/korva-ui repo.
+      - name: Trigger korva-ui rebuild
+        if: ${{ secrets.KORVA_UI_DEPLOY_TOKEN != '' }}
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.KORVA_UI_DEPLOY_TOKEN }}
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: 'AlcanDev',
+              repo: 'korva-ui',
+              workflow_id: 'ci.yml',
+              ref: 'main',
+            })
+            core.info('korva-ui rebuild triggered')
