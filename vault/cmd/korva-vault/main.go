@@ -356,7 +356,8 @@ func runHTTP(ctx context.Context, s *store.Store, cfg api.RouterConfig, host str
 		}
 
 		// Direct vault API paths (curl, CLI, MCP HTTP client)
-		if p == "/healthz" || strings.HasPrefix(p, "/api/") {
+		// /v1/ is the Hive-compatible ingest API (health + batch + search).
+		if p == "/healthz" || strings.HasPrefix(p, "/api/") || strings.HasPrefix(p, "/v1/") {
 			vaultAPI.ServeHTTP(w, r)
 			return
 		}
