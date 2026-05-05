@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.5.0](https://github.com/AlcanDev/korva/compare/v1.4.0...v1.5.0) (2026-05-05)
+
+
+### 🚀 Features
+
+* **admin:** multi-user access via session token (role=admin) ([a4c2845](https://github.com/AlcanDev/korva/commit/a4c2845b23e500e08ddf5a3386e437ca67595748))
+* **api:** add Hive-compatible ingest endpoints (/v1/health, /v1/observations/batch, /v1/search) ([284116a](https://github.com/AlcanDev/korva/commit/284116abd79cb1f62d341357d5d7f2d128f36134))
+
+
+### 🐛 Bug Fixes
+
+* **vault:** route /v1/* to vaultAPI handler, bypassing Beacon SPA catch-all ([9129686](https://github.com/AlcanDev/korva/commit/9129686cb4ba2c1f8fca841f09a0f27fc24d2be9))
+
 ## [1.4.0](https://github.com/AlcanDev/korva/compare/v1.3.0...v1.4.0) (2026-05-05)
 
 
