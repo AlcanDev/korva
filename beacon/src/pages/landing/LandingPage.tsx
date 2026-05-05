@@ -79,7 +79,7 @@ function Hero() {
           <div className="animate-fade-up" style={{ marginBottom: 24 }}>
             <span className="badge badge-green">
               <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--accent)', flexShrink: 0 }} />
-              v0.1.0 · MIT License · Open Source
+              v1.1.0 · MIT License · Open Source
             </span>
           </div>
 
