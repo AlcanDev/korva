@@ -2,6 +2,7 @@ package api
 
 import (
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/alcandev/korva/vault/internal/store"
@@ -73,5 +74,28 @@ func adminRevokeSession(s *store.Store, actor string) http.HandlerFunc {
 		}
 		writeAudit(s, actor, "revoke_session", sessionID, "", "")
 		writeJSON(w, http.StatusOK, map[string]string{"status": "revoked"})
+	}
+}
+
+// listSessions returns recent AI work sessions — public, non-sensitive aggregate data.
+//
+// GET /api/v1/sessions?limit=50
+func listSessions(s *store.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		limit := 50
+		if v := r.URL.Query().Get("limit"); v != "" {
+			if n, err := strconv.Atoi(v); err == nil && n > 0 && n <= 200 {
+				limit = n
+			}
+		}
+		sessions, err := s.ListSessionsWithStats(limit)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{
+			"sessions": sessions,
+			"total":    len(sessions),
+		})
 	}
 }

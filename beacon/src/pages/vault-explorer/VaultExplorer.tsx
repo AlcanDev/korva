@@ -62,7 +62,7 @@ export default function VaultExplorer() {
           className="bg-[#161b22] border border-[#30363d] rounded px-3 py-1.5 text-sm text-[#e6edf3] focus:outline-none focus:border-[#1f6feb]"
         >
           <option value="">All types</option>
-          {['decision', 'pattern', 'bugfix', 'learning', 'context', 'antipattern', 'task'].map((t) => (
+          {['decision', 'pattern', 'bugfix', 'learning', 'context', 'antipattern', 'task', 'feature', 'refactor', 'incident', 'discovery'].map((t) => (
             <option key={t} value={t}>{t}</option>
           ))}
         </select>

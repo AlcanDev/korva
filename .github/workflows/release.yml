@@ -6,6 +6,12 @@ on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to release (e.g. v1.1.0) — leave empty to use the current ref"
+        required: false
+        default: ""
 
 permissions:
   contents: write

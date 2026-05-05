@@ -47,6 +47,17 @@ export interface SearchResult {
   count: number
 }
 
+export interface SessionRow {
+  id: string
+  project: string
+  goal: string
+  agent: string
+  obs_count: number
+  started_at: string
+  ended_at?: string
+  duration_min: number
+}
+
 export interface ProjectSummary {
   project: string
   observations: number
@@ -119,6 +130,16 @@ export function useProjectSummary(project: string) {
       `/api/v1/summary/${encodeURIComponent(project)}`
     ),
     enabled: !!project,
+  })
+}
+
+// Sessions list
+export function useSessions(limit = 50) {
+  return useQuery({
+    queryKey: ['vault', 'sessions', limit],
+    queryFn: () => fetchJSON<{ sessions: SessionRow[]; total: number }>(
+      `/api/v1/sessions?limit=${limit}`
+    ),
   })
 }
 

@@ -101,6 +101,7 @@ func Router(ctx context.Context, s *store.Store, cfg RouterConfig) http.Handler 
 	mux.HandleFunc("GET /api/v1/timeline/{project}", withCORS(timeline(s)))
 
 	// Sessions
+	mux.HandleFunc("GET /api/v1/sessions", withCORS(listSessions(s)))
 	mux.HandleFunc("POST /api/v1/sessions", withBodyLimit(withCORS(startSession(s))))
 	mux.HandleFunc("PUT /api/v1/sessions/{id}", withBodyLimit(withCORS(endSession(s))))
 

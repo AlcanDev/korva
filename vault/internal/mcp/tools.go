@@ -3,7 +3,7 @@ package mcp
 // obsTypeEnum lists all valid observation types (used in tool schemas).
 var obsTypeEnum = []string{
 	"decision", "pattern", "bugfix", "learning", "context",
-	"antipattern", "task", "feature", "refactor", "discovery",
+	"antipattern", "task", "feature", "refactor", "discovery", "incident",
 }
 
 // tools returns the list of all MCP tools exposed by Vault.
