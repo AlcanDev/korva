@@ -148,9 +148,76 @@ type Observation struct {
 	Tags      []string        `json:"tags"`
 	Author    string          `json:"author"`
 	CreatedAt time.Time       `json:"created_at"`
+	// TopicKey is an optional stable identifier for upsert. When set, vault_save
+	// updates an existing observation with the same (project, topic_key) instead
+	// of inserting a new row — ideal for knowledge that evolves over sessions.
+	TopicKey string `json:"topic_key,omitempty"`
+	// WorkingDir is the filesystem directory recorded at save time.
+	// Used for project auto-detection audit trail.
+	WorkingDir string `json:"working_dir,omitempty"`
 	// ReasoningHint explains WHY this observation is relevant in the current search context.
 	// Populated by the search layer when why=true is passed; empty otherwise to avoid noise.
 	ReasoningHint string `json:"reasoning_hint,omitempty"`
+}
+
+// ── Observation relations ─────────────────────────────────────────────────────
+
+// RelationType represents a semantic link between two observations.
+type RelationType string
+
+const (
+	RelationSupersedes   RelationType = "supersedes"    // source replaces target (target is outdated)
+	RelationConflicts    RelationType = "conflicts_with" // source and target are contradictory
+	RelationRelated      RelationType = "related"        // topically related, no conflict
+	RelationCompatible   RelationType = "compatible"     // complementary, no conflict
+	RelationScoped       RelationType = "scoped"         // same topic but different scope/context
+)
+
+// AllRelationTypes lists all valid relation types.
+var AllRelationTypes = []string{
+	"supersedes", "conflicts_with", "related", "compatible", "scoped",
+}
+
+// Relation is a directed semantic link between two observations.
+type Relation struct {
+	ID        string       `json:"id"`
+	SourceID  string       `json:"source_id"`
+	TargetID  string       `json:"target_id"`
+	Relation  RelationType `json:"relation"`
+	Status    string       `json:"status"`  // confirmed | pending
+	Reason    string       `json:"reason,omitempty"`
+	Author    string       `json:"author,omitempty"`
+	Project   string       `json:"project"`
+	CreatedAt time.Time    `json:"created_at"`
+}
+
+// ObservationRelations holds all relations for a given observation.
+type ObservationRelations struct {
+	AsSource []Relation `json:"as_source"` // this obs is the source (supersedes, conflicts_with…)
+	AsTarget []Relation `json:"as_target"` // this obs is the target (superseded_by…)
+}
+
+// UpdateObservationParams holds the optional fields for vault_update.
+// Only non-nil / non-empty fields are applied.
+type UpdateObservationParams struct {
+	Title   *string
+	Content *string
+	Type    *ObservationType
+	Tags    []string
+}
+
+// ProjectStats is a compact summary of a project's knowledge.
+type ProjectStats struct {
+	Name             string `json:"name"`
+	ObservationCount int    `json:"observation_count"`
+	SessionCount     int    `json:"session_count"`
+}
+
+// CaptureResult holds the outcome of a vault_capture call.
+type CaptureResult struct {
+	Saved    int      `json:"saved"`
+	Skipped  int      `json:"skipped"` // duplicates or empty
+	IDs      []string `json:"ids"`
 }
 
 // Session represents a working session (a period of AI-assisted development).

@@ -20,16 +20,85 @@ func tools() []Tool {
 					"content": {Type: "string", Description: "Full content of the observation"},
 					"type": {Type: "string", Description: "Observation type",
 						Enum: obsTypeEnum},
-					"tags":       {Type: "array", Description: "List of relevant tags"},
-					"project":    {Type: "string", Description: "Project name (e.g., 'home-api')"},
-					"team":       {Type: "string", Description: "Team name (e.g., 'backend-seguros')"},
-					"country":    {Type: "string", Description: "Country code: CL, PE, CO, or ALL"},
-					"author":     {Type: "string", Description: "Author (developer username or AI agent name)"},
-					"session_id": {Type: "string", Description: "Active session ID (optional)"},
-					"dry_run":    {Type: "boolean", Description: "Preview the filtered content without saving (default: false)"},
-					"force":      {Type: "boolean", Description: "Save even if a similar observation already exists (bypass semantic dedup). Default: false."},
+					"tags":                  {Type: "array", Description: "List of relevant tags"},
+					"project":               {Type: "string", Description: "Project name (e.g., 'home-api')"},
+					"team":                  {Type: "string", Description: "Team name (e.g., 'backend-seguros')"},
+					"country":               {Type: "string", Description: "Country code: CL, PE, CO, or ALL"},
+					"author":                {Type: "string", Description: "Author (developer username or AI agent name)"},
+					"session_id":            {Type: "string", Description: "Active session ID (optional)"},
+					"dry_run":               {Type: "boolean", Description: "Preview the filtered content without saving (default: false)"},
+					"force":                 {Type: "boolean", Description: "Save even if a similar observation already exists (bypass semantic dedup). Default: false."},
+					"topic_key":             {Type: "string", Description: "Stable key for upsert: if an observation with the same (project, topic_key) exists it is updated in-place instead of creating a new entry. Ideal for evolving knowledge tracked across sessions."},
+					"working_dir":           {Type: "string", Description: "Filesystem path of the working directory at save time. Used for project auto-detection when project is omitted."},
+					"project_choice_reason": {Type: "string", Description: "Reason the agent chose this project name (e.g. 'from git remote', 'user confirmed'). Stored for audit trail."},
 				},
 				Required: []string{"title", "content", "type"},
+			},
+		},
+		{
+			Name: "vault_update",
+			Description: "Partially update an existing observation. Only the fields you provide are changed; omitted fields are left as-is. " +
+				"Use to correct a title, extend content, change the type, or adjust tags without replacing the whole entry.",
+			InputSchema: Schema{
+				Type: "object",
+				Properties: map[string]Property{
+					"id":      {Type: "string", Description: "Observation ULID to update"},
+					"title":   {Type: "string", Description: "New title (omit to keep current)"},
+					"content": {Type: "string", Description: "New content (omit to keep current)"},
+					"type": {Type: "string", Description: "New observation type (omit to keep current)",
+						Enum: obsTypeEnum},
+					"tags": {Type: "array", Description: "Replacement tag list (omit to keep current)"},
+				},
+				Required: []string{"id"},
+			},
+		},
+		{
+			Name: "vault_relate",
+			Description: "Create a semantic relation between two observations. " +
+				"Relations help the AI understand how knowledge evolves: supersedes (source replaces target), " +
+				"conflicts_with (contradictory findings), related (topically linked), compatible (complementary), scoped (same topic, different context). " +
+				"Re-calling with the same (source_id, target_id) pair updates the existing relation (upsert).",
+			InputSchema: Schema{
+				Type: "object",
+				Properties: map[string]Property{
+					"source_id": {Type: "string", Description: "ID of the source observation"},
+					"target_id": {Type: "string", Description: "ID of the target observation"},
+					"relation": {Type: "string", Description: "Semantic relation type",
+						Enum: []string{"supersedes", "conflicts_with", "related", "compatible", "scoped"}},
+					"reason": {Type: "string", Description: "Brief explanation of why this relation holds (optional)"},
+					"author": {Type: "string", Description: "Who created the relation (optional)"},
+				},
+				Required: []string{"source_id", "target_id", "relation"},
+			},
+		},
+		{
+			Name: "vault_capture",
+			Description: "Extract and persist multiple learnings from a block of freeform text in one call. " +
+				"Pass the raw text (session notes, code review comments, retrospective output, chat transcript) and Korva will identify distinct observations and save them. " +
+				"Returns a summary of saved vs skipped entries.",
+			InputSchema: Schema{
+				Type: "object",
+				Properties: map[string]Property{
+					"text":       {Type: "string", Description: "Raw text to extract learnings from"},
+					"project":    {Type: "string", Description: "Project to assign to extracted observations"},
+					"session_id": {Type: "string", Description: "Active session ID (optional)"},
+					"author":     {Type: "string", Description: "Author to tag on saved observations (optional)"},
+				},
+				Required: []string{"text"},
+			},
+		},
+		{
+			Name: "vault_merge_projects",
+			Description: "Consolidate multiple project name variants into a single canonical name. " +
+				"All observations, relations, sessions, and quality checkpoints under the source names are re-tagged to the canonical name. " +
+				"Use when the same project was saved under inconsistent names (e.g. 'home-api', 'homeapi', 'home_api').",
+			InputSchema: Schema{
+				Type: "object",
+				Properties: map[string]Property{
+					"sources":   {Type: "array", Description: "List of project name variants to merge (e.g. [\"home-api\", \"homeapi\"])"},
+					"canonical": {Type: "string", Description: "The single canonical project name to keep"},
+				},
+				Required: []string{"sources", "canonical"},
 			},
 		},
 		{

@@ -107,7 +107,39 @@ func (s *Store) Save(obs Observation) (string, error) {
 		obs.CreatedAt = time.Now().UTC()
 	}
 
-	// 2. Content-hash deduplication (claude-mem pattern).
+	// 2. topic_key upsert: if a topic_key is provided, UPDATE the most recent matching
+	//    observation instead of inserting a new one. This allows knowledge to evolve
+	//    across sessions without accumulating stale duplicates.
+	obs.TopicKey = strings.TrimSpace(obs.TopicKey)
+	if obs.TopicKey != "" {
+		var existingID string
+		lookupErr := s.db.QueryRow(
+			`SELECT id FROM observations WHERE project = ? AND topic_key = ? ORDER BY created_at DESC LIMIT 1`,
+			obs.Project, obs.TopicKey,
+		).Scan(&existingID)
+		if lookupErr == nil && existingID != "" {
+			// Found an existing observation with this topic_key — update it in place.
+			tags, tErr := json.Marshal(obs.Tags)
+			if tErr != nil {
+				return "", fmt.Errorf("serializing tags: %w", tErr)
+			}
+			_, uErr := s.db.Exec(`
+				UPDATE observations
+				   SET title = ?, content = ?, type = ?, tags = ?, author = ?,
+				       content_hash = ?, working_dir = ?
+				 WHERE id = ?`,
+				obs.Title, obs.Content, string(obs.Type), string(tags), obs.Author,
+				obsContentHash(obs.Title, obs.Content, obs.Project), obs.WorkingDir,
+				existingID,
+			)
+			if uErr != nil {
+				return "", fmt.Errorf("upserting observation by topic_key: %w", uErr)
+			}
+			return existingID, nil
+		}
+	}
+
+	// 3. Content-hash deduplication (session-scoped).
 	//    Prevents observation LOOPS: when an AI agent re-processes the same tool output
 	//    within the same session it would otherwise create identical duplicates.
 	//    Scoped to the active session_id to avoid rejecting deliberate re-saves across
@@ -119,7 +151,6 @@ func (s *Store) Save(obs Observation) (string, error) {
 			`SELECT id FROM observations WHERE content_hash = ? AND session_id = ? LIMIT 1`,
 			hash, obs.SessionID,
 		).Scan(&existingID); err == nil {
-			// Identical observation already exists in this session — return its ID silently.
 			return existingID, nil
 		}
 	}
@@ -129,12 +160,19 @@ func (s *Store) Save(obs Observation) (string, error) {
 		return "", fmt.Errorf("serializing tags: %w", err)
 	}
 
+	topicKeyVal := obs.TopicKey
+	var topicKeyPtr *string
+	if topicKeyVal != "" {
+		topicKeyPtr = &topicKeyVal
+	}
+
 	_, err = s.db.Exec(`
-		INSERT INTO observations (id, session_id, project, team, country, type, title, content, tags, author, created_at, content_hash)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		INSERT INTO observations
+		  (id, session_id, project, team, country, type, title, content, tags, author, created_at, content_hash, topic_key, working_dir)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		obs.ID, nullString(obs.SessionID), obs.Project, obs.Team, obs.Country,
 		string(obs.Type), obs.Title, obs.Content, string(tags), obs.Author,
-		obs.CreatedAt.UTC().Format(time.RFC3339), hash,
+		obs.CreatedAt.UTC().Format(time.RFC3339), hash, topicKeyPtr, obs.WorkingDir,
 	)
 	if err != nil {
 		return "", fmt.Errorf("inserting observation: %w", err)
@@ -163,7 +201,8 @@ func obsContentHash(title, content, project string) string {
 func (s *Store) Get(id string) (*Observation, error) {
 	row := s.db.QueryRow(`
 		SELECT id, COALESCE(session_id, ''), project, team, country, type,
-		       title, content, tags, author, created_at
+		       title, content, tags, author, created_at,
+		       COALESCE(topic_key,''), COALESCE(working_dir,'')
 		FROM observations WHERE id = ?`, id)
 
 	obs, err := scanObservation(row)
@@ -182,6 +221,111 @@ func (s *Store) Delete(id string) (bool, error) {
 	}
 	n, _ := res.RowsAffected()
 	return n > 0, nil
+}
+
+// --- vault_update ---
+
+// UpdateObservation applies a partial update to an existing observation.
+// Only fields set in params are written; nil/empty values are left unchanged.
+// Returns (true, nil) if updated, (false, nil) if ID not found.
+func (s *Store) UpdateObservation(id string, params UpdateObservationParams) (bool, error) {
+	// Build SET clause dynamically from non-nil params.
+	var sets []string
+	var args []any
+
+	if params.Title != nil {
+		filtered := privacy.Filter(strings.TrimSpace(*params.Title), s.privatePatterns)
+		sets = append(sets, "title = ?")
+		args = append(args, filtered)
+	}
+	if params.Content != nil {
+		filtered := privacy.Filter(*params.Content, s.privatePatterns)
+		sets = append(sets, "content = ?")
+		args = append(args, filtered)
+	}
+	if params.Type != nil {
+		sets = append(sets, "type = ?")
+		args = append(args, string(*params.Type))
+	}
+	if params.Tags != nil {
+		tagsJSON, err := json.Marshal(params.Tags)
+		if err != nil {
+			return false, fmt.Errorf("serializing tags: %w", err)
+		}
+		sets = append(sets, "tags = ?")
+		args = append(args, string(tagsJSON))
+	}
+	if len(sets) == 0 {
+		return false, fmt.Errorf("vault_update: no fields to update")
+	}
+
+	args = append(args, id)
+	query := "UPDATE observations SET " + strings.Join(sets, ", ") + " WHERE id = ?"
+	res, err := s.db.Exec(query, args...)
+	if err != nil {
+		return false, fmt.Errorf("updating observation %s: %w", id, err)
+	}
+	n, _ := res.RowsAffected()
+	return n > 0, nil
+}
+
+// --- vault_merge_projects ---
+
+// MergeProjects reassigns all observations, sessions, and prompts from each
+// source project name to canonical. Used to consolidate spelling variants.
+// Returns the number of observations, sessions, and prompts updated.
+func (s *Store) MergeProjects(sources []string, canonical string) (obsUpdated, sessUpdated, promptsUpdated int64, err error) {
+	canonical = strings.TrimSpace(canonical)
+	if canonical == "" {
+		return 0, 0, 0, fmt.Errorf("canonical project name cannot be empty")
+	}
+	for _, src := range sources {
+		if strings.TrimSpace(src) == canonical {
+			continue // skip self-merge
+		}
+		src = strings.TrimSpace(src)
+		if src == "" {
+			continue
+		}
+
+		res, e := s.db.Exec(`UPDATE observations SET project = ? WHERE project = ?`, canonical, src)
+		if e != nil {
+			return 0, 0, 0, fmt.Errorf("merge observations from %q: %w", src, e)
+		}
+		n, _ := res.RowsAffected()
+		obsUpdated += n
+
+		res, e = s.db.Exec(`UPDATE sessions SET project = ? WHERE project = ?`, canonical, src)
+		if e != nil {
+			return 0, 0, 0, fmt.Errorf("merge sessions from %q: %w", src, e)
+		}
+		n, _ = res.RowsAffected()
+		sessUpdated += n
+	}
+	return obsUpdated, sessUpdated, promptsUpdated, nil
+}
+
+// ListProjects returns all distinct project names that have at least one observation.
+func (s *Store) ListProjects() ([]ProjectStats, error) {
+	rows, err := s.db.Query(`
+		SELECT p.project, COUNT(p.id) AS obs_count, COUNT(DISTINCT s.id) AS sess_count
+		FROM observations p
+		LEFT JOIN sessions s ON s.project = p.project
+		GROUP BY p.project
+		ORDER BY obs_count DESC`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var result []ProjectStats
+	for rows.Next() {
+		var ps ProjectStats
+		if err := rows.Scan(&ps.Name, &ps.ObservationCount, &ps.SessionCount); err != nil {
+			return nil, err
+		}
+		result = append(result, ps)
+	}
+	return result, rows.Err()
 }
 
 // --- vault_search ---
@@ -229,7 +373,8 @@ func (s *Store) searchFTS(query string, filters SearchFilters) (*sql.Rows, error
 
 	q := `
 		SELECT o.id, COALESCE(o.session_id, ''), o.project, o.team, o.country,
-		       o.type, o.title, o.content, o.tags, o.author, o.created_at
+		       o.type, o.title, o.content, o.tags, o.author, o.created_at,
+		       COALESCE(o.topic_key,''), COALESCE(o.working_dir,'')
 		FROM observations o
 		JOIN observations_fts fts ON o.rowid = fts.rowid
 		WHERE observations_fts MATCH ?` + where + `
@@ -249,7 +394,8 @@ func (s *Store) searchRecent(filters SearchFilters) (*sql.Rows, error) {
 
 	q := `
 		SELECT o.id, COALESCE(o.session_id, ''), o.project, o.team, o.country,
-		       o.type, o.title, o.content, o.tags, o.author, o.created_at
+		       o.type, o.title, o.content, o.tags, o.author, o.created_at,
+		       COALESCE(o.topic_key,''), COALESCE(o.working_dir,'')
 		FROM observations o ` + where + `
 		ORDER BY o.created_at DESC
 		LIMIT ? OFFSET ?`
@@ -280,7 +426,8 @@ func (s *Store) Context(project string, types []ObservationType, limit int) ([]O
 	args = append(args, limit)
 	rows, err := s.db.Query(`
 		SELECT id, COALESCE(session_id, ''), project, team, country,
-		       type, title, content, tags, author, created_at
+		       type, title, content, tags, author, created_at,
+		       COALESCE(topic_key,''), COALESCE(working_dir,'')
 		FROM observations
 		WHERE project = ?`+typeFilter+`
 		ORDER BY created_at DESC
@@ -302,7 +449,8 @@ func (s *Store) ContextSince(project, sinceID string, limit int) ([]Observation,
 	}
 	rows, err := s.db.Query(`
 		SELECT id, COALESCE(session_id, ''), project, team, country,
-		       type, title, content, tags, author, created_at
+		       type, title, content, tags, author, created_at,
+		       COALESCE(topic_key,''), COALESCE(working_dir,'')
 		FROM observations
 		WHERE project = ? AND id > ?
 		ORDER BY id DESC
@@ -321,7 +469,8 @@ func (s *Store) ContextSince(project, sinceID string, limit int) ([]Observation,
 func (s *Store) Timeline(project string, from, to time.Time) ([]Observation, error) {
 	rows, err := s.db.Query(`
 		SELECT id, COALESCE(session_id, ''), project, team, country,
-		       type, title, content, tags, author, created_at
+		       type, title, content, tags, author, created_at,
+		       COALESCE(topic_key,''), COALESCE(working_dir,'')
 		FROM observations
 		WHERE project = ? AND created_at >= ? AND created_at <= ?
 		ORDER BY created_at ASC`,
@@ -734,7 +883,8 @@ func (s *Store) Export(opts ExportOptions) ([]Observation, error) {
 
 	rows, err := s.db.Query(`
 		SELECT id, COALESCE(session_id,''), project, team, country, type,
-		       title, content, tags, author, created_at
+		       title, content, tags, author, created_at,
+		       COALESCE(topic_key,''), COALESCE(working_dir,'')
 		FROM observations`+where+` ORDER BY created_at ASC`, args...)
 	if err != nil {
 		return nil, fmt.Errorf("export: %w", err)
@@ -1089,10 +1239,13 @@ func scanObservation(s scanner) (*Observation, error) {
 	var obs Observation
 	var tagsJSON string
 	var createdAt string
+	var topicKey sql.NullString
+	var workingDir sql.NullString
 
 	err := s.Scan(
 		&obs.ID, &obs.SessionID, &obs.Project, &obs.Team, &obs.Country,
 		&obs.Type, &obs.Title, &obs.Content, &tagsJSON, &obs.Author, &createdAt,
+		&topicKey, &workingDir,
 	)
 	if err != nil {
 		return nil, err
@@ -1108,6 +1261,8 @@ func scanObservation(s scanner) (*Observation, error) {
 	}
 
 	obs.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
+	obs.TopicKey = topicKey.String
+	obs.WorkingDir = workingDir.String
 	return &obs, nil
 }
 

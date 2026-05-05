@@ -353,4 +353,39 @@ var migrations = []string{
 	`CREATE INDEX IF NOT EXISTS idx_observations_project_created ON observations(project, created_at DESC)`,
 	// Sessions ordered by start time — used by ListSessions, ListSessionsWithStats, Stats.
 	`CREATE INDEX IF NOT EXISTS idx_sessions_started_at ON sessions(started_at DESC)`,
+
+	// ── topic_key: stable upsert key for observations ─────────────────────────────
+	// Enables vault_save to update an existing observation instead of creating a new
+	// one when topic_key matches — ideal for evolving knowledge over multiple sessions.
+	// NULL means no key (most observations). Non-null values are unique per project.
+	`ALTER TABLE observations ADD COLUMN topic_key TEXT`,
+	`CREATE UNIQUE INDEX IF NOT EXISTS uq_observations_topic_key ON observations(project, topic_key) WHERE topic_key IS NOT NULL`,
+
+	// ── working_dir: cwd where the observation was recorded ──────────────────────
+	// Stored for project detection audit trail and future analytics.
+	// Populated when vault_save receives a working_dir argument.
+	`ALTER TABLE observations ADD COLUMN working_dir TEXT NOT NULL DEFAULT ''`,
+
+	// ── observation_relations: semantic links between observations ─────────────────
+	// Records directed relationships: source → target with a typed verdict.
+	// relation values: supersedes | conflicts_with | related | compatible | scoped
+	// status: pending | confirmed
+	// Unique per (source_id, target_id) pair — only one relation per pair allowed.
+	`CREATE TABLE IF NOT EXISTS observation_relations (
+		id         TEXT PRIMARY KEY,
+		source_id  TEXT NOT NULL,
+		target_id  TEXT NOT NULL,
+		relation   TEXT NOT NULL,
+		status     TEXT NOT NULL DEFAULT 'confirmed',
+		reason     TEXT NOT NULL DEFAULT '',
+		author     TEXT NOT NULL DEFAULT '',
+		project    TEXT NOT NULL DEFAULT '',
+		created_at TEXT NOT NULL DEFAULT (datetime('now')),
+		FOREIGN KEY (source_id) REFERENCES observations(id) ON DELETE CASCADE,
+		FOREIGN KEY (target_id) REFERENCES observations(id) ON DELETE CASCADE
+	)`,
+	`CREATE UNIQUE INDEX IF NOT EXISTS uq_obs_relation ON observation_relations(source_id, target_id)`,
+	`CREATE INDEX IF NOT EXISTS idx_obs_relation_source  ON observation_relations(source_id)`,
+	`CREATE INDEX IF NOT EXISTS idx_obs_relation_target  ON observation_relations(target_id)`,
+	`CREATE INDEX IF NOT EXISTS idx_obs_relation_project ON observation_relations(project)`,
 }

@@ -18,6 +18,7 @@ import (
 
 	"github.com/alcandev/korva/internal/license"
 	"github.com/alcandev/korva/internal/version"
+	"github.com/alcandev/korva/vault/internal/detect"
 	"github.com/alcandev/korva/vault/internal/store"
 )
 
@@ -421,6 +422,14 @@ func (s *Server) dispatch(tool string, args map[string]any) (any, error) {
 		return s.toolSkillMatch(args)
 	case "vault_compress":
 		return s.toolCompress(args)
+	case "vault_update":
+		return s.toolUpdate(args)
+	case "vault_relate":
+		return s.toolRelate(args)
+	case "vault_capture":
+		return s.toolCapture(args)
+	case "vault_merge_projects":
+		return s.toolMergeProjects(args)
 	default:
 		return nil, fmt.Errorf("unknown tool: %s", tool)
 	}
@@ -429,15 +438,36 @@ func (s *Server) dispatch(tool string, args map[string]any) (any, error) {
 // --- tool implementations ---
 
 func (s *Server) toolSave(args map[string]any) (any, error) {
+	workingDir := stringArg(args, "working_dir")
+	project := stringArg(args, "project")
+
+	// Auto-detect project when not provided and working_dir is available.
+	var detectionSource string
+	if project == "" && workingDir != "" {
+		dr := detect.Project(workingDir)
+		if dr.Source == "ambiguous" {
+			return map[string]any{
+				"status":             "ambiguous_project",
+				"saved":              false,
+				"available_projects": dr.AvailableProjects,
+				"suggestion":         "Multiple git repositories found in the working directory. Pass 'project' explicitly to vault_save to specify which project this observation belongs to.",
+			}, nil
+		}
+		project = dr.Project
+		detectionSource = dr.Source
+	}
+
 	obs := store.Observation{
-		Project: stringArg(args, "project"),
-		Team:    stringArg(args, "team"),
-		Country: stringArg(args, "country"),
-		Type:    store.ObservationType(stringArg(args, "type")),
-		Title:   stringArg(args, "title"),
-		Content: stringArg(args, "content"),
-		Author:  stringArg(args, "author"),
-		Tags:    stringSliceArg(args, "tags"),
+		Project:    project,
+		Team:       stringArg(args, "team"),
+		Country:    stringArg(args, "country"),
+		Type:       store.ObservationType(stringArg(args, "type")),
+		Title:      stringArg(args, "title"),
+		Content:    stringArg(args, "content"),
+		Author:     stringArg(args, "author"),
+		Tags:       stringSliceArg(args, "tags"),
+		TopicKey:   stringArg(args, "topic_key"),
+		WorkingDir: workingDir,
 	}
 	// Auto-fill team from the active session so members don't have to pass it explicitly.
 	if obs.Team == "" && s.session != nil {
@@ -490,6 +520,10 @@ func (s *Server) toolSave(args map[string]any) (any, error) {
 	}
 
 	resp := map[string]any{"id": id, "status": "saved"}
+	if detectionSource != "" {
+		resp["project_detected"] = obs.Project
+		resp["project_detection_source"] = detectionSource
+	}
 	if len(conflicts) > 0 {
 		resp["status"] = "saved_with_warnings"
 		resp["conflicts"] = conflicts
@@ -1379,6 +1413,137 @@ func (s *Server) toolHint(args map[string]any) (any, error) {
 		"hints": hints,
 		"count": len(hints),
 		"tip":   "Use vault_get to retrieve full content for specific IDs.",
+	}, nil
+}
+
+func (s *Server) toolUpdate(args map[string]any) (any, error) {
+	id := stringArg(args, "id")
+	if id == "" {
+		return nil, fmt.Errorf("id is required")
+	}
+
+	params := store.UpdateObservationParams{}
+	if v := stringArg(args, "title"); v != "" {
+		params.Title = &v
+	}
+	if v := stringArg(args, "content"); v != "" {
+		params.Content = &v
+	}
+	if v := stringArg(args, "type"); v != "" {
+		t := store.ObservationType(v)
+		params.Type = &t
+	}
+	if tags := stringSliceArg(args, "tags"); len(tags) > 0 {
+		params.Tags = tags
+	}
+
+	updated, err := s.store.UpdateObservation(id, params)
+	if err != nil {
+		return nil, fmt.Errorf("vault_update: %w", err)
+	}
+	if !updated {
+		return map[string]any{"status": "not_found", "id": id}, nil
+	}
+	return map[string]any{"status": "updated", "id": id}, nil
+}
+
+func (s *Server) toolRelate(args map[string]any) (any, error) {
+	sourceID := stringArg(args, "source_id")
+	targetID := stringArg(args, "target_id")
+	relation := stringArg(args, "relation")
+	if sourceID == "" || targetID == "" || relation == "" {
+		return nil, fmt.Errorf("source_id, target_id, and relation are required")
+	}
+
+	r, err := s.store.AddRelation(
+		sourceID, targetID,
+		store.RelationType(relation),
+		stringArg(args, "reason"),
+		stringArg(args, "author"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("vault_relate: %w", err)
+	}
+	return map[string]any{
+		"status":    "linked",
+		"id":        r.ID,
+		"source_id": r.SourceID,
+		"target_id": r.TargetID,
+		"relation":  string(r.Relation),
+	}, nil
+}
+
+func (s *Server) toolCapture(args map[string]any) (any, error) {
+	text := stringArg(args, "text")
+	if text == "" {
+		return nil, fmt.Errorf("text is required")
+	}
+	project := stringArg(args, "project")
+	sessionID := stringArg(args, "session_id")
+	author := stringArg(args, "author")
+
+	// Split text into candidate observations by paragraph (double newline).
+	// Each non-empty paragraph of reasonable length is a candidate.
+	paragraphs := strings.Split(text, "\n\n")
+	result := store.CaptureResult{}
+	for _, p := range paragraphs {
+		p = strings.TrimSpace(p)
+		if len(p) < 20 {
+			result.Skipped++
+			continue
+		}
+
+		// Derive a short title from the first line or sentence.
+		title := p
+		if idx := strings.IndexAny(p, "\n.!?"); idx > 0 && idx < 120 {
+			title = strings.TrimSpace(p[:idx])
+		}
+		if len(title) > 120 {
+			title = title[:117] + "..."
+		}
+
+		obs := store.Observation{
+			Project:   project,
+			SessionID: sessionID,
+			Type:      store.TypeLearning,
+			Title:     title,
+			Content:   p,
+			Author:    author,
+		}
+		if s.session != nil && obs.Project == "" {
+			obs.Project = ""
+		}
+		id, err := s.store.Save(obs)
+		if err != nil {
+			result.Skipped++
+			continue
+		}
+		result.Saved++
+		result.IDs = append(result.IDs, id)
+	}
+	return result, nil
+}
+
+func (s *Server) toolMergeProjects(args map[string]any) (any, error) {
+	sources := stringSliceArg(args, "sources")
+	canonical := stringArg(args, "canonical")
+	if len(sources) == 0 {
+		return nil, fmt.Errorf("sources must be a non-empty array")
+	}
+	if canonical == "" {
+		return nil, fmt.Errorf("canonical is required")
+	}
+
+	obsCount, sessionCount, _, err := s.store.MergeProjects(sources, canonical)
+	if err != nil {
+		return nil, fmt.Errorf("vault_merge_projects: %w", err)
+	}
+	return map[string]any{
+		"status":       "merged",
+		"canonical":    canonical,
+		"sources":      sources,
+		"observations": obsCount,
+		"sessions":     sessionCount,
 	}, nil
 }
 

@@ -92,12 +92,13 @@ func TestToolsList(t *testing.T) {
 	if !ok {
 		t.Fatal("tools should be an array")
 	}
-	const wantTools = 23 // 21 prior + vault_skill_match + vault_compress
+	const wantTools = 27 // 23 prior + vault_update + vault_relate + vault_capture + vault_merge_projects
 	// vault_save, vault_search, vault_context, vault_timeline, vault_get, vault_hint,
 	// vault_code_health, vault_pattern_mine, vault_skill_match, vault_compress,
 	// vault_session_start, vault_session_end, vault_summary, vault_save_prompt,
 	// vault_stats, vault_delete, vault_query, vault_bulk_save, vault_sdd_phase,
-	// vault_qa_checklist, vault_qa_checkpoint, vault_team_context, vault_export_lore
+	// vault_qa_checklist, vault_qa_checkpoint, vault_team_context, vault_export_lore,
+	// vault_update, vault_relate, vault_capture, vault_merge_projects
 	if len(toolsArr) != wantTools {
 		t.Errorf("expected exactly %d tools, got %d", wantTools, len(toolsArr))
 	}

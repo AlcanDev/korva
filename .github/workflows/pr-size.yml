@@ -1,0 +1,54 @@
+name: PR Cognitive Budget
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  check-size:
+    name: Diff ≤ 400 lines
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Count changed lines
+        id: diff
+        run: |
+          BASE="${{ github.event.pull_request.base.sha }}"
+          HEAD="${{ github.event.pull_request.head.sha }}"
+          LINES=$(git diff --stat "$BASE..$HEAD" \
+            -- ':!*.lock' ':!go.sum' ':!*.min.*' ':!*.snap' ':!testdata/**' \
+            | tail -1 \
+            | grep -oE '[0-9]+ insertion' | grep -oE '[0-9]+' || echo 0)
+          DELETIONS=$(git diff --stat "$BASE..$HEAD" \
+            -- ':!*.lock' ':!go.sum' ':!*.min.*' ':!*.snap' ':!testdata/**' \
+            | tail -1 \
+            | grep -oE '[0-9]+ deletion' | grep -oE '[0-9]+' || echo 0)
+          TOTAL=$((LINES + DELETIONS))
+          echo "total=$TOTAL" >> "$GITHUB_OUTPUT"
+          echo "### PR size: $TOTAL lines changed (insertions + deletions)" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Check label bypass
+        id: bypass
+        env:
+          LABELS: ${{ toJson(github.event.pull_request.labels.*.name) }}
+        run: |
+          if echo "$LABELS" | grep -q "size:exception"; then
+            echo "bypass=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "bypass=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Fail if over budget
+        if: steps.bypass.outputs.bypass == 'false'
+        run: |
+          TOTAL="${{ steps.diff.outputs.total }}"
+          LIMIT=400
+          if [ "$TOTAL" -gt "$LIMIT" ]; then
+            echo "❌ PR has $TOTAL changed lines — exceeds the $LIMIT-line cognitive budget."
+            echo "   Split into smaller PRs, or add the 'size:exception' label with a justification comment."
+            exit 1
+          fi
+          echo "✅ PR is within the $LIMIT-line cognitive budget ($TOTAL lines changed)."
