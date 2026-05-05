@@ -240,7 +240,7 @@ func runConfigList(cmd *cobra.Command, _ []string) error {
 		}
 		merged := mergeMaps(gm, lm)
 		fmt.Println("Merged config  (local overrides global)")
-	fmt.Println()
+		fmt.Println()
 		printMapFlat("", merged)
 		fmt.Println()
 		fmt.Printf("  global : %s\n", globalPath)

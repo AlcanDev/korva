@@ -14,8 +14,8 @@ var commandsCmd = &cobra.Command{
 
 func runCommands(_ *cobra.Command, _ []string) {
 	type entry struct {
-		name  string
-		desc  string
+		name string
+		desc string
 	}
 	type section struct {
 		title   string
