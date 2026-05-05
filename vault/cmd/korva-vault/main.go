@@ -235,7 +235,7 @@ func bootHive(ctx context.Context, s *store.Store, cfg config.KorvaConfig, paths
 	if interval <= 0 {
 		interval = 15 * time.Minute
 	}
-	worker := hive.NewWorker(outbox, client, cloudFilter, installID, interval)
+	worker := hive.NewWorker(outbox, client, cloudFilter, s, installID, interval)
 	go worker.Run(ctx)
 
 	log.Printf("hive: worker started (endpoint=%s, interval=%v)", endpoint, interval)

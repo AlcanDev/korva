@@ -388,4 +388,21 @@ var migrations = []string{
 	`CREATE INDEX IF NOT EXISTS idx_obs_relation_source  ON observation_relations(source_id)`,
 	`CREATE INDEX IF NOT EXISTS idx_obs_relation_target  ON observation_relations(target_id)`,
 	`CREATE INDEX IF NOT EXISTS idx_obs_relation_project ON observation_relations(project)`,
+
+	// ── mcp_calls: log every MCP tool invocation for analytics and audit ──────────
+	// Captures tool name, author (session email or ''), project, outcome, and latency.
+	// status: 'ok' | 'error'. Append-only — rows are never updated or deleted.
+	`CREATE TABLE IF NOT EXISTS mcp_calls (
+		id          TEXT PRIMARY KEY,
+		tool        TEXT NOT NULL,
+		project     TEXT NOT NULL DEFAULT '',
+		author      TEXT NOT NULL DEFAULT '',
+		status      TEXT NOT NULL DEFAULT 'ok',
+		latency_ms  INTEGER NOT NULL DEFAULT 0,
+		error_msg   TEXT NOT NULL DEFAULT '',
+		created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+	)`,
+	`CREATE INDEX IF NOT EXISTS idx_mcp_calls_tool    ON mcp_calls(tool)`,
+	`CREATE INDEX IF NOT EXISTS idx_mcp_calls_created ON mcp_calls(created_at DESC)`,
+	`CREATE INDEX IF NOT EXISTS idx_mcp_calls_project ON mcp_calls(project)`,
 }

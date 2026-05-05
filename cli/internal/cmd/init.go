@@ -151,7 +151,7 @@ func runInit(cmd *cobra.Command, args []string) error {
 			"team":     "",
 			"country":  "CL",
 			"vault":    map[string]any{"port": 7437, "auto_start": true},
-			"lore":     map[string]any{"active_scrolls": []string{"forge-sdd"}},
+			"lore":     map[string]any{"active_scrolls": []string{}},
 			"sentinel": map[string]any{"enabled": true},
 			"agent":    initAgent,
 		}

@@ -206,6 +206,6 @@ func buildHiveWorker() (*hive.Worker, vaultHandle, error) {
 
 	client := hive.NewClient(cfg.Hive.Endpoint, hiveKey)
 	filter := cloud.New(cfg.Hive.AllowedTypes, installID)
-	worker := hive.NewWorker(outbox, client, filter, installID, time.Duration(cfg.Hive.IntervalMin)*time.Minute)
+	worker := hive.NewWorker(outbox, client, filter, nil, installID, time.Duration(cfg.Hive.IntervalMin)*time.Minute)
 	return worker, vh, nil
 }

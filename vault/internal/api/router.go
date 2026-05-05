@@ -99,6 +99,7 @@ func Router(ctx context.Context, s *store.Store, cfg RouterConfig) http.Handler 
 	// Korva vault can act as a Hive sync target without a separate backend.
 	mux.HandleFunc("GET /v1/health", withCORS(http.HandlerFunc(hiveHealth)))
 	mux.HandleFunc("POST /v1/observations/batch", withBodyLimit(withCORS(hiveBatchIngest(s))))
+	mux.HandleFunc("GET /v1/observations", withCORS(listObservationsSince(s)))
 	mux.HandleFunc("GET /v1/search", withCORS(searchObservations(s, cfg.HiveClient)))
 
 	// Observations
@@ -208,6 +209,10 @@ func Router(ctx context.Context, s *store.Store, cfg RouterConfig) http.Handler 
 
 	// Admin lore export — unrestricted team_id, for backup/compliance
 	mux.Handle("GET /admin/lore/export", adminMW(withCORS(adminLoreExportHandler(s))))
+
+	// MCP call interactions log — query and aggregate tool usage
+	mux.Handle("GET /admin/interactions", adminMW(withCORS(adminListInteractions(s))))
+	mux.Handle("GET /admin/interactions/stats", adminMW(withCORS(adminInteractionStats(s))))
 
 	// --- Team member routes (X-Session-Token required) ---
 	// A valid session token is sufficient proof of team membership — the team's

@@ -23,20 +23,33 @@ import (
 // One Worker per process. Construct with NewWorker, run with Run(ctx).
 // Use FlushOnce for one-shot runs (CLI `korva hive push`).
 // Worker.Status() is safe to call from any goroutine.
+// ObservationSaver is the minimal interface the worker needs to persist pulled
+// observations. Implemented by *store.Store — defined here to avoid import cycle.
+type ObservationSaver interface {
+	// SavePulled persists a remotely-sourced observation. Duplicate IDs are
+	// silently ignored (ON CONFLICT DO NOTHING at the DB level).
+	SavePulled(id, project, obsType, title, content, author string, tags []string) error
+	// ExistsObservation returns true if an observation with this ID is already stored.
+	ExistsObservation(id string) (bool, error)
+}
+
 type Worker struct {
 	outbox   *Outbox
 	client   *Client
 	filter   *cloud.Filter
+	saver    ObservationSaver // nil = pull disabled
 	clientID string
 	interval time.Duration
 
-	mu     sync.RWMutex
-	status WorkerStatus
+	mu          sync.RWMutex
+	status      WorkerStatus
+	lastPullCursor string // RFC3339 cursor; empty = pull from beginning
 }
 
 // NewWorker assembles a worker. interval is how often the worker ticks
 // when running with Run(); 0 falls back to 15 minutes.
-func NewWorker(outbox *Outbox, client *Client, filter *cloud.Filter, clientID string, interval time.Duration) *Worker {
+// saver may be nil to disable the pull side of bidirectional sync.
+func NewWorker(outbox *Outbox, client *Client, filter *cloud.Filter, saver ObservationSaver, clientID string, interval time.Duration) *Worker {
 	if interval <= 0 {
 		interval = 15 * time.Minute
 	}
@@ -44,6 +57,7 @@ func NewWorker(outbox *Outbox, client *Client, filter *cloud.Filter, clientID st
 		outbox:   outbox,
 		client:   client,
 		filter:   filter,
+		saver:    saver,
 		clientID: clientID,
 		interval: interval,
 		status:   WorkerStatus{Phase: PhaseIdle},
@@ -76,6 +90,14 @@ func (w *Worker) recordSuccess(now time.Time) {
 	w.status.ConsecutiveErrors = 0
 	w.status.LastError = ""
 	w.status.BackoffUntil = nil
+	w.mu.Unlock()
+}
+
+func (w *Worker) recordPullSuccess(pulled int) {
+	now := time.Now().UTC()
+	w.mu.Lock()
+	w.status.LastPullAt = &now
+	w.status.PullCount += pulled
 	w.mu.Unlock()
 }
 
@@ -149,6 +171,61 @@ func (w *Worker) tick(ctx context.Context) error {
 		w.recordSuccess(time.Now().UTC())
 	} else {
 		w.setPhase(PhaseIdle)
+	}
+
+	// Pull side — fetch observations from Hive into local store.
+	if w.saver != nil {
+		if pullErr := w.pullTick(ctx); pullErr != nil {
+			// Pull failures are non-fatal: log but don't mark the worker as failed.
+			log.Printf("hive: pull: %v", pullErr)
+		}
+	}
+	return nil
+}
+
+// pullTick fetches the next page of observations from Hive and saves any new
+// ones to the local store. It advances lastPullCursor on each successful call.
+func (w *Worker) pullTick(ctx context.Context) error {
+	w.mu.RLock()
+	cursor := w.lastPullCursor
+	w.mu.RUnlock()
+
+	resp, err := w.client.PullBatch(ctx, cursor, 100)
+	if err != nil {
+		return fmt.Errorf("pull batch: %w", err)
+	}
+	if resp.Count == 0 {
+		return nil
+	}
+
+	saved := 0
+	for _, o := range resp.Observations {
+		exists, err := w.saver.ExistsObservation(o.ID)
+		if err != nil || exists {
+			continue
+		}
+		tags := make([]string, 0, len(o.Tags))
+		for _, t := range o.Tags {
+			if s, ok := t.(string); ok {
+				tags = append(tags, s)
+			}
+		}
+		if err := w.saver.SavePulled(o.ID, o.Project, o.Type, o.Title, o.Content, o.Author, tags); err != nil {
+			log.Printf("hive: save pulled observation %s: %v", o.ID, err)
+			continue
+		}
+		saved++
+	}
+
+	if resp.NextSince != "" {
+		w.mu.Lock()
+		w.lastPullCursor = resp.NextSince
+		w.mu.Unlock()
+	}
+
+	if saved > 0 {
+		w.recordPullSuccess(saved)
+		log.Printf("hive: pulled %d new observations (cursor: %s)", saved, resp.NextSince)
 	}
 	return nil
 }

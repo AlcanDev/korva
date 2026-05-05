@@ -93,6 +93,63 @@ func (c *Client) PostBatch(ctx context.Context, batch BatchRequest) (BatchRespon
 	return resp, nil
 }
 
+// PullResponse is the response from GET /v1/observations.
+type PullResponse struct {
+	Observations []PulledObservation `json:"observations"`
+	Count        int                 `json:"count"`
+	NextSince    string              `json:"next_since"`
+}
+
+// PulledObservation is a minimal observation shape for the pull path.
+type PulledObservation struct {
+	ID        string `json:"id"`
+	Project   string `json:"project"`
+	Type      string `json:"type"`
+	Title     string `json:"title"`
+	Content   string `json:"content"`
+	Author    string `json:"author"`
+	Tags      []any  `json:"tags"`
+	CreatedAt string `json:"created_at"`
+}
+
+// PullBatch fetches observations created after `since` from the Hive.
+// since="" means fetch the latest batch (no lower bound).
+func (c *Client) PullBatch(ctx context.Context, since string, limit int) (*PullResponse, error) {
+	q := url.Values{}
+	if since != "" {
+		q.Set("since", since)
+	}
+	if limit > 0 {
+		q.Set("limit", fmt.Sprintf("%d", limit))
+	}
+
+	rawURL := c.endpoint + "/v1/observations"
+	if len(q) > 0 {
+		rawURL += "?" + q.Encode()
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "GET", rawURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("X-Hive-Key", c.apiKey)
+
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("hive pull: status %d: %s", resp.StatusCode, string(body))
+	}
+	var out PullResponse
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		return nil, fmt.Errorf("hive pull: decode: %w", err)
+	}
+	return &out, nil
+}
+
 // Search queries the cloud brain. Used by hybrid search.
 func (c *Client) Search(ctx context.Context, query string, limit int) ([]SearchResult, error) {
 	if limit <= 0 {

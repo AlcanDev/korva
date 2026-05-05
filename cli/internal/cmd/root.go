@@ -41,6 +41,7 @@ func init() {
 	rootCmd.AddCommand(syncCmd)
 	rootCmd.AddCommand(doctorCmd)
 	rootCmd.AddCommand(loreCmd)
+	rootCmd.AddCommand(scrollsCmd)
 	rootCmd.AddCommand(sentinelCmd)
 	rootCmd.AddCommand(adminCmd)
 	rootCmd.AddCommand(hiveCmd)

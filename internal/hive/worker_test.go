@@ -34,19 +34,19 @@ func newTestWorker(t *testing.T, client *Client) (*Worker, *Outbox) {
 	database := newTestDB(t)
 	outbox := NewOutbox(database)
 	filter := cloud.New([]string{"pattern", "decision", "learning"}, "test-install")
-	w := NewWorker(outbox, client, filter, "client-test", 1*time.Hour)
+	w := NewWorker(outbox, client, filter, nil, "client-test", 1*time.Hour)
 	return w, outbox
 }
 
 func TestNewWorker_DefaultInterval(t *testing.T) {
-	w := NewWorker(nil, nil, nil, "id", 0)
+	w := NewWorker(nil, nil, nil, nil, "id", 0)
 	if w.interval != 15*time.Minute {
 		t.Errorf("interval = %v, want 15m", w.interval)
 	}
 }
 
 func TestNewWorker_CustomInterval(t *testing.T) {
-	w := NewWorker(nil, nil, nil, "id", 5*time.Minute)
+	w := NewWorker(nil, nil, nil, nil, "id", 5*time.Minute)
 	if w.interval != 5*time.Minute {
 		t.Errorf("interval = %v, want 5m", w.interval)
 	}

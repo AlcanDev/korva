@@ -29,9 +29,44 @@ var loreAddCmd = &cobra.Command{
 	RunE:  runLoreAdd,
 }
 
+var loreRemoveCmd = &cobra.Command{
+	Use:     "remove [scroll-name]",
+	Aliases: []string{"rm"},
+	Short:   "Remove a Scroll from the active project config",
+	Args:    cobra.ExactArgs(1),
+	RunE:    runLoreRemove,
+}
+
+// scrollsCmd is an alias for loreCmd — users may prefer "korva scrolls" over "korva lore".
+var scrollsCmd = &cobra.Command{
+	Use:   "scrolls",
+	Short: "Manage knowledge Scrolls (alias for 'korva lore')",
+}
+
 func init() {
 	loreCmd.AddCommand(loreListCmd)
 	loreCmd.AddCommand(loreAddCmd)
+	loreCmd.AddCommand(loreRemoveCmd)
+
+	// Wire up scrolls alias with the same sub-commands
+	scrollsCmd.AddCommand(&cobra.Command{
+		Use:   "list",
+		Short: "List available and active Scrolls",
+		RunE:  runLoreList,
+	})
+	scrollsCmd.AddCommand(&cobra.Command{
+		Use:   "add [scroll-name]",
+		Short: "Add a Scroll to the active project config",
+		Args:  cobra.ExactArgs(1),
+		RunE:  runLoreAdd,
+	})
+	scrollsCmd.AddCommand(&cobra.Command{
+		Use:     "remove [scroll-name]",
+		Aliases: []string{"rm"},
+		Short:   "Remove a Scroll from the active project config",
+		Args:    cobra.ExactArgs(1),
+		RunE:    runLoreRemove,
+	})
 }
 
 func runLoreList(cmd *cobra.Command, args []string) error {
@@ -111,6 +146,37 @@ func runLoreAdd(cmd *cobra.Command, args []string) error {
 	}
 
 	printSuccess(fmt.Sprintf("Added scroll '%s' to active scrolls", scrollName))
+	return nil
+}
+
+func runLoreRemove(cmd *cobra.Command, args []string) error {
+	scrollName := args[0]
+
+	projectCfg, err := config.Load("korva.config.json")
+	if err != nil {
+		return fmt.Errorf("loading project config: %w — run 'korva init' first", err)
+	}
+
+	filtered := projectCfg.Lore.ActiveScrolls[:0]
+	found := false
+	for _, s := range projectCfg.Lore.ActiveScrolls {
+		if s == scrollName {
+			found = true
+		} else {
+			filtered = append(filtered, s)
+		}
+	}
+	if !found {
+		printInfo(fmt.Sprintf("Scroll '%s' is not active", scrollName))
+		return nil
+	}
+
+	projectCfg.Lore.ActiveScrolls = filtered
+	if err := config.Save(projectCfg, "korva.config.json"); err != nil {
+		return fmt.Errorf("saving config: %w", err)
+	}
+
+	printSuccess(fmt.Sprintf("Removed scroll '%s' from active scrolls", scrollName))
 	return nil
 }
 

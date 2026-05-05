@@ -2,7 +2,7 @@ import _React, { useState } from 'react'
 import { NavLink, Routes, Route, Navigate } from 'react-router'
 import {
   LayoutDashboard, Database, BookOpen, LogOut,
-  Users, Wand2, Lock, ClipboardList, KeyRound, Menu, X, Activity, Clock, BookMarked
+  Users, Wand2, Lock, ClipboardList, KeyRound, Menu, X, Activity, Clock, BookMarked, Zap
 } from 'lucide-react'
 import { KorvaLogo } from '@/components/KorvaLogo'
 import { useAdminStore } from '@/stores/admin'
@@ -20,6 +20,7 @@ import AdminAudit from './AdminAudit'
 import AdminCodeHealth from './AdminCodeHealth'
 import AdminSessions from './AdminSessions'
 import AdminPrompts from './AdminPrompts'
+import AdminInteractions from './AdminInteractions'
 
 export default function Admin() {
   const { isAuthenticated, logout } = useAdminStore()
@@ -77,6 +78,7 @@ export default function Admin() {
             <Route path="scrolls-private" element={<TeamsGate><AdminScrollsPrivate /></TeamsGate>} />
             <Route path="audit" element={<TeamsGate><AdminAudit /></TeamsGate>} />
             <Route path="code-health" element={<AdminCodeHealth />} />
+            <Route path="interactions" element={<AdminInteractions />} />
             <Route path="sessions" element={<AdminSessions />} />
             <Route path="prompts" element={<AdminPrompts />} />
           </Routes>
@@ -141,8 +143,9 @@ function AdminSidebar({ onLogout, onNavigate }: { onLogout: () => void; onNaviga
     { to: 'sessions',    icon: Clock,           label: t.nav.sessions,      subtitle: t.nav.sessionsSubtitle },
     { to: 'prompts',     icon: BookMarked,      label: t.nav.prompts,       subtitle: t.nav.promptsSubtitle },
     { to: 'scrolls',     icon: BookOpen,        label: t.nav.scrolls,       subtitle: t.nav.scrollsSubtitle },
-    { to: 'code-health', icon: Activity,        label: t.nav.codeHealth,    subtitle: t.nav.codeHealthSubtitle },
-    { to: 'license',     icon: KeyRound,        label: t.nav.license },
+    { to: 'code-health',   icon: Activity,   label: t.nav.codeHealth,    subtitle: t.nav.codeHealthSubtitle },
+    { to: 'interactions',  icon: Zap,        label: t.nav.interactions,  subtitle: t.nav.interactionsSubtitle },
+    { to: 'license',       icon: KeyRound,   label: t.nav.license },
   ]
 
   const teamsItems = [

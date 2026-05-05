@@ -362,7 +362,31 @@ func (s *Server) handleToolsCall(req Request) {
 	})
 }
 
+// dispatch times the inner call and logs the result to mcp_calls.
 func (s *Server) dispatch(tool string, args map[string]any) (any, error) {
+	start := time.Now()
+	result, err := s.dispatchInner(tool, args)
+	latency := time.Since(start).Milliseconds()
+
+	project, _ := args["project"].(string)
+	author := ""
+	if s.session != nil {
+		author = s.session.email
+	}
+	status := "ok"
+	errMsg := ""
+	if err != nil {
+		status = "error"
+		errMsg = err.Error()
+	}
+	_ = s.store.LogCall(store.CallLog{
+		Tool: tool, Project: project, Author: author,
+		Status: status, LatencyMs: latency, ErrorMsg: errMsg,
+	})
+	return result, err
+}
+
+func (s *Server) dispatchInner(tool string, args map[string]any) (any, error) {
 	if !isAllowed(s.profile, tool) {
 		return nil, fmt.Errorf("tool %q is not available in the %q profile — set KORVA_MCP_PROFILE=admin to enable all tools", tool, s.profile)
 	}

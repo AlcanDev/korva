@@ -195,6 +195,32 @@ func obsContentHash(title, content, project string) string {
 	return fmt.Sprintf("%x", h)[:32]
 }
 
+// ExistsObservation returns true if an observation with this ID is already in the DB.
+func (s *Store) ExistsObservation(id string) (bool, error) {
+	var count int
+	err := s.db.QueryRow(`SELECT COUNT(1) FROM observations WHERE id = ?`, id).Scan(&count)
+	return count > 0, err
+}
+
+// SavePulled inserts an observation that was pulled from Hive into the local store.
+// If the observation already exists (same ID), the insert is silently skipped.
+// Content passes through the privacy filter before storage.
+func (s *Store) SavePulled(id, project, obsType, title, content, author string, tags []string) error {
+	filteredTitle := privacy.Filter(title, s.privatePatterns)
+	filteredContent := privacy.Filter(content, s.privatePatterns)
+
+	tagsJSON, _ := json.Marshal(tags)
+	hash := obsContentHash(filteredTitle, filteredContent, project)
+
+	_, err := s.db.Exec(`
+		INSERT OR IGNORE INTO observations
+		  (id, session_id, project, team, country, type, title, content, tags, author, created_at, content_hash, topic_key, working_dir)
+		VALUES (?, NULL, ?, '', '', ?, ?, ?, ?, datetime('now'), ?, NULL, '')`,
+		id, project, obsType, filteredTitle, filteredContent, string(tagsJSON), author, hash,
+	)
+	return err
+}
+
 // --- vault_get ---
 
 // Get retrieves a single observation by ID.

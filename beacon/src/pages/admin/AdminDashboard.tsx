@@ -1,4 +1,4 @@
-import { Brain, Clock, FolderGit2, Zap, TrendingUp, Database, LayoutDashboard, ArrowRight } from 'lucide-react'
+import { Brain, Clock, FolderGit2, Zap, TrendingUp, Database, LayoutDashboard, ArrowRight, CheckCircle2, Circle, Terminal, Sparkles } from 'lucide-react'
 import { NavLink } from 'react-router'
 import { useAdminStats, type DailyCount, type SessionRow } from '@/api/admin'
 import { PageHeader } from '@/components/PageHeader'
@@ -50,6 +50,9 @@ export default function AdminDashboard() {
         description={t.dashboard.description}
         hint={{ command: 'korva status', label: t.dashboard.hintLabel }}
       />
+
+      {/* First-run checklist — shown when the vault is empty */}
+      {stats.total_observations === 0 && <FirstRunChecklist />}
 
       {/* KPI cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -271,6 +274,81 @@ function typeDotColor(type: string): string {
     bugfix: 'bg-[#f85149]', learning: 'bg-[#a371f7]', context: 'bg-[#8b949e]',
   }
   return map[type] ?? 'bg-[#8b949e]'
+}
+
+// ── First-run checklist ───────────────────────────────────────────────────────
+
+const CHECKLIST_STEPS = [
+  {
+    id: 'vault',
+    label: 'Vault is running',
+    hint: 'You\'re here — vault is up.',
+    done: true,
+    code: null,
+  },
+  {
+    id: 'mcp',
+    label: 'Connect an MCP client',
+    hint: 'Add the vault MCP server to Claude Code, Cursor, or Copilot.',
+    done: false,
+    code: 'korva setup mcp',
+  },
+  {
+    id: 'init',
+    label: 'Initialize a project',
+    hint: 'Run in your project root to create korva.config.json.',
+    done: false,
+    code: 'korva init',
+  },
+  {
+    id: 'scroll',
+    label: 'Add a Scroll (optional)',
+    hint: 'Scrolls inject knowledge into every AI context window.',
+    done: false,
+    code: 'korva scrolls add forge-sdd',
+  },
+  {
+    id: 'save',
+    label: 'Save your first observation',
+    hint: 'Ask your AI assistant to call vault_save — it will appear here.',
+    done: false,
+    code: null,
+  },
+]
+
+function FirstRunChecklist() {
+  return (
+    <div className="rounded-xl border border-[#388bfd30] bg-[#388bfd08] p-5">
+      <div className="flex items-center gap-2 mb-4">
+        <Sparkles size={15} className="text-[#388bfd]" />
+        <h3 className="text-sm font-medium text-[#e6edf3]">Getting started</h3>
+        <span className="ml-auto text-[10px] text-[#484f58]">No observations yet</span>
+      </div>
+      <div className="space-y-3">
+        {CHECKLIST_STEPS.map((step) => (
+          <div key={step.id} className="flex items-start gap-3">
+            <div className="mt-0.5 flex-shrink-0">
+              {step.done
+                ? <CheckCircle2 size={15} className="text-[#3fb950]" />
+                : <Circle size={15} className="text-[#30363d]" />}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className={`text-sm ${step.done ? 'text-[#484f58] line-through' : 'text-[#e6edf3]'}`}>
+                {step.label}
+              </p>
+              <p className="text-[11px] text-[#8b949e] mt-0.5">{step.hint}</p>
+              {step.code && !step.done && (
+                <div className="mt-1.5 flex items-center gap-1.5 bg-[#0d1117] rounded-md px-2.5 py-1.5 w-fit border border-[#21262d]">
+                  <Terminal size={11} className="text-[#484f58] flex-shrink-0" />
+                  <code className="text-xs font-mono text-[#58a6ff]">{step.code}</code>
+                </div>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
 }
 
 function formatRelative(iso: string): string {

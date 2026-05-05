@@ -77,8 +77,10 @@ const (
 type WorkerStatus struct {
 	Phase             SyncPhase  `json:"phase"`
 	LastSyncAt        *time.Time `json:"last_sync_at,omitempty"`
+	LastPullAt        *time.Time `json:"last_pull_at,omitempty"`
 	ConsecutiveErrors int        `json:"consecutive_errors"`
 	BackoffUntil      *time.Time `json:"backoff_until,omitempty"`
 	LastError         string     `json:"last_error,omitempty"`
 	PendingCount      int        `json:"pending_count"`
+	PullCount         int        `json:"pull_count"` // total observations pulled from Hive this session
 }
