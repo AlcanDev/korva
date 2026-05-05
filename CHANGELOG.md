@@ -1,5 +1,31 @@
 # Changelog
 
+## [1.1.0](https://github.com/AlcanDev/korva/compare/v1.0.0...v1.1.0) (2026-05-03)
+
+
+### 🚀 Features
+
+* **beacon+vault:** observability dashboard with sessions browser ([a5de3e4](https://github.com/AlcanDev/korva/commit/a5de3e4a1d66bc8b861b68d35e2d2e8a33ad2149))
+* **cli:** add best-effort usage telemetry for Teams installs ([04edd3d](https://github.com/AlcanDev/korva/commit/04edd3d755c89f327233e6f1cf5c1d652e485257))
+* **cli:** show license tier in korva status output ([4c93819](https://github.com/AlcanDev/korva/commit/4c93819dce78e91dfbe74742e11300bfc34ba3a7))
+* **config:** support KORVA_HOME env var for container deployments ([4f1ea6f](https://github.com/AlcanDev/korva/commit/4f1ea6fe73960e92d6da6c5df2fe0c76642348a0))
+* **demo:** add sales demo GIF, MP4, and HTML showcase ([724f6b7](https://github.com/AlcanDev/korva/commit/724f6b74481e6b7f678c2c0ca31c3e689fe6fa8c))
+* **license:** add enterprise tier ([909a63c](https://github.com/AlcanDev/korva/commit/909a63c59cf7b5e997a02db270b8ce9e59e2f7fb))
+* **release:** add .deb/.rpm packages and shell completion installs ([3c2a78c](https://github.com/AlcanDev/korva/commit/3c2a78c816ba0d7ead2e127aba303db0e24305cc))
+* security hardening, prompts CRUD, i18n completeness, UX improvements ([ebd9ee6](https://github.com/AlcanDev/korva/commit/ebd9ee64caf05389c22700bdb58cd2cca42277bc))
+* **vault:** harden security, performance, and input validation ([6663c93](https://github.com/AlcanDev/korva/commit/6663c93b45a7241c2442cf60428a6bce405faf33))
+* **vault:** support KORVA_ADMIN_KEY env var for containerised deployments ([bf71659](https://github.com/AlcanDev/korva/commit/bf7165953b89b9ba5a25018ce6f05e294984bc8e))
+
+
+### 🐛 Bug Fixes
+
+* **beacon:** unlock Teams sections for business and enterprise tiers ([5cd32df](https://github.com/AlcanDev/korva/commit/5cd32df905079bb0b3b83d93fd658f577f94d093))
+* **license:** update production public key to match licensing server ([04ea003](https://github.com/AlcanDev/korva/commit/04ea003dd7ece54fb7c8480b4f30fa3a374ff3b5))
+* **vault:** auto-generate install.id on startup if missing ([ac0b028](https://github.com/AlcanDev/korva/commit/ac0b028e7ba2321bd8da1bcdc3e32d773df3b652))
+* **vault:** read license from disk on each request instead of startup cache ([01bcba5](https://github.com/AlcanDev/korva/commit/01bcba5db8d2ba1d2286ef1c0c67a576212007bd))
+* **vault:** return 422 instead of 502 on activation error ([87a3d2b](https://github.com/AlcanDev/korva/commit/87a3d2bf43eb033f9251a8409caeef5b124b9085))
+* **vault:** serve SPA for unknown /admin/* routes instead of 404 ([29bb45b](https://github.com/AlcanDev/korva/commit/29bb45b5dc38e17955752d6ef87e7d2f23d154e5))
+
 ## [1.0.0](https://github.com/AlcanDev/korva/compare/v1.0.0...v1.0.0) (2026-04-30)
 
 
