@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.1](https://github.com/AlcanDev/korva/compare/v1.6.0...v1.6.1) (2026-05-05)
+
+
+### 🐛 Bug Fixes
+
+* **ci:** correct wait-on-check-action job name to match CI ([84b7474](https://github.com/AlcanDev/korva/commit/84b74740b49787842dbba63b90cd346d77950963))
+
 ## [1.6.0](https://github.com/AlcanDev/korva/compare/v1.5.0...v1.6.0) (2026-05-05)
 
 
