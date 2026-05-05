@@ -41,8 +41,8 @@ type Worker struct {
 	clientID string
 	interval time.Duration
 
-	mu          sync.RWMutex
-	status      WorkerStatus
+	mu             sync.RWMutex
+	status         WorkerStatus
 	lastPullCursor string // RFC3339 cursor; empty = pull from beginning
 }
 
