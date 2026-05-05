@@ -29,7 +29,7 @@ jobs:
         uses: lewagon/wait-on-check-action@v1.3.4
         with:
           ref: ${{ github.sha }}
-          check-name: "Go build + test (ubuntu-latest, 1.26.x)"
+          check-name: "Go build + test"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
           wait-interval: 20
           allowed-conclusions: success,skipped
