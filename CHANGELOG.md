@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.2.0](https://github.com/AlcanDev/korva/compare/v1.1.0...v1.2.0) (2026-05-05)
+
+
+### 🚀 Features
+
+* **release:** re-enable homebrew tap publishing via fine-grained PAT ([656c790](https://github.com/AlcanDev/korva/commit/656c7900d50915138b4100f755f66fa173b8c5a9))
+
+
+### 🐛 Bug Fixes
+
+* **beacon:** update landing page version badge to v1.1.0 ([5aa738f](https://github.com/AlcanDev/korva/commit/5aa738fab4eaf2deba5b1e22f0b895338a4a3f84))
+
 ## [1.1.0](https://github.com/AlcanDev/korva/compare/v1.0.0...v1.1.0) (2026-05-03)
 
 
