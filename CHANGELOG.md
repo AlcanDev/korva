@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.6.0](https://github.com/AlcanDev/korva/compare/v1.5.0...v1.6.0) (2026-05-05)
+
+
+### 🚀 Features
+
+* Phase 1-3 — interactions log, clean install, bidirectional Hive sync ([545bca9](https://github.com/AlcanDev/korva/commit/545bca9142714637288869b7da37d2fd71891658))
+
+
+### 🐛 Bug Fixes
+
+* **hive:** gofmt worker.go struct field alignment ([b3fc699](https://github.com/AlcanDev/korva/commit/b3fc699faa12119067df4af7edc7f8448e649180))
+
 ## [1.5.0](https://github.com/AlcanDev/korva/compare/v1.4.0...v1.5.0) (2026-05-05)
 
 
