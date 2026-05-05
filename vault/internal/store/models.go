@@ -166,11 +166,11 @@ type Observation struct {
 type RelationType string
 
 const (
-	RelationSupersedes   RelationType = "supersedes"    // source replaces target (target is outdated)
-	RelationConflicts    RelationType = "conflicts_with" // source and target are contradictory
-	RelationRelated      RelationType = "related"        // topically related, no conflict
-	RelationCompatible   RelationType = "compatible"     // complementary, no conflict
-	RelationScoped       RelationType = "scoped"         // same topic but different scope/context
+	RelationSupersedes RelationType = "supersedes"     // source replaces target (target is outdated)
+	RelationConflicts  RelationType = "conflicts_with" // source and target are contradictory
+	RelationRelated    RelationType = "related"        // topically related, no conflict
+	RelationCompatible RelationType = "compatible"     // complementary, no conflict
+	RelationScoped     RelationType = "scoped"         // same topic but different scope/context
 )
 
 // AllRelationTypes lists all valid relation types.
@@ -184,7 +184,7 @@ type Relation struct {
 	SourceID  string       `json:"source_id"`
 	TargetID  string       `json:"target_id"`
 	Relation  RelationType `json:"relation"`
-	Status    string       `json:"status"`  // confirmed | pending
+	Status    string       `json:"status"` // confirmed | pending
 	Reason    string       `json:"reason,omitempty"`
 	Author    string       `json:"author,omitempty"`
 	Project   string       `json:"project"`
@@ -215,9 +215,9 @@ type ProjectStats struct {
 
 // CaptureResult holds the outcome of a vault_capture call.
 type CaptureResult struct {
-	Saved    int      `json:"saved"`
-	Skipped  int      `json:"skipped"` // duplicates or empty
-	IDs      []string `json:"ids"`
+	Saved   int      `json:"saved"`
+	Skipped int      `json:"skipped"` // duplicates or empty
+	IDs     []string `json:"ids"`
 }
 
 // Session represents a working session (a period of AI-assisted development).
@@ -302,7 +302,7 @@ type VaultStats struct {
 
 // DailyCount is an observation count for one calendar day.
 type DailyCount struct {
-	Date  string `json:"date"`  // "2026-05-01"
+	Date  string `json:"date"` // "2026-05-01"
 	Count int    `json:"count"`
 }
 
