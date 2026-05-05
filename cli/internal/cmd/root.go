@@ -35,6 +35,8 @@ func Execute() error {
 func init() {
 	rootCmd.AddCommand(initCmd)
 	rootCmd.AddCommand(setupCmd)
+	rootCmd.AddCommand(configCmd)
+	rootCmd.AddCommand(commandsCmd)
 	rootCmd.AddCommand(statusCmd)
 	rootCmd.AddCommand(syncCmd)
 	rootCmd.AddCommand(doctorCmd)

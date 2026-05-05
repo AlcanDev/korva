@@ -19,7 +19,13 @@ var setupCmd = &cobra.Command{
 Korva Vault MCP server. Detects installed editors and updates their
 settings files with the correct MCP configuration.
 
-Run once after 'korva init'. Safe to re-run — it never duplicates settings.`,
+  --global   Write only to global editor config files (no workspace files).
+             Use this once after installing Korva to enable it everywhere.
+  --local    Write only workspace-level config for the current project
+             (e.g. .vscode/mcp.json). Use when adding Korva to a new repo.
+
+Without flags, both global and workspace files are written.
+Safe to re-run — it never duplicates settings.`,
 	RunE: runSetup,
 }
 
@@ -29,6 +35,8 @@ var (
 	setupCursor bool
 	setupClaude bool
 	setupForce  bool
+	setupGlobal bool
+	setupLocal  bool
 )
 
 func init() {
@@ -37,6 +45,8 @@ func init() {
 	setupCmd.Flags().BoolVar(&setupCursor, "cursor", false, "Configure Cursor")
 	setupCmd.Flags().BoolVar(&setupClaude, "claude", false, "Configure Claude Code")
 	setupCmd.Flags().BoolVar(&setupForce, "force", false, "Overwrite existing MCP config even if already set")
+	setupCmd.Flags().BoolVar(&setupGlobal, "global", false, "Configure global editor settings only (skip workspace files)")
+	setupCmd.Flags().BoolVar(&setupLocal, "local", false, "Write only workspace-level files (.vscode/mcp.json) for the current project")
 }
 
 // korvaVaultBin returns the full path to korva-vault or just "korva-vault" if in PATH.
@@ -56,9 +66,13 @@ type mcpServerEntry struct {
 }
 
 func runSetup(cmd *cobra.Command, args []string) error {
+	if setupGlobal && setupLocal {
+		return fmt.Errorf("cannot use --global and --local together")
+	}
+
 	bin := korvaVaultBin()
 
-	// Auto-detect if no specific flag given
+	// Auto-detect if no specific editor flag given
 	if !setupVSCode && !setupCursor && !setupClaude && !setupAll {
 		setupAll = true
 	}
@@ -78,7 +92,13 @@ func runSetup(cmd *cobra.Command, args []string) error {
 		{"Claude Code", setupAll || setupClaude, func(b string) error { return setupClaudeCodeEditor(b) }},
 	}
 
-	fmt.Println("Korva Setup — configuring AI editors")
+	scope := "global + local"
+	if setupGlobal {
+		scope = "global"
+	} else if setupLocal {
+		scope = "local (workspace)"
+	}
+	fmt.Printf("Korva Setup — configuring AI editors (%s)\n", scope)
 	fmt.Println()
 
 	for _, ed := range editors {
@@ -109,7 +129,7 @@ func runSetup(cmd *cobra.Command, args []string) error {
 		fmt.Println("Next steps:")
 		fmt.Println("  1. Restart your editor(s) to load the new MCP settings")
 		fmt.Println("  2. Start the vault server: korva-vault")
-		fmt.Println("  3. In Copilot/Claude chat, try: vault_stats")
+		fmt.Println("  3. In Copilot/Claude/Cursor chat, try: vault_stats")
 	}
 
 	return nil
@@ -122,6 +142,20 @@ func setupVSCodeEditor(bin string) error {
 		return fmt.Errorf("not installed")
 	}
 
+	// --local: only write workspace file
+	if setupLocal {
+		wd, _ := os.Getwd()
+		workspaceMCP := filepath.Join(wd, ".vscode", "mcp.json")
+		if err := os.MkdirAll(filepath.Join(wd, ".vscode"), 0755); err != nil {
+			return err
+		}
+		if err := upsertVSCodeWorkspaceMCP(workspaceMCP, bin); err != nil {
+			return err
+		}
+		printSuccess(fmt.Sprintf("VS Code     → %s", workspaceMCP))
+		return nil
+	}
+
 	settingsPath, err := vscodeSettingsPath()
 	if err != nil {
 		return fmt.Errorf("cannot locate VS Code settings: %w", err)
@@ -131,11 +165,13 @@ func setupVSCodeEditor(bin string) error {
 		return err
 	}
 
-	// Also create workspace .vscode/mcp.json for current project
-	wd, _ := os.Getwd()
-	workspaceMCP := filepath.Join(wd, ".vscode", "mcp.json")
-	if err := os.MkdirAll(filepath.Join(wd, ".vscode"), 0755); err == nil {
-		_ = upsertVSCodeWorkspaceMCP(workspaceMCP, bin)
+	// Also create workspace .vscode/mcp.json unless --global
+	if !setupGlobal {
+		wd, _ := os.Getwd()
+		workspaceMCP := filepath.Join(wd, ".vscode", "mcp.json")
+		if err := os.MkdirAll(filepath.Join(wd, ".vscode"), 0755); err == nil {
+			_ = upsertVSCodeWorkspaceMCP(workspaceMCP, bin)
+		}
 	}
 
 	printSuccess(fmt.Sprintf("VS Code     → %s", settingsPath))
@@ -188,13 +224,16 @@ func vscodeSettingsPath() (string, error) {
 // ── Cursor ────────────────────────────────────────────────────────────────────
 
 func setupCursorEditor(bin string) error {
-	if !isInstalled("cursor") {
-		return fmt.Errorf("not installed")
-	}
-
 	mcpPath, err := cursorMCPPath()
 	if err != nil {
 		return fmt.Errorf("cannot locate Cursor config: %w", err)
+	}
+
+	// Detect Cursor: check binary in PATH OR ~/.cursor dir already exists
+	if !isInstalled("cursor") {
+		if _, statErr := os.Stat(filepath.Dir(mcpPath)); os.IsNotExist(statErr) {
+			return fmt.Errorf("not installed")
+		}
 	}
 
 	if err := upsertCursorMCP(mcpPath, bin); err != nil {
@@ -250,13 +289,16 @@ func upsertCursorMCP(path, bin string) error {
 // ── Claude Code ───────────────────────────────────────────────────────────────
 
 func setupClaudeCodeEditor(bin string) error {
-	if !isInstalled("claude") {
-		return fmt.Errorf("not installed")
-	}
-
 	mcpPath, err := claudeSettingsPath()
 	if err != nil {
 		return fmt.Errorf("cannot locate Claude Code settings: %w", err)
+	}
+
+	// Detect Claude Code: check binary in PATH OR config directory already exists
+	if !isInstalled("claude") {
+		if _, statErr := os.Stat(filepath.Dir(mcpPath)); os.IsNotExist(statErr) {
+			return fmt.Errorf("not installed")
+		}
 	}
 
 	if err := upsertClaudeMCP(mcpPath, bin); err != nil {
@@ -272,7 +314,17 @@ func claudeSettingsPath() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(home, ".claude", "settings.json"), nil
+	switch runtime.GOOS {
+	case "windows":
+		// Claude Code on Windows stores settings in %APPDATA%\Claude\
+		appData := os.Getenv("APPDATA")
+		if appData == "" {
+			appData = filepath.Join(home, "AppData", "Roaming")
+		}
+		return filepath.Join(appData, "Claude", "settings.json"), nil
+	default:
+		return filepath.Join(home, ".claude", "settings.json"), nil
+	}
 }
 
 func upsertClaudeMCP(path, bin string) error {

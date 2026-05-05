@@ -100,10 +100,68 @@ Types: `feat`, `fix`, `docs`, `test`, `chore`, `refactor`
 
 ---
 
+## Versioning strategy
+
+Korva follows [Semantic Versioning](https://semver.org): `vMAJOR.MINOR.PATCH`.
+
+### Patch (`v1.1.x` → `v1.1.1`)
+
+Backwards-compatible fixes. Release frequently — no planning needed.
+
+- Bug fixes that don't change any public interface
+- Performance improvements
+- Documentation-only changes
+- Security patches
+
+### Minor (`v1.x.0` → `v1.2.0`)
+
+New capabilities that don't break existing users. Batch several together when possible.
+
+- New MCP tools (vault_* additions)
+- New CLI commands or flags
+- New API endpoints
+- New Beacon pages or major UI additions
+- New Knowledge Scrolls bundled in the release
+- New configuration keys (always optional, with sensible defaults)
+
+### Major (`vX.0.0` — breaking changes)
+
+Breaking changes that require users to update their setup. Avoid unless necessary.
+
+- MCP tool renames or removed parameters (AI agents have these hardcoded)
+- CLI flag renames or removed commands that are in common use
+- REST API breaking changes (renamed/removed endpoints, response format changes)
+- `korva.config.json` schema changes that aren't backwards-compatible
+- SQLite schema migrations that can't run automatically
+- Minimum Go version bumps that affect build compatibility
+
+**When NOT to bump major:** adding fields to JSON responses, deprecating (but not removing)
+features, changing default values of optional settings.
+
+### Release checklist
+
+1. Update `CHANGELOG.md` (generated automatically by release-please if you use conventional commits)
+2. Tag: `git tag v1.2.0 && git push --tags`
+3. CI runs the release pipeline automatically (GoReleaser + Homebrew tap update)
+
+### Conventional commits → automatic version bumps
+
+The release pipeline uses [release-please](https://github.com/googleapis/release-please).
+Commit message prefixes control the version bump:
+
+| Prefix | Bump | Example |
+|---|---|---|
+| `fix:` | patch | `fix(vault): handle nil session_id` |
+| `feat:` | minor | `feat(cli): add korva config command` |
+| `feat!:` or `BREAKING CHANGE:` | major | `feat!: rename vault_observe to vault_save` |
+| `docs:`, `chore:`, `test:`, `refactor:` | none | (skipped in changelog) |
+
+---
+
 ## Questions?
 
 Open a GitHub Discussion or file an Issue. We're happy to help.
 
 ---
 
-*Last updated: 2026-04-30*
+*Last updated: 2026-05-04*

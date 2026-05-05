@@ -3,6 +3,7 @@
 /korva
 /korva-vault
 /korva-sentinel
+/bin/
 dist/
 *.exe
 # Stray binaries produced by `go run` / `go build` at repo root
