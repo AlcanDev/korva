@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.3.0](https://github.com/AlcanDev/korva/compare/v1.2.0...v1.3.0) (2026-05-05)
+
+
+### 🚀 Features
+
+* **cli:** add config command, commands help, and global setup flag ([35fbfbd](https://github.com/AlcanDev/korva/commit/35fbfbd24ab56465172a2e8e63a81c16d8ed4d15))
+* **cli:** rich update notifications with changelog preview and MCP notice ([413fdf5](https://github.com/AlcanDev/korva/commit/413fdf5db083db6a8d11032953b1f31b8e96e3a7))
+
+
+### 🐛 Bug Fixes
+
+* **cli:** apply gofmt formatting to commands.go and config.go ([fe85c74](https://github.com/AlcanDev/korva/commit/fe85c7422bf2522f8797682ebaad3bd1fc8b6003))
+
 ## [1.2.0](https://github.com/AlcanDev/korva/compare/v1.1.0...v1.2.0) (2026-05-05)
 
 
