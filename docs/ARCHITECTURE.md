@@ -247,7 +247,7 @@ The vault is the only long-running process. Everything else is short-lived and s
 ├── admin.key                Admin secret — read-only, mode 0600
 ├── install.id               Stable per-machine identifier
 ├── hive.key                 Optional: Hive client key
-├── license.jws              Activated license (Teams / Business)
+├── license.jws              Activated license (Teams)
 ├── license.state            Last heartbeat timestamp
 ├── version.check            Last update-check cache (24h TTL)
 └── vault/

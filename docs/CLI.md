@@ -161,7 +161,7 @@ The pre-commit hook reads filenames from stdin (standard pre-commit protocol), v
 
 ```bash
 korva license status                          # current state
-korva license activate <key>                  # activate Teams / Business
+korva license activate <key>                  # activate Teams license
 korva license deactivate                      # deactivate this machine
 korva license refresh                         # force a heartbeat now
 ```

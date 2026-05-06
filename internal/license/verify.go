@@ -107,5 +107,10 @@ func verifyJWS(token string) (*License, error) {
 	if err := json.Unmarshal(payloadJSON, &lic); err != nil {
 		return nil, fmt.Errorf("license: payload json: %w", err)
 	}
+	// Backward-compat: legacy "business" / "enterprise" tier names are folded
+	// into Teams. Per-feature unlocking still works via the Features array.
+	if lic.Tier == "business" || lic.Tier == "enterprise" {
+		lic.Tier = TierTeams
+	}
 	return &lic, nil
 }
