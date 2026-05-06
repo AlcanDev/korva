@@ -1,0 +1,566 @@
+{
+  "$schema": "https://korva.dev/schemas/install-wizard/v1.json",
+  "version": "1",
+  "generated_for": "korva landing — install / configure / update wizard",
+  "notes": "Machine-readable companion to docs/install-wizard-spec.md. The UI consumes this manifest to render every step, generate the shell script, and populate the quick-commands gallery. Do NOT hard-code flag names in UI code — read them from here.",
+
+  "platforms": [
+    {
+      "id": "macos",
+      "label": "macOS",
+      "shell": "bash",
+      "install_methods": ["curl", "brew", "docker", "manual"],
+      "default_install_dir": "/usr/local/bin",
+      "fallback_install_dir": "$HOME/.local/bin",
+      "binary_suffix": ""
+    },
+    {
+      "id": "linux",
+      "label": "Linux",
+      "shell": "bash",
+      "install_methods": ["curl", "brew", "docker", "manual"],
+      "default_install_dir": "/usr/local/bin",
+      "fallback_install_dir": "$HOME/.local/bin",
+      "binary_suffix": ""
+    },
+    {
+      "id": "windows",
+      "label": "Windows",
+      "shell": "powershell",
+      "install_methods": ["irm", "manual"],
+      "default_install_dir": "%LOCALAPPDATA%\\korva\\bin",
+      "fallback_install_dir": "%LOCALAPPDATA%\\korva\\bin",
+      "binary_suffix": ".exe"
+    }
+  ],
+
+  "install_methods": [
+    {
+      "id": "curl",
+      "label": "Curl one-liner",
+      "platforms": ["macos", "linux"],
+      "command_template": "curl -fsSL https://korva.dev/install | bash",
+      "supports_env_vars": true
+    },
+    {
+      "id": "irm",
+      "label": "PowerShell one-liner",
+      "platforms": ["windows"],
+      "command_template": "irm https://korva.dev/install.ps1 | iex",
+      "supports_env_vars": true
+    },
+    {
+      "id": "brew",
+      "label": "Homebrew",
+      "platforms": ["macos", "linux"],
+      "command_template": "brew install alcandev/tap/korva",
+      "supports_env_vars": false
+    },
+    {
+      "id": "docker",
+      "label": "Docker Compose",
+      "platforms": ["macos", "linux", "windows"],
+      "command_template": "docker compose -f docker-compose.yml up -d korva-vault",
+      "supports_env_vars": false,
+      "note": "Runs only the vault server in a container. The CLI must still be installed natively to talk to it."
+    },
+    {
+      "id": "manual",
+      "label": "Download archive from GitHub Releases",
+      "platforms": ["macos", "linux", "windows"],
+      "command_template": "https://github.com/alcandev/korva/releases",
+      "supports_env_vars": false
+    }
+  ],
+
+  "components": [
+    {
+      "id": "korva",
+      "label": "korva CLI",
+      "required": true,
+      "always_installed": true,
+      "description": "Main command-line interface. Always installed."
+    },
+    {
+      "id": "korva-sentinel",
+      "label": "korva-sentinel",
+      "required": true,
+      "always_installed": true,
+      "description": "Pre-commit validator. Ships in the same archive."
+    },
+    {
+      "id": "korva-vault",
+      "label": "korva-vault",
+      "required": false,
+      "always_installed": false,
+      "default_enabled": true,
+      "description": "Local memory server (SQLite + MCP + REST :7437). Disable with KORVA_NO_VAULT=yes for cloud-only setups.",
+      "env_var_when_disabled": { "name": "KORVA_NO_VAULT", "value": "yes" }
+    }
+  ],
+
+  "env_vars": [
+    {
+      "name": "KORVA_VERSION",
+      "scope": "installer",
+      "type": "string",
+      "default": "latest",
+      "description": "Pin a specific release tag (e.g. v0.5.0). Read by install.sh / install.ps1."
+    },
+    {
+      "name": "KORVA_INSTALL_DIR",
+      "scope": "installer",
+      "type": "path",
+      "default_macos_linux": "/usr/local/bin (or $HOME/.local/bin if not writable)",
+      "default_windows": "%LOCALAPPDATA%\\korva\\bin",
+      "description": "Override install directory."
+    },
+    {
+      "name": "KORVA_NO_VAULT",
+      "scope": "installer",
+      "type": "enum",
+      "values": ["yes", "no"],
+      "default": "no",
+      "description": "Skip installing korva-vault."
+    },
+    {
+      "name": "KORVA_NO_UPDATE_CHECK",
+      "scope": "runtime",
+      "type": "boolean",
+      "default": "0",
+      "description": "Disable the once-per-24h background update check."
+    },
+    { "name": "KORVA_VAULT_PORT",   "scope": "vault",     "type": "int",    "default": 7437,         "description": "Override --port on korva-vault." },
+    { "name": "KORVA_VAULT_HOST",   "scope": "vault",     "type": "string", "default": "127.0.0.1",  "description": "Bind address. Use 0.0.0.0 in Docker." },
+    { "name": "KORVA_VAULT_DB",     "scope": "vault",     "type": "path",   "default": "~/.korva/vault/observations.db", "description": "SQLite DB path." },
+    { "name": "KORVA_VAULT_MODE",   "scope": "vault",     "type": "enum",   "values": ["mcp", "http", "both", "tui"], "default": "both", "description": "Vault server protocol mode." },
+    { "name": "KORVA_HIVE_ENDPOINT","scope": "vault",     "type": "url",    "default": "https://hive.korva.dev", "description": "Override Hive sync endpoint." },
+    { "name": "KORVA_LICENSING_ENDPOINT", "scope": "vault", "type": "url",  "default": "https://licensing.korva.dev", "description": "Custom licensing server (Korva for Teams self-hosted)." },
+    { "name": "KORVA_ADMIN_KEY",    "scope": "vault",     "type": "secret", "default": null,         "description": "Inline admin key when ~/.korva/admin.key cannot be used." },
+    { "name": "KORVA_EMAIL_API_KEY","scope": "vault",     "type": "secret", "default": null,         "description": "Resend API key for license email notifications." },
+    { "name": "KORVA_EMAIL_FROM",   "scope": "vault",     "type": "string", "default": null,         "description": "Email From address." },
+    { "name": "KORVA_EMAIL_FROM_NAME","scope": "vault",   "type": "string", "default": "Korva",      "description": "Email From display name." },
+    { "name": "KORVA_HOME",         "scope": "runtime",   "type": "path",   "default": "~/.korva",   "description": "Override Korva home directory." }
+  ],
+
+  "editors": [
+    { "id": "claude-code", "label": "Claude Code",    "setup_command": "korva setup claude-code", "integration_dir": "integrations/claude-code" },
+    { "id": "cursor",      "label": "Cursor",         "setup_command": "korva setup cursor",      "integration_dir": "integrations/cursor" },
+    { "id": "vscode",      "label": "VS Code",        "setup_command": "korva setup vscode",      "integration_dir": "integrations/vscode" },
+    { "id": "copilot",     "label": "GitHub Copilot", "setup_command": "korva setup copilot",     "integration_dir": "integrations/copilot" },
+    { "id": "opencode",    "label": "OpenCode",       "setup_command": "korva setup opencode",    "integration_dir": "integrations/opencode" },
+    { "id": "codex",       "label": "OpenAI Codex",   "setup_command": "korva setup codex",       "integration_dir": "integrations/codex" },
+    { "id": "gemini",      "label": "Gemini CLI",     "setup_command": "korva setup gemini",      "integration_dir": "integrations/gemini" },
+    { "id": "windsurf",    "label": "Windsurf",       "setup_command": "korva setup windsurf",    "integration_dir": "integrations/windsurf" }
+  ],
+
+  "editor_scopes": [
+    { "id": "auto",   "label": "Auto-detect",     "flag": "" },
+    { "id": "global", "label": "Global config",   "flag": "--global" },
+    { "id": "local",  "label": "Workspace only",  "flag": "--local" },
+    { "id": "all",    "label": "All editors",     "flag": "--all" }
+  ],
+
+  "agents": [
+    { "id": "copilot", "label": "GitHub Copilot" },
+    { "id": "claude",  "label": "Claude Code" },
+    { "id": "cursor",  "label": "Cursor" }
+  ],
+
+  "presets": [
+    {
+      "id": "cloud",
+      "label": "Cloud (default)",
+      "description": "Everything on. Hive sync enabled, vault HTTP+MCP, update checks active.",
+      "env": {},
+      "post_install": []
+    },
+    {
+      "id": "offline",
+      "label": "Offline / Air-gapped",
+      "description": "Disables Hive sync and update checks for machines with no outbound internet after install.",
+      "env": { "KORVA_NO_UPDATE_CHECK": "1" },
+      "post_install": [
+        "korva hive disable",
+        "korva config set vault.auto_sync false"
+      ]
+    },
+    {
+      "id": "cloud-only",
+      "label": "Cloud-only (MCP, no local DB)",
+      "description": "Skip the local vault binary. Only works for users who use a remote vault.",
+      "env": { "KORVA_NO_VAULT": "yes" },
+      "post_install": []
+    },
+    {
+      "id": "claude-only",
+      "label": "Claude Code only",
+      "description": "Minimal install with only Claude Code wired up.",
+      "env": {},
+      "editors": ["claude-code"],
+      "post_install": []
+    },
+    {
+      "id": "custom",
+      "label": "Custom (I'll pick)",
+      "description": "Don't apply any preset; the user toggles each option.",
+      "env": {},
+      "post_install": []
+    }
+  ],
+
+  "commands": [
+    {
+      "name": "korva init",
+      "category": "setup",
+      "description": "Initialise Korva in the current project (creates ~/.korva/, generates install.id, writes korva.config.json).",
+      "flags": [
+        { "name": "--profile", "type": "string",  "default": "",      "description": "Team profile repo URL (git@github.com:org/korva-profile.git)." },
+        { "name": "--admin",   "type": "bool",    "default": false,   "description": "Initialize as admin (generates ~/.korva/admin.key). Requires --owner." },
+        { "name": "--owner",   "type": "string",  "default": "",      "description": "Admin owner email. Required with --admin." },
+        { "name": "--agent",   "type": "enum",    "values": ["copilot","claude","cursor"], "default": "auto", "description": "AI agent. Auto-detected if omitted." },
+        { "name": "--dry-run", "type": "bool",    "default": false,   "description": "Show what would be done without making changes." }
+      ]
+    },
+    {
+      "name": "korva setup",
+      "category": "setup",
+      "description": "Wire an editor / AI agent to use Vault MCP.",
+      "subcommands": [
+        "claude-code","cursor","vscode","copilot","opencode","codex","gemini","windsurf"
+      ],
+      "flags": [
+        { "name": "--all",    "type": "bool", "default": false, "description": "Configure every detected editor." },
+        { "name": "--force",  "type": "bool", "default": false, "description": "Overwrite existing MCP config." },
+        { "name": "--global", "type": "bool", "default": false, "description": "Write to global editor config only.", "exclusive_with": "--local" },
+        { "name": "--local",  "type": "bool", "default": false, "description": "Write to workspace (.vscode/mcp.json) only.", "exclusive_with": "--global" }
+      ]
+    },
+    {
+      "name": "korva status", "category": "health",
+      "description": "Show Korva config, vault health, license, scrolls and sentinel status."
+    },
+    {
+      "name": "korva doctor", "category": "health",
+      "description": "Run health checks (paths, binaries, vault, git, install.id, license, admin.key)."
+    },
+    {
+      "name": "korva config",
+      "category": "config",
+      "description": "Read and write Korva configuration. Layers: ~/.korva/config.json (global) overridden by ./korva.config.json (local).",
+      "subcommands": [
+        { "name": "list", "flags": [
+          { "name": "--global", "type": "bool", "default": false },
+          { "name": "--local",  "type": "bool", "default": false }
+        ]},
+        { "name": "get <key>", "flags": [
+          { "name": "--global", "type": "bool", "default": false },
+          { "name": "--local",  "type": "bool", "default": false }
+        ]},
+        { "name": "set <key> <value>", "flags": [
+          { "name": "--global", "type": "bool", "default": false, "description": "Save to ~/.korva/config.json instead of the project file." },
+          { "name": "--local",  "type": "bool", "default": true,  "description": "Save to ./korva.config.json (default)." }
+        ]}
+      ]
+    },
+    {
+      "name": "korva vault",
+      "category": "vault",
+      "description": "Manage the local Vault server.",
+      "subcommands": [
+        { "name": "start",  "description": "Launch korva-vault in background. Polls /healthz." },
+        { "name": "stop",   "description": "SIGINT the vault process and remove the PID file." },
+        { "name": "status", "description": "Show process and HTTP API status." },
+        { "name": "logs",   "description": "Print the vault log file path for tailing." },
+        { "name": "clean",  "description": "De-duplicate the vault SQLite database (direct file access).",
+          "flags": [
+            { "name": "--dry-run", "type": "bool",   "default": false, "description": "Preview duplicates without deleting." },
+            { "name": "--project", "type": "string", "default": "",    "description": "Limit dedup to a specific project." }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "korva obs",
+      "category": "knowledge",
+      "description": "Browse and search vault observations.",
+      "subcommands": [
+        { "name": "list",  "flags": [
+          { "name": "--project", "type": "string", "default": "" },
+          { "name": "--type",    "type": "enum", "values": ["decision","pattern","bugfix","learning","context","antipattern","task"], "default": "" },
+          { "name": "--limit",   "type": "int",    "default": 20, "min": 1, "max": 200 },
+          { "name": "--offset",  "type": "int",    "default": 0 }
+        ]},
+        { "name": "search <query>", "flags": [
+          { "name": "--project", "type": "string", "default": "" },
+          { "name": "--type",    "type": "string", "default": "" },
+          { "name": "--limit",   "type": "int",    "default": 20 },
+          { "name": "--cloud",   "type": "bool",   "default": false, "description": "Include Hive community results." }
+        ]},
+        { "name": "get <id>", "description": "Fetch a single observation by ULID." }
+      ]
+    },
+    {
+      "name": "korva lore",
+      "aliases": ["korva scrolls"],
+      "category": "knowledge",
+      "description": "Manage knowledge Scrolls (.md instructions activated per-project).",
+      "subcommands": [
+        { "name": "list",                 "description": "List available and active scrolls." },
+        { "name": "add <scroll-name>",    "description": "Add scroll to active_scrolls in korva.config.json." },
+        { "name": "remove <scroll-name>", "aliases": ["rm"], "description": "Remove scroll from active_scrolls." }
+      ]
+    },
+    {
+      "name": "korva sentinel",
+      "category": "quality",
+      "description": "Manage Sentinel pre-commit hooks.",
+      "subcommands": [
+        { "name": "install", "description": "Install .git/hooks/pre-commit invoking sentinel run." },
+        { "name": "check",   "description": "Run sentinel validation on staged files (no commit)." },
+        { "name": "run", "hidden": true, "flags": [
+          { "name": "--hook", "type": "enum", "values": ["pre-commit","pre-push"], "default": "pre-commit" }
+        ]}
+      ]
+    },
+    {
+      "name": "korva auth",
+      "category": "teams",
+      "tier": "teams",
+      "description": "Authenticate with Korva for Teams.",
+      "subcommands": [
+        { "name": "redeem <invite-token>", "description": "Activate a session from a one-time invite token. Requires the vault to be running." },
+        { "name": "status",                "description": "Show current session, organization and role." },
+        { "name": "logout",                "description": "Revoke the current session." }
+      ]
+    },
+    {
+      "name": "korva teams",
+      "category": "teams",
+      "tier": "teams",
+      "description": "Manage team profile and members. Most subcommands require ~/.korva/admin.key.",
+      "subcommands": [
+        { "name": "sync",   "flags": [
+          { "name": "--git-mirror", "type": "url", "default": "", "description": "Mirror profile to a Git repo after sync." }
+        ]},
+        { "name": "status" },
+        { "name": "list" },
+        { "name": "create <name>", "flags": [
+          { "name": "--owner",      "type": "email",  "required": true },
+          { "name": "--license-id", "type": "string", "default": "" }
+        ]},
+        { "name": "members <team-id>" },
+        { "name": "invite <email>", "flags": [
+          { "name": "--team", "type": "string", "required": true }
+        ]},
+        { "name": "add-member <email>", "flags": [
+          { "name": "--team", "type": "string", "required": true },
+          { "name": "--role", "type": "enum", "values": ["member","admin"], "default": "member" }
+        ]},
+        { "name": "remove-member <member-id>", "flags": [
+          { "name": "--team", "type": "string", "required": true }
+        ]}
+      ]
+    },
+    {
+      "name": "korva admin",
+      "category": "admin",
+      "tier": "admin",
+      "description": "Admin-only operations (requires ~/.korva/admin.key on this machine).",
+      "subcommands": [
+        { "name": "init", "flags": [
+          { "name": "--owner", "type": "email", "required": true },
+          { "name": "--force", "type": "bool",  "default": false }
+        ]},
+        { "name": "rotate-key" }
+      ]
+    },
+    {
+      "name": "korva license",
+      "category": "license",
+      "tier": "teams",
+      "description": "Manage Korva for Teams license.",
+      "subcommands": [
+        { "name": "activate <license-key>", "description": "Activate a license. Requires install.id (run korva init first)." },
+        { "name": "status" },
+        { "name": "deactivate" }
+      ]
+    },
+    {
+      "name": "korva hive",
+      "category": "sync",
+      "description": "Korva Hive — community brain cloud sync.",
+      "subcommands": [
+        { "name": "push" },
+        { "name": "status" },
+        { "name": "enable" },
+        { "name": "disable" },
+        { "name": "retry" },
+        { "name": "rotate-key" }
+      ]
+    },
+    {
+      "name": "korva sync",
+      "category": "sync",
+      "description": "Sync Vault and team profile with remote services.",
+      "flags": [
+        { "name": "--profile", "type": "bool", "default": false, "description": "Pull and re-apply latest team profile." },
+        { "name": "--vault",   "type": "bool", "default": false, "description": "Flush Hive outbox to cloud." },
+        { "name": "--quiet",   "type": "bool", "default": false }
+      ]
+    },
+    {
+      "name": "korva skills",
+      "category": "skills",
+      "tier": "teams",
+      "description": "Manage and sync AI skills for your team.",
+      "subcommands": [
+        { "name": "list" },
+        { "name": "sync", "flags": [
+          { "name": "--global",  "type": "bool",   "default": true,  "description": "Sync to ~/.claude/" },
+          { "name": "--project", "type": "string", "default": "",    "description": "Sync to <project>/.claude/" },
+          { "name": "--quiet",   "type": "bool",   "default": false }
+        ]},
+        { "name": "history <skill-name>" },
+        { "name": "hook install" },
+        { "name": "hook remove" }
+      ]
+    },
+    {
+      "name": "korva update",
+      "category": "maintenance",
+      "description": "Update Korva binaries (korva, korva-vault, korva-sentinel).",
+      "flags": [
+        { "name": "--check",     "type": "bool", "default": false, "description": "Only check, don't install." },
+        { "name": "--changelog", "type": "bool", "default": false, "description": "Show release notes without installing." },
+        { "name": "--yes",       "type": "bool", "default": false, "description": "Skip confirmation prompt." }
+      ]
+    },
+    {
+      "name": "korva commands",
+      "category": "info",
+      "description": "Print all Korva commands grouped by category."
+    },
+    {
+      "name": "korva-vault",
+      "category": "vault-server",
+      "description": "Vault server binary. Usually launched via `korva vault start`; flags here are for advanced manual launches.",
+      "flags": [
+        { "name": "--mode", "type": "enum", "values": ["mcp","http","both","tui"], "default": "both" },
+        { "name": "--port", "type": "int",    "default": 7437,        "env_var": "KORVA_VAULT_PORT" },
+        { "name": "--host", "type": "string", "default": "127.0.0.1", "env_var": "KORVA_VAULT_HOST" },
+        { "name": "--db",   "type": "path",   "default": "~/.korva/vault/observations.db", "env_var": "KORVA_VAULT_DB" }
+      ]
+    }
+  ],
+
+  "config_keys": [
+    { "key": "version",                   "type": "string",   "default": "1",          "description": "Config schema version." },
+    { "key": "project",                   "type": "string",   "default": "(auto)",     "description": "Project name." },
+    { "key": "team",                      "type": "string",   "default": "",           "description": "Team name (multi-profile projects)." },
+    { "key": "country",                   "type": "string",   "default": "CL",         "description": "ISO 3166-1 country code." },
+    { "key": "agent",                     "type": "enum",     "values": ["copilot","claude","cursor"], "default": "copilot" },
+
+    { "key": "vault.port",                "type": "int",      "default": 7437 },
+    { "key": "vault.auto_start",          "type": "bool",     "default": true },
+    { "key": "vault.sync_repo",           "type": "string",   "default": "",           "description": "Git repo URL for vault observation sync." },
+    { "key": "vault.sync_branch",         "type": "string",   "default": "" },
+    { "key": "vault.auto_sync",           "type": "bool",     "default": false },
+    { "key": "vault.sync_interval_minutes","type": "int",     "default": 60 },
+    { "key": "vault.private_patterns",    "type": "string[]", "default": ["password","passwd","pwd","token","secret","api_key","apikey"] },
+    { "key": "vault.retention_days",      "type": "int",      "default": 0,            "tier": "teams", "description": "0 = retention disabled." },
+    { "key": "vault.webhook_url",         "type": "url",      "default": "",           "tier": "teams" },
+
+    { "key": "lore.active_scrolls",       "type": "string[]", "default": ["forge-sdd"] },
+    { "key": "lore.scroll_priority",      "type": "enum",     "values": ["private_first","public_first"], "default": "private_first" },
+
+    { "key": "sentinel.enabled",          "type": "bool",     "default": true },
+    { "key": "sentinel.hooks",            "type": "string[]", "default": ["pre-commit"], "values": ["pre-commit","pre-push"] },
+    { "key": "sentinel.rules_path",       "type": "path",     "default": "" },
+    { "key": "sentinel.block_on_violation","type": "bool",    "default": true },
+
+    { "key": "hive.enabled",              "type": "bool",     "default": true },
+    { "key": "hive.endpoint",             "type": "url",      "default": "https://hive.korva.dev" },
+    { "key": "hive.interval_minutes",     "type": "int",      "default": 15 },
+    { "key": "hive.allowed_types",        "type": "string[]", "default": ["pattern","decision","learning"] },
+    { "key": "hive.reject_patterns",      "type": "string[]", "default": [] },
+
+    { "key": "license.activation_url",    "type": "url",      "default": "https://licensing.korva.dev/v1/activate" }
+  ],
+
+  "quick_commands": [
+    { "id": "status",         "category": "Health",       "command": "korva status",                 "description": "Overview: config, vault health, license, scrolls, sentinel." },
+    { "id": "doctor",         "category": "Health",       "command": "korva doctor",                 "description": "Run all setup health checks." },
+    { "id": "vault-status",   "category": "Health",       "command": "korva vault status",           "description": "Vault process and HTTP status." },
+    { "id": "config-list",    "category": "Health",       "command": "korva config list",            "description": "Show merged global+local config." },
+
+    { "id": "vault-start",    "category": "Vault",        "command": "korva vault start",            "description": "Start the local vault server in background." },
+    { "id": "vault-stop",     "category": "Vault",        "command": "korva vault stop",             "description": "Stop the vault server gracefully." },
+    { "id": "vault-logs",     "category": "Vault",        "command": "korva vault logs",             "description": "Print the vault log file path." },
+    { "id": "vault-clean",    "category": "Vault",        "command": "korva vault clean --dry-run",  "description": "Preview duplicate observations without deleting." },
+
+    { "id": "update-check",   "category": "Updates",      "command": "korva update --check",         "description": "Check for new releases." },
+    { "id": "update-changelog","category": "Updates",     "command": "korva update --changelog",     "description": "Show release notes for the latest version." },
+    { "id": "update-apply",   "category": "Updates",      "command": "korva update --yes",           "description": "Update binaries without confirmation." },
+
+    { "id": "lore-list",      "category": "Knowledge",    "command": "korva lore list",              "description": "List available and active scrolls." },
+    { "id": "lore-add",       "category": "Knowledge",    "command": "korva lore add <scroll>",      "description": "Activate a knowledge scroll.", "placeholders": ["<scroll>"] },
+    { "id": "lore-remove",    "category": "Knowledge",    "command": "korva lore remove <scroll>",   "description": "Deactivate a knowledge scroll.", "placeholders": ["<scroll>"] },
+    { "id": "obs-search",     "category": "Knowledge",    "command": "korva obs search \"<query>\" --cloud", "description": "Search vault + Hive community.", "placeholders": ["<query>"] },
+    { "id": "obs-list",       "category": "Knowledge",    "command": "korva obs list --type decision", "description": "List recent decisions." },
+
+    { "id": "sentinel-install","category": "Sentinel",    "command": "korva sentinel install",       "description": "Install the pre-commit hook." },
+    { "id": "sentinel-check", "category": "Sentinel",     "command": "korva sentinel check",         "description": "Validate staged files now." },
+
+    { "id": "skills-sync",    "category": "Skills",       "command": "korva skills sync",            "description": "Pull team skills into ~/.claude/", "tier": "teams" },
+    { "id": "skills-hook",    "category": "Skills",       "command": "korva skills hook install",    "description": "Auto-sync skills before each Claude Code session.", "tier": "teams" },
+    { "id": "skills-list",    "category": "Skills",       "command": "korva skills list",            "description": "List skills available to the team.", "tier": "teams" },
+
+    { "id": "auth-redeem",    "category": "Auth & Teams", "command": "korva auth redeem <token>",    "description": "Redeem an invite token.", "placeholders": ["<token>"], "tier": "teams" },
+    { "id": "auth-status",    "category": "Auth & Teams", "command": "korva auth status",            "description": "Show session and organization.", "tier": "teams" },
+    { "id": "teams-sync",     "category": "Auth & Teams", "command": "korva teams sync",             "description": "Pull latest team profile.", "tier": "teams" },
+    { "id": "teams-invite",   "category": "Auth & Teams", "command": "korva teams invite <email> --team <id>", "description": "Generate an invite token.", "placeholders": ["<email>","<id>"], "tier": "admin" },
+
+    { "id": "license-activate","category": "License",     "command": "korva license activate <key>", "description": "Activate Korva for Teams license.", "placeholders": ["<key>"], "tier": "teams" },
+    { "id": "license-status", "category": "License",      "command": "korva license status",         "description": "Show tier, seats, expiry.", "tier": "teams" },
+    { "id": "license-deactivate","category": "License",   "command": "korva license deactivate",     "description": "Revert to Community tier.", "tier": "teams" },
+
+    { "id": "hive-status",    "category": "Hive",         "command": "korva hive status",            "description": "Show outbox queue counts." },
+    { "id": "hive-enable",    "category": "Hive",         "command": "korva hive enable",            "description": "Enable community brain sync." },
+    { "id": "hive-disable",   "category": "Hive",         "command": "korva hive disable",           "description": "Disable community brain sync." },
+    { "id": "hive-push",      "category": "Hive",         "command": "korva hive push",              "description": "Flush outbox now." },
+
+    { "id": "admin-init",     "category": "Admin",        "command": "korva admin init --owner <email>", "description": "Generate ~/.korva/admin.key.", "placeholders": ["<email>"], "tier": "admin" },
+    { "id": "admin-rotate",   "category": "Admin",        "command": "korva admin rotate-key",       "description": "Rotate the admin key.", "tier": "admin" },
+
+    { "id": "config-get",     "category": "Config",       "command": "korva config get <key>",       "description": "Read a config value.", "placeholders": ["<key>"] },
+    { "id": "config-set",     "category": "Config",       "command": "korva config set <key> <value>", "description": "Set a config value (local by default).", "placeholders": ["<key>","<value>"] }
+  ],
+
+  "validation": [
+    { "id": "admin-requires-owner",  "rule": "If init.admin == true then init.owner is required.", "blocks_step": "init" },
+    { "id": "scope-mutex",           "rule": "editor_scope cannot be both --global and --local.",   "blocks_step": "editors" },
+    { "id": "brew-platform",         "rule": "install_method == 'brew' is hidden when platform == 'windows'.", "blocks_step": "install_method" },
+    { "id": "no-vault-vs-cloud-only","rule": "preset 'cloud-only' assumes vault binary present for MCP; warn if components.korva-vault == false.", "blocks_step": "components" },
+    { "id": "auth-needs-vault",      "rule": "korva auth redeem fails if components.korva-vault == false; hide that quick-command.", "blocks_step": "quick_commands" },
+    { "id": "license-needs-init",    "rule": "korva license activate requires install.id, generated by korva init; gate quick-command behind runInit == true.", "blocks_step": "quick_commands" },
+    { "id": "scroll-name-charset",   "rule": "lore.add / lore.remove names must match ^[A-Za-z0-9_-]+$ (no '/' or '.').", "blocks_step": "lore" },
+    { "id": "agent-enum",            "rule": "init.agent ∈ {copilot, claude, cursor}.", "blocks_step": "init" },
+    { "id": "vault-mode-enum",       "rule": "vault.mode ∈ {mcp, http, both, tui}.",     "blocks_step": "vault" }
+  ],
+
+  "key_paths": [
+    { "path": "~/.korva/",                       "kind": "dir",  "description": "Korva home directory." },
+    { "path": "~/.korva/config.json",            "kind": "file", "description": "Global configuration." },
+    { "path": "~/.korva/install.id",             "kind": "file", "description": "Unique install identifier (ULID), generated by `korva init`." },
+    { "path": "~/.korva/hive.key",               "kind": "file", "description": "Hive cloud sync API key." },
+    { "path": "~/.korva/admin.key",              "kind": "file", "permissions": "0600", "description": "Admin key. Never serialised; never logged." },
+    { "path": "~/.korva/license.key",            "kind": "file", "description": "Korva for Teams license certificate." },
+    { "path": "~/.korva/session.token",          "kind": "file", "permissions": "0600", "description": "Korva for Teams session token." },
+    { "path": "~/.korva/vault/observations.db",  "kind": "file", "description": "SQLite vault DB." },
+    { "path": "~/.korva/vault/vault.pid",        "kind": "file", "description": "Vault PID file." },
+    { "path": "~/.korva/vault/vault.log",        "kind": "file", "description": "Vault server log." },
+    { "path": "korva.config.json",               "kind": "file", "description": "Project-level config (repo root)." },
+    { "path": ".git/hooks/pre-commit",           "kind": "file", "description": "Sentinel git hook." }
+  ]
+}
