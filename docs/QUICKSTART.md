@@ -125,7 +125,7 @@ korva sentinel install --hook post-commit
 | See every CLI command | [CLI.md](CLI.md) |
 | Author your own scrolls | [SKILLS.md](SKILLS.md) |
 | Self-host the vault for a team | [DEPLOYMENT.md](DEPLOYMENT.md) |
-| Activate a Teams or Business licence | [LICENSING.md](LICENSING.md) |
+| Activate a Teams licence | [LICENSING.md](LICENSING.md) |
 | Open the Beacon dashboard | [ADMIN_PANEL.md](ADMIN_PANEL.md) |
 
 ---

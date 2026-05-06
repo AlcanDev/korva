@@ -90,15 +90,9 @@ func (s *Server) requireFeatureMCP(feature, toolName string) error {
 	if s.lic != nil && s.lic.HasFeature(feature) {
 		return nil
 	}
-	tier := "Teams"
-	switch feature {
-	case license.FeatureCodeHealth, license.FeaturePatternMine,
-		license.FeatureMultiProfile, license.FeatureCloudPrivate:
-		tier = "Business"
-	}
 	return fmt.Errorf(
-		"tool %q requires a Korva %s license — visit https://korva.dev/pricing to upgrade",
-		toolName, tier,
+		"tool %q requires a Korva Teams license — visit https://korva.dev/pricing to upgrade",
+		toolName,
 	)
 }
 

@@ -170,9 +170,10 @@ Force an immediate Hive sync without waiting for the worker tick.
 
 ---
 
-## Tools — Business tier
+## Tools — analytics (Teams tier)
 
-Require an activated Business license.
+Require an activated Teams license that includes the `code_health` and
+`pattern_mine` features.
 
 ### `vault_code_health`
 Aggregate health metrics for a codebase — duplication, conflict density, churn.

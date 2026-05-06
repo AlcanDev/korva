@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { adminFetch, adminPost } from './_fetch'
 
-export type LicenseTier = 'community' | 'teams' | 'business' | 'enterprise'
+export type LicenseTier = 'community' | 'teams'
 
 export interface LicenseStatus {
   tier: LicenseTier
@@ -16,7 +16,7 @@ export interface LicenseStatus {
 
 /** Returns true for any paid tier that unlocks Teams features. */
 export function isPaidTier(tier: LicenseTier | undefined): boolean {
-  return tier === 'teams' || tier === 'business' || tier === 'enterprise'
+  return tier === 'teams'
 }
 
 export function useLicenseStatus() {

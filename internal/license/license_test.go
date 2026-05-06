@@ -179,6 +179,30 @@ func TestValidate_UnknownTier(t *testing.T) {
 	}
 }
 
+// TestVerifyJWS_LegacyTiers covers the backward-compatibility shim that folds
+// licenses issued with the old "business" / "enterprise" tier names into the
+// single "teams" tier. Once normalized, Validate() must accept them.
+func TestVerifyJWS_LegacyTiers(t *testing.T) {
+	priv := mustParsePrivKey(testPrivKeyPEM)
+	for _, legacy := range []string{"business", "enterprise"} {
+		t.Run(legacy, func(t *testing.T) {
+			payload := validPayload(map[string]interface{}{"tier": legacy})
+			jws := signTestJWS(priv, "korva-license-dev", payload)
+
+			lic, err := verifyJWS(jws)
+			if err != nil {
+				t.Fatalf("verify: %v", err)
+			}
+			if lic.Tier != TierTeams {
+				t.Errorf("tier %q was not normalized to teams: got %q", legacy, lic.Tier)
+			}
+			if err := lic.Validate(); err != nil {
+				t.Errorf("legacy %q failed Validate after normalization: %v", legacy, err)
+			}
+		})
+	}
+}
+
 func TestHasFeature(t *testing.T) {
 	priv := mustParsePrivKey(testPrivKeyPEM)
 	jws := signTestJWS(priv, "korva-license-dev", validPayload(nil))

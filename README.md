@@ -54,7 +54,7 @@ Korva turns any AI coding assistant — Claude Code, Cursor, GitHub Copilot, Ope
 | 🛡️ **Sentinel** | Pre-commit gate that catches architectural violations before they reach review. |
 | 🔮 **Forge** | Spec-Driven Development workflow — five phases from idea to merged PR. |
 
-Plus: **Hive** for opt-in cross-team knowledge sync, **Beacon** for a private dashboard at `localhost:7437`, and **Teams / Business** licensing tiers for organisations that need RBAC, multi-profile support, and code-health analytics.
+Plus: **Hive** for opt-in cross-team knowledge sync, **Beacon** for a private dashboard at `localhost:7437`, and the **Teams** licensing tier for organisations that need RBAC, multi-profile support, and code-health analytics.
 
 ---
 
@@ -177,7 +177,7 @@ You're done. Your assistant now has structured memory, knowledge injection, and 
 | [**CLI Reference**](docs/CLI.md) | Every command, every flag |
 | [**Skills / Lore**](docs/SKILLS.md) | How scrolls work, how to author your own |
 | [**Deployment**](docs/DEPLOYMENT.md) | Self-host the vault for your team |
-| [**Licensing**](docs/LICENSING.md) | Community vs Teams vs Business tiers |
+| [**Licensing**](docs/LICENSING.md) | Community vs Teams tiers |
 | [**Admin Panel**](docs/ADMIN_PANEL.md) | Beacon dashboard guide |
 | [**Auto-skills**](docs/AUTOSKILLS.md) | How automatic scroll loading works |
 | [**Team Profiles**](docs/team-profile-guide.md) | Per-team configuration |
@@ -224,20 +224,20 @@ Manifests live in [`integrations/`](integrations/). Each is a thin config that w
 
 ## 💎 Tiers
 
-| Feature | Community | Teams | Business |
-|---------|:---------:|:-----:|:--------:|
-| Vault + MCP | ✅ | ✅ | ✅ |
-| All curated scrolls | ✅ | ✅ | ✅ |
-| Sentinel pre-commit | ✅ | ✅ | ✅ |
-| Forge SDD workflow | ✅ | ✅ | ✅ |
-| Beacon dashboard | ✅ | ✅ | ✅ |
-| Smart Skill Loader | — | ✅ | ✅ |
-| Multi-profile | — | ✅ | ✅ |
-| Hive cross-team sync | — | ✅ | ✅ |
-| RBAC + audit log | — | ✅ | ✅ |
-| Code Health analytics | — | — | ✅ |
-| Pattern Mining | — | — | ✅ |
-| Priority support | — | Email | SLA |
+| Feature | Community | Teams |
+|---------|:---------:|:-----:|
+| Vault + MCP | ✅ | ✅ |
+| All curated scrolls | ✅ | ✅ |
+| Sentinel pre-commit | ✅ | ✅ |
+| Forge SDD workflow | ✅ | ✅ |
+| Beacon dashboard | ✅ | ✅ |
+| Smart Skill Loader | — | ✅ |
+| Multi-profile | — | ✅ |
+| Hive cross-team sync | — | ✅ |
+| RBAC + audit log | — | ✅ |
+| Code Health analytics | — | ✅ |
+| Pattern Mining | — | ✅ |
+| Priority support | — | Email / SLA |
 
 → See [LICENSING.md](docs/LICENSING.md) for the full feature matrix.
 
@@ -273,7 +273,7 @@ Conventional Commits are required — see [`release-engineering`](lore/curated/r
 
 ## 📜 License
 
-**Community core** is [MIT licensed](LICENSE). The licensing server (`forge/licensing-server/`) and Teams/Business features (`internal/license/`) are licensed under [LICENSE-ENTERPRISE.md](LICENSE-ENTERPRISE.md).
+**Community core** is [MIT licensed](LICENSE). The licensing server (`forge/licensing-server/`) and Teams features (`internal/license/`) are licensed under [LICENSE-ENTERPRISE.md](LICENSE-ENTERPRISE.md).
 
 ---
 
