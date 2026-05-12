@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.12.0](https://github.com/AlcanDev/korva/compare/v1.11.0...v1.12.0) (2026-05-12)
+
+
+### 🚀 Features
+
+* **phase-3:** project normalization + 3 utility MCP tools ([#30](https://github.com/AlcanDev/korva/issues/30)) ([dac90b1](https://github.com/AlcanDev/korva/commit/dac90b1edfa4bdae0838bc4d47a0ad1064243a12))
+
 ## [1.11.0](https://github.com/AlcanDev/korva/compare/v1.10.0...v1.11.0) (2026-05-12)
 
 
