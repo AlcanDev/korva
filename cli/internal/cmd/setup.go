@@ -30,13 +30,16 @@ Safe to re-run — it never duplicates settings.`,
 }
 
 var (
-	setupAll    bool
-	setupVSCode bool
-	setupCursor bool
-	setupClaude bool
-	setupForce  bool
-	setupGlobal bool
-	setupLocal  bool
+	setupAll     bool
+	setupVSCode  bool
+	setupCursor  bool
+	setupClaude  bool
+	setupGemini  bool
+	setupOpen    bool
+	setupCodex   bool
+	setupForce   bool
+	setupGlobal  bool
+	setupLocal   bool
 )
 
 func init() {
@@ -44,6 +47,9 @@ func init() {
 	setupCmd.Flags().BoolVar(&setupVSCode, "vscode", false, "Configure VS Code")
 	setupCmd.Flags().BoolVar(&setupCursor, "cursor", false, "Configure Cursor")
 	setupCmd.Flags().BoolVar(&setupClaude, "claude", false, "Configure Claude Code")
+	setupCmd.Flags().BoolVar(&setupGemini, "gemini-cli", false, "Configure Google Gemini CLI")
+	setupCmd.Flags().BoolVar(&setupOpen, "opencode", false, "Configure OpenCode")
+	setupCmd.Flags().BoolVar(&setupCodex, "codex", false, "Configure OpenAI Codex CLI")
 	setupCmd.Flags().BoolVar(&setupForce, "force", false, "Overwrite existing MCP config even if already set")
 	setupCmd.Flags().BoolVar(&setupGlobal, "global", false, "Configure global editor settings only (skip workspace files)")
 	setupCmd.Flags().BoolVar(&setupLocal, "local", false, "Write only workspace-level files (.vscode/mcp.json) for the current project")
@@ -73,7 +79,7 @@ func runSetup(cmd *cobra.Command, args []string) error {
 	bin := korvaVaultBin()
 
 	// Auto-detect if no specific editor flag given
-	if !setupVSCode && !setupCursor && !setupClaude && !setupAll {
+	if !setupVSCode && !setupCursor && !setupClaude && !setupGemini && !setupOpen && !setupCodex && !setupAll {
 		setupAll = true
 	}
 
@@ -90,6 +96,9 @@ func runSetup(cmd *cobra.Command, args []string) error {
 		{"VS Code", setupAll || setupVSCode, func(b string) error { return setupVSCodeEditor(b) }},
 		{"Cursor", setupAll || setupCursor, func(b string) error { return setupCursorEditor(b) }},
 		{"Claude Code", setupAll || setupClaude, func(b string) error { return setupClaudeCodeEditor(b) }},
+		{"Gemini CLI", setupAll || setupGemini, func(b string) error { return setupGeminiCLIEditor(b) }},
+		{"OpenCode", setupAll || setupOpen, func(b string) error { return setupOpenCodeEditor(b) }},
+		{"Codex CLI", setupAll || setupCodex, func(b string) error { return setupCodexEditor(b) }},
 	}
 
 	scope := "global + local"
@@ -391,6 +400,254 @@ func upsertMCPSettings(path, bin, editor string) error {
 	}
 
 	data, err := json.MarshalIndent(settings, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, data, 0644)
+}
+
+// ── Gemini CLI ───────────────────────────────────────────────────────────────
+//
+// Google's Gemini CLI keeps its config in ~/.gemini/settings.json with the
+// MCP servers under the conventional `mcpServers` key (same shape as Cursor
+// and Claude Code).
+
+func setupGeminiCLIEditor(bin string) error {
+	mcpPath, err := geminiSettingsPath()
+	if err != nil {
+		return fmt.Errorf("cannot locate Gemini CLI config: %w", err)
+	}
+	if !isInstalled("gemini") {
+		if _, statErr := os.Stat(filepath.Dir(mcpPath)); os.IsNotExist(statErr) {
+			return fmt.Errorf("not installed")
+		}
+	}
+	if err := upsertMCPServersFile(mcpPath, bin); err != nil {
+		return err
+	}
+	printSuccess(fmt.Sprintf("Gemini CLI  → %s", mcpPath))
+	return nil
+}
+
+func geminiSettingsPath() (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	switch runtime.GOOS {
+	case "windows":
+		// Windows: prefer %USERPROFILE%\.gemini\ to match the Unix layout
+		profile := os.Getenv("USERPROFILE")
+		if profile == "" {
+			profile = home
+		}
+		return filepath.Join(profile, ".gemini", "settings.json"), nil
+	default:
+		return filepath.Join(home, ".gemini", "settings.json"), nil
+	}
+}
+
+// ── OpenCode ──────────────────────────────────────────────────────────────────
+//
+// OpenCode (the open-source AI coding agent) keeps user config in the XDG
+// config dir, with MCP servers under an `mcp` map. We treat each server as
+// a stdio entry — that's the only transport korva-vault speaks.
+
+func setupOpenCodeEditor(bin string) error {
+	mcpPath, err := opencodeConfigPath()
+	if err != nil {
+		return fmt.Errorf("cannot locate OpenCode config: %w", err)
+	}
+	if !isInstalled("opencode") {
+		if _, statErr := os.Stat(filepath.Dir(mcpPath)); os.IsNotExist(statErr) {
+			return fmt.Errorf("not installed")
+		}
+	}
+	if err := upsertOpenCodeMCP(mcpPath, bin); err != nil {
+		return err
+	}
+	printSuccess(fmt.Sprintf("OpenCode    → %s", mcpPath))
+	return nil
+}
+
+func opencodeConfigPath() (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	switch runtime.GOOS {
+	case "windows":
+		appData := os.Getenv("APPDATA")
+		if appData == "" {
+			appData = filepath.Join(home, "AppData", "Roaming")
+		}
+		return filepath.Join(appData, "opencode", "opencode.json"), nil
+	default:
+		if xdg := os.Getenv("XDG_CONFIG_HOME"); xdg != "" {
+			return filepath.Join(xdg, "opencode", "opencode.json"), nil
+		}
+		return filepath.Join(home, ".config", "opencode", "opencode.json"), nil
+	}
+}
+
+func upsertOpenCodeMCP(path, bin string) error {
+	type opencodeConfig struct {
+		Schema     string                    `json:"$schema,omitempty"`
+		MCP        map[string]map[string]any `json:"mcp"`
+		Passthrough map[string]any           `json:"-"` // we reload the rest below
+	}
+
+	// We round-trip the file as a generic map so we don't drop unknown keys.
+	var raw map[string]any
+	if data, err := os.ReadFile(path); err == nil {
+		_ = json.Unmarshal(data, &raw)
+	}
+	if raw == nil {
+		raw = map[string]any{}
+	}
+	mcp, _ := raw["mcp"].(map[string]any)
+	if mcp == nil {
+		mcp = map[string]any{}
+	}
+	mcp["korva-vault"] = map[string]any{
+		"type":    "local",
+		"command": []string{bin, "--mode=mcp"},
+		"enabled": true,
+	}
+	raw["mcp"] = mcp
+
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return err
+	}
+	data, err := json.MarshalIndent(raw, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, data, 0644)
+}
+
+// ── Codex CLI ────────────────────────────────────────────────────────────────
+//
+// OpenAI's Codex CLI uses TOML at ~/.codex/config.toml. We avoid pulling in a
+// TOML library for one section — instead we read the file, look for an
+// existing [mcp_servers.korva-vault] header, and either skip (no --force) or
+// append the canonical section block at EOF.
+
+func setupCodexEditor(bin string) error {
+	cfgPath, err := codexConfigPath()
+	if err != nil {
+		return fmt.Errorf("cannot locate Codex config: %w", err)
+	}
+	if !isInstalled("codex") {
+		if _, statErr := os.Stat(filepath.Dir(cfgPath)); os.IsNotExist(statErr) {
+			return fmt.Errorf("not installed")
+		}
+	}
+	if err := upsertCodexMCP(cfgPath, bin); err != nil {
+		return err
+	}
+	printSuccess(fmt.Sprintf("Codex CLI   → %s", cfgPath))
+	return nil
+}
+
+func codexConfigPath() (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	switch runtime.GOOS {
+	case "windows":
+		profile := os.Getenv("USERPROFILE")
+		if profile == "" {
+			profile = home
+		}
+		return filepath.Join(profile, ".codex", "config.toml"), nil
+	default:
+		return filepath.Join(home, ".codex", "config.toml"), nil
+	}
+}
+
+// codexMCPBlock is the canonical TOML stanza we append for korva-vault.
+const codexMCPBlock = `
+[mcp_servers.korva-vault]
+command = %q
+args = ["--mode=mcp"]
+`
+
+func upsertCodexMCP(path, bin string) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return err
+	}
+	existing, _ := os.ReadFile(path)
+	header := "[mcp_servers.korva-vault]"
+	if strings.Contains(string(existing), header) && !setupForce {
+		return nil // already configured — leave the user's hand-tuned settings alone
+	}
+	if strings.Contains(string(existing), header) && setupForce {
+		// Strip the previous block before re-appending so we don't have two.
+		existing = []byte(stripCodexBlock(string(existing), header))
+	}
+	// Ensure file ends with a newline before appending.
+	out := string(existing)
+	if len(out) > 0 && !strings.HasSuffix(out, "\n") {
+		out += "\n"
+	}
+	out += fmt.Sprintf(codexMCPBlock, bin)
+	return os.WriteFile(path, []byte(out), 0644)
+}
+
+// stripCodexBlock removes a previous "[mcp_servers.korva-vault]" stanza so
+// --force can rewrite it cleanly. The stanza ends at the next "[" section
+// header or EOF, whichever comes first.
+func stripCodexBlock(content, header string) string {
+	idx := strings.Index(content, header)
+	if idx < 0 {
+		return content
+	}
+	// Find the start of the line containing the header.
+	start := idx
+	for start > 0 && content[start-1] != '\n' {
+		start--
+	}
+	// Find the end of the stanza: next line starting with "[" or EOF.
+	rest := content[idx+len(header):]
+	endRel := -1
+	for i := 0; i < len(rest); i++ {
+		if rest[i] == '\n' && i+1 < len(rest) && rest[i+1] == '[' {
+			endRel = i + 1
+			break
+		}
+	}
+	if endRel < 0 {
+		return content[:start]
+	}
+	return content[:start] + rest[endRel:]
+}
+
+// ── shared upsert: mcpServers JSON shape ─────────────────────────────────────
+//
+// Reused by Gemini CLI (and other JSON editors with the same shape) so we
+// don't repeat the unmarshal/upsert dance for every new editor.
+
+func upsertMCPServersFile(path, bin string) error {
+	type mcpServersFile struct {
+		MCPServers map[string]map[string]any `json:"mcpServers"`
+	}
+	var existing mcpServersFile
+	if data, err := os.ReadFile(path); err == nil {
+		_ = json.Unmarshal(data, &existing)
+	}
+	if existing.MCPServers == nil {
+		existing.MCPServers = map[string]map[string]any{}
+	}
+	existing.MCPServers["korva-vault"] = map[string]any{
+		"command": bin,
+		"args":    []string{"--mode=mcp"},
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return err
+	}
+	data, err := json.MarshalIndent(existing, "", "  ")
 	if err != nil {
 		return err
 	}
