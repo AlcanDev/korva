@@ -441,4 +441,3 @@ func (s *Store) CompareAndStore(in CompareInput) (string, error) {
 	}
 	return id, nil
 }
-

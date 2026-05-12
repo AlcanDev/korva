@@ -270,6 +270,7 @@ func Router(ctx context.Context, s *store.Store, cfg RouterConfig) http.Handler 
 	mux.Handle("POST /admin/conflicts/{id}/judge", adminMW(withBodyLimit(withCORS(adminJudgeConflict(s)))))
 	mux.Handle("POST /admin/conflicts/{id}/ignore", adminMW(withBodyLimit(withCORS(adminIgnoreConflict(s)))))
 	mux.Handle("POST /admin/conflicts/compare", adminMW(withBodyLimit(withCORS(adminCompareConflict(s)))))
+	mux.Handle("POST /admin/observations/{id}/scan-conflicts", adminMW(withBodyLimit(withCORS(adminScanConflicts(s)))))
 
 	// Observatory — Deferred-apply queue (cloud sync resilience)
 	mux.Handle("GET /admin/cloud/deferred", adminMW(withCORS(adminListDeferred(s))))

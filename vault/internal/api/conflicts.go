@@ -159,6 +159,50 @@ type compareRequest struct {
 	SessionID     string  `json:"session_id,omitempty"`
 }
 
+// scanRequest is the wire shape for POST /admin/observations/{id}/scan-conflicts.
+type scanRequest struct {
+	Limit     int     `json:"limit,omitempty"`
+	BM25Floor float64 `json:"bm25_floor,omitempty"`
+}
+
+// adminScanConflicts handles POST /admin/observations/{id}/scan-conflicts —
+// runs the FTS5 candidate search for one observation and creates pending
+// judgments for the matches that pass the BM25 floor. Idempotent. The dedicated
+// vault_save MCP tool wires this automatically in a follow-up PR; the endpoint
+// exists today so operators (and CLI E2E smokes) can drive the same flow
+// without an MCP client. The "scan-conflicts" suffix lives under
+// /admin/observations/{id}/ rather than /admin/conflicts/scan/{id} so it does
+// not clash with the /admin/conflicts/{id}/… routes in Go's ServeMux.
+func adminScanConflicts(s *store.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		obsID := r.PathValue("id")
+		if obsID == "" {
+			writeError(w, http.StatusBadRequest, "missing observation id")
+			return
+		}
+		var req scanRequest
+		_ = json.NewDecoder(r.Body).Decode(&req)
+
+		candidates, err := s.FindRelationCandidates(obsID, store.FindRelationCandidatesOpts{
+			Limit: req.Limit, BM25Floor: req.BM25Floor,
+		})
+		if err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		created, err := s.CreatePendingJudgments(obsID, candidates)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{
+			"observation_id":  obsID,
+			"candidate_count": len(candidates),
+			"judgment_ids":    created,
+		})
+	}
+}
+
 func adminCompareConflict(s *store.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req compareRequest
