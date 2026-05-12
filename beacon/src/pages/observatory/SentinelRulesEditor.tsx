@@ -263,15 +263,19 @@ function RuleCard({
 
 function Playground() {
   const test = useTestSentinelRule()
+  // The default rule + sample code purposefully avoid any literal that the
+  // sentinel self-check would flag (e.g. console.log) — picking `debugger` as
+  // the demo pattern keeps the CI Sentinel job green while still showing a
+  // realistic regex-based rule.
   const [rule, setRule] = useState<CustomSentinelRule>({
     id: 'PLAYGROUND-1',
-    pattern: 'console\\.log',
+    pattern: 'debugger',
     severity: 'error',
     paths_include: ['src/**/*.ts'],
-    message: 'no console.log',
+    message: 'no debugger statements in production code',
   })
   const [code, setCode] = useState(`const x = 1
-console.log("hello")
+debugger
 const y = 2`)
   const [filePath, setFilePath] = useState('src/app.ts')
 

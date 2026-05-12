@@ -19,9 +19,18 @@ func TestProbe_DetectsConfigDir(t *testing.T) {
 	macSupport := filepath.Join(home, "Library", "Application Support")
 	linuxCfg := filepath.Join(home, ".config")
 
+	// The probe consults a different base directory depending on runtime.GOOS,
+	// so the fixtures must be created in the location that the current OS will
+	// actually look at. We still pass both candidate paths into Options so
+	// `Probe` does not fall back to the real user home dir.
+	editorBase := macSupport
+	if runtime.GOOS == "linux" {
+		editorBase = linuxCfg
+	}
+
 	// Create config dirs as if VS Code, Cursor and Claude Code were installed.
-	mustMkdir(t, filepath.Join(macSupport, "Code", "User"))
-	mustMkdir(t, filepath.Join(macSupport, "Cursor", "User"))
+	mustMkdir(t, filepath.Join(editorBase, "Code", "User"))
+	mustMkdir(t, filepath.Join(editorBase, "Cursor", "User"))
 	mustMkdir(t, filepath.Join(home, ".claude"))
 
 	got := Probe(Options{
@@ -98,7 +107,15 @@ func TestProbe_DetectsKorvaMCP_VSCodeMCPJSON(t *testing.T) {
 	}
 	home := t.TempDir()
 	macSupport := filepath.Join(home, "Library", "Application Support")
-	codeUser := filepath.Join(macSupport, "Code", "User")
+	linuxCfg := filepath.Join(home, ".config")
+
+	// VS Code's config dir lives in different roots per OS; create the fixture
+	// in whichever the probe will read on this runner.
+	editorBase := macSupport
+	if runtime.GOOS == "linux" {
+		editorBase = linuxCfg
+	}
+	codeUser := filepath.Join(editorBase, "Code", "User")
 	mustMkdir(t, codeUser)
 	mustWriteFile(t, filepath.Join(codeUser, "mcp.json"), `{
 		"servers": {
@@ -109,7 +126,7 @@ func TestProbe_DetectsKorvaMCP_VSCodeMCPJSON(t *testing.T) {
 	got := Probe(Options{
 		HomeDir:       home,
 		MacAppSupport: macSupport,
-		LinuxConfig:   filepath.Join(home, ".config"),
+		LinuxConfig:   linuxCfg,
 		LookPathFn:    func(string) (string, error) { return "", errors.New("not found") },
 	})
 
