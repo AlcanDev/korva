@@ -112,6 +112,17 @@ func main() {
 		installID = ""
 	}
 
+	// Resolve project-level korva.config.json for Observatory's system-status
+	// endpoint. CWD is the canonical location when the user runs `korva-vault`
+	// from a project root.
+	configPathLocal := ""
+	if cwd, err := os.Getwd(); err == nil {
+		candidate := cwd + "/korva.config.json"
+		if _, err := os.Stat(candidate); err == nil {
+			configPathLocal = candidate
+		}
+	}
+
 	routerCfg := api.RouterConfig{
 		AdminKeyPath:     paths.AdminKey,
 		AdminKeyOverride: os.Getenv("KORVA_ADMIN_KEY"),
@@ -126,6 +137,10 @@ func main() {
 		HiveOutbox:       hiveResult.Outbox,
 		HiveFilter:       hiveResult.Filter,
 		WebhookURL:       cfg.Vault.WebhookURL,
+		VaultStartedAt:   time.Now(),
+		VaultVersion:     version.Version,
+		VaultPort:        *port,
+		ConfigPathLocal:  configPathLocal,
 	}
 
 	switch *mode {
