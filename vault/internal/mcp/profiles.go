@@ -44,6 +44,8 @@ var profileTools = map[Profile]map[string]bool{
 		"vault_update":        true,
 		"vault_relate":        true,
 		"vault_capture":       true,
+		"vault_judge":         true,
+		"vault_compare":       true,
 	},
 	ProfileReadonly: {
 		"vault_search":       true,
@@ -86,6 +88,8 @@ var profileTools = map[Profile]map[string]bool{
 		"vault_update":         true,
 		"vault_relate":         true,
 		"vault_capture":        true,
+		"vault_judge":          true,
+		"vault_compare":        true,
 		"vault_merge_projects": true,
 	},
 }

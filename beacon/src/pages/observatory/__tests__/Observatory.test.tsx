@@ -96,6 +96,11 @@ const fetchMock = vi.fn(async (input?: RequestInfo | URL | string | null) => {
     builtin: [],
     custom: [],
   })
+  if (url.includes('/admin/conflicts')) return jsonResponse({
+    conflicts: [],
+    count: 0,
+    status: 'pending',
+  })
   return jsonResponse({})
 })
 vi.stubGlobal('fetch', fetchMock)
@@ -129,7 +134,7 @@ describe('Observatory navigation', () => {
     expect(OBSERVATORY_BASE).toBe('/admin/observatory')
   })
 
-  it('renders 5 sub-tabs with absolute hrefs from /admin/observatory/health', () => {
+  it('renders 6 sub-tabs with absolute hrefs from /admin/observatory/health', () => {
     renderAt('/admin/observatory/health')
     const nav = screen.getByRole('navigation', { name: /observatory sections/i })
     const hrefs = Array.from(nav.querySelectorAll('a')).map(
@@ -139,6 +144,7 @@ describe('Observatory navigation', () => {
       '/admin/observatory/health',
       '/admin/observatory/tokens',
       '/admin/observatory/activity',
+      '/admin/observatory/conflicts',
       '/admin/observatory/config',
       '/admin/observatory/sentinel',
     ])
@@ -157,6 +163,7 @@ describe('Observatory navigation', () => {
       '/admin/observatory/health',
       '/admin/observatory/tokens',
       '/admin/observatory/activity',
+      '/admin/observatory/conflicts',
       '/admin/observatory/config',
       '/admin/observatory/sentinel',
     ])
@@ -208,6 +215,7 @@ describe('Observatory navigation', () => {
     ['health', /System Health/i],
     ['tokens', /Token Analytics/i],
     ['activity', /Activity Timeline/i],
+    ['conflicts', /Conflicts/i],
     ['config', /Configuration/i],
     ['sentinel', /Sentinel Rules/i],
   ])('mounts the %s page heading at /admin/observatory/%s', async (slug, heading) => {

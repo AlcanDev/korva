@@ -268,6 +268,73 @@ export interface RestartResponse {
   executable?: string
 }
 
+// ── Conflict judgment workflow types ────────────────────────────────────────
+
+export type JudgmentStatus = 'pending' | 'judged' | 'orphaned' | 'ignored'
+
+export interface ConflictRow {
+  id: string
+  source_id: string
+  target_id: string
+  relation: string
+  project: string
+  status: string
+  judgment_status: JudgmentStatus
+  confidence: number
+  reason?: string
+  evidence?: string
+  marked_by_actor: string
+  marked_by_kind: string
+  marked_by_model?: string
+  session_id?: string
+  created_at: string
+  judged_at?: string
+}
+
+export interface ConflictListResponse {
+  conflicts: ConflictRow[]
+  count: number
+  status: string
+  project?: string
+}
+
+export interface ConflictObservation {
+  id: string
+  type: string
+  title: string
+  content: string
+  project: string
+  created_at?: string
+}
+
+export interface ConflictDetailResponse {
+  conflict: ConflictRow
+  source: ConflictObservation | null
+  target: ConflictObservation | null
+}
+
+export interface JudgeConflictBody {
+  relation: string
+  reason?: string
+  evidence?: string
+  confidence: number
+  marked_by_actor?: string
+  marked_by_kind?: string
+  marked_by_model?: string
+  session_id?: string
+}
+
+export interface IgnoreConflictBody {
+  reason?: string
+  session_id?: string
+}
+
+export interface ScanConflictsResponse {
+  observation_id: string
+  candidate_count: number
+  judgment_ids: string[]
+}
+
 // ── Hooks ─────────────────────────────────────────────────────────────────────
 
 export function useSystemStatus() {
@@ -386,5 +453,70 @@ export function useTestSentinelRule() {
 export function useRestartVault() {
   return useMutation({
     mutationFn: () => adminPost<RestartResponse>('/admin/vault/restart'),
+  })
+}
+
+// ── Conflict workflow hooks ─────────────────────────────────────────────────
+
+export function useConflicts(status: JudgmentStatus = 'pending', project?: string, limit = 50) {
+  const params = new URLSearchParams()
+  params.set('status', status)
+  if (project) params.set('project', project)
+  params.set('limit', String(limit))
+  const qs = params.toString()
+  return useQuery({
+    queryKey: ['observatory', 'conflicts', status, project ?? '', limit],
+    queryFn: () => adminFetch<ConflictListResponse>(`/admin/conflicts?${qs}`),
+    retry: false,
+    refetchInterval: 30_000,
+  })
+}
+
+export function useConflict(id: string | null) {
+  return useQuery({
+    queryKey: ['observatory', 'conflicts', 'detail', id],
+    queryFn: () => adminFetch<ConflictDetailResponse>(`/admin/conflicts/${id}`),
+    enabled: !!id,
+    retry: false,
+  })
+}
+
+export function useJudgeConflict() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, body }: { id: string; body: JudgeConflictBody }) =>
+      adminFetch<ConflictRow>(`/admin/conflicts/${id}/judge`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['observatory', 'conflicts'] })
+      qc.invalidateQueries({ queryKey: ['observatory', 'system-status'] })
+    },
+  })
+}
+
+export function useIgnoreConflict() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, body }: { id: string; body: IgnoreConflictBody }) =>
+      adminFetch<{ status: string; id: string }>(`/admin/conflicts/${id}/ignore`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['observatory', 'conflicts'] })
+    },
+  })
+}
+
+export function useScanConflicts() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (observationID: string) =>
+      adminPost<ScanConflictsResponse>(`/admin/observations/${observationID}/scan-conflicts`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['observatory', 'conflicts'] })
+    },
   })
 }

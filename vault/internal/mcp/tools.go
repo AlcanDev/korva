@@ -72,6 +72,47 @@ func tools() []Tool {
 			},
 		},
 		{
+			Name: "vault_judge",
+			Description: "Record a verdict for a pending judgment surfaced by vault_save's auto-scan. " +
+				"vault_save returns judgment_ids alongside candidate observations whose meaning overlaps with the one you just stored; call vault_judge to resolve each pending row. " +
+				"Pick the relation that captures how source relates to target: supersedes (source replaces target), conflicts_with (they contradict), related (topically linked), compatible (complementary), scoped (same topic, different context). " +
+				"Use vault_compare instead when an external LLM already produced a verdict — that path skips the pending step.",
+			InputSchema: Schema{
+				Type: "object",
+				Properties: map[string]Property{
+					"judgment_id": {Type: "string", Description: "ID of the pending judgment to resolve (from vault_save response)"},
+					"relation": {Type: "string", Description: "Semantic verdict for this conflict pair",
+						Enum: []string{"supersedes", "conflicts_with", "related", "compatible", "scoped"}},
+					"reason":          {Type: "string", Description: "Short rationale (1-2 sentences). Stored verbatim for audit."},
+					"evidence":        {Type: "string", Description: "Long-form evidence (e.g. the LLM's chain of thought). Optional."},
+					"confidence":      {Type: "number", Description: "Confidence in [0, 1]. Default 1.0 when the verdict is unambiguous."},
+					"marked_by_actor": {Type: "string", Description: "Who is recording the verdict", Enum: []string{"agent", "user", "admin"}},
+					"marked_by_kind":  {Type: "string", Description: "How the verdict was reached", Enum: []string{"heuristic", "llm", "manual"}},
+					"marked_by_model": {Type: "string", Description: "Model name when marked_by_kind=llm (e.g. claude-opus-4-7). Optional."},
+				},
+				Required: []string{"judgment_id", "relation"},
+			},
+		},
+		{
+			Name: "vault_compare",
+			Description: "Persist an already-adjudicated comparison between two observations as a single judged relation. " +
+				"Use this when an external LLM evaluated the pair end-to-end and you have a verdict ready — no pending step needed. " +
+				"Idempotent on the (source_id, target_id) pair: a second call with the same source/target upserts the row.",
+			InputSchema: Schema{
+				Type: "object",
+				Properties: map[string]Property{
+					"source_id":       {Type: "string", Description: "ID of the source observation"},
+					"target_id":       {Type: "string", Description: "ID of the target observation"},
+					"relation":        {Type: "string", Description: "Verdict verb", Enum: []string{"supersedes", "conflicts_with", "related", "compatible", "scoped"}},
+					"reason":          {Type: "string", Description: "Short rationale"},
+					"evidence":        {Type: "string", Description: "Long-form evidence (LLM reasoning)"},
+					"confidence":      {Type: "number", Description: "Confidence in [0, 1]"},
+					"marked_by_model": {Type: "string", Description: "LLM model name (e.g. claude-opus-4-7)"},
+				},
+				Required: []string{"source_id", "target_id", "relation"},
+			},
+		},
+		{
 			Name: "vault_capture",
 			Description: "Extract and persist multiple learnings from a block of freeform text in one call. " +
 				"Pass the raw text (session notes, code review comments, retrospective output, chat transcript) and Korva will identify distinct observations and save them. " +
