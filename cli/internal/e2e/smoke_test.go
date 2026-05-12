@@ -54,15 +54,18 @@ func TestEndToEnd_FullLifecycle(t *testing.T) {
 	mustBuild(t, vaultBin, "github.com/alcandev/korva/vault/cmd/korva-vault")
 
 	// 1. Isolated HOME for the whole run. KORVA_HIVE_DISABLE keeps the
-	// worker quiet — we exercise its status surface separately.
+	// worker quiet — we exercise its status surface separately. The
+	// project-local cwd is also a temp dir so `korva init`'s
+	// korva.config.json doesn't litter the test package directory.
 	home := t.TempDir()
+	projectDir := t.TempDir()
 	env := append(os.Environ(),
 		"HOME="+home,
 		"KORVA_HIVE_DISABLE=1",
 	)
 
 	t.Run("init", func(t *testing.T) {
-		out, err := runCmd(env, korvaBin, "init", "--admin", "--owner", "smoke@e2e.test")
+		out, err := runCmdIn(env, projectDir, korvaBin, "init", "--admin", "--owner", "smoke@e2e.test")
 		if err != nil {
 			t.Fatalf("init failed: %v\n%s", err, out)
 		}
@@ -316,8 +319,18 @@ func waitForReady(t *testing.T, url string, timeout time.Duration, log *bytes.Bu
 }
 
 func runCmd(env []string, bin string, args ...string) (string, error) {
+	return runCmdIn(env, "", bin, args...)
+}
+
+// runCmdIn runs bin in the given directory (use "" for the caller's cwd).
+// We need this so `korva init` can drop its project-local config into a
+// throwaway dir instead of the test package directory.
+func runCmdIn(env []string, dir, bin string, args ...string) (string, error) {
 	cmd := exec.Command(bin, args...)
 	cmd.Env = env
+	if dir != "" {
+		cmd.Dir = dir
+	}
 	out, err := cmd.CombinedOutput()
 	return string(out), err
 }

@@ -82,15 +82,15 @@ korva --version
 # 1. Initialise the vault
 korva init
 
-# 2. Wire your AI assistant — pick one or many
-korva setup claude-code      # Claude Code
-korva setup cursor           # Cursor
-korva setup vscode           # VS Code with MCP
-korva setup copilot          # GitHub Copilot
-korva setup opencode         # OpenCode
-korva setup codex            # OpenAI Codex
-korva setup gemini           # Gemini CLI
-korva setup windsurf         # Windsurf
+# 2. Wire your AI assistant — auto-detects everything by default
+korva setup                  # configure every installed editor at once
+
+# Or pick a subset:
+korva setup --vscode --cursor
+korva setup --claude         # Claude Code
+korva setup --gemini-cli     # Google Gemini CLI
+korva setup --opencode       # OpenCode
+korva setup --codex          # OpenAI Codex CLI
 
 # 3. Open your editor — Korva is now alive
 ```
@@ -106,6 +106,8 @@ You're done. Your assistant now has structured memory, knowledge injection, and 
 - **MCP server** at `localhost:7437` exposing 16+ tools for save / search / context
 - **Privacy filter** strips secrets, JWTs, emails before anything is persisted
 - **Time-travel** — see what your team decided three months ago, with full timeline
+- **Project hygiene** — `korva projects list/suggest/consolidate/prune` folds name variants and cleans orphan sessions
+- **Obsidian export** — `korva export obsidian --out DIR` renders the vault as markdown with `[[wikilinks]]` so it's browseable in any markdown-native tool
 
 ### 📜 Knowledge Scrolls (Lore)
 - **24+ curated scrolls** covering NestJS, React, TypeScript, Docker, GitLab CI, MCP, SDD, security, observability, plugins, error handling, cloud sync, and more
@@ -209,14 +211,15 @@ Korva ships first-class integration manifests for every popular AI coding assist
 
 | Editor | Status | Setup Command |
 |--------|--------|---------------|
-| Claude Code | ✅ Stable | `korva setup claude-code` |
-| Cursor | ✅ Stable | `korva setup cursor` |
-| GitHub Copilot | ✅ Stable | `korva setup copilot` |
-| OpenCode | ✅ Stable | `korva setup opencode` |
-| OpenAI Codex | ✅ Stable | `korva setup codex` |
-| Gemini CLI | ✅ Stable | `korva setup gemini` |
-| Windsurf | ✅ Stable | `korva setup windsurf` |
-| VS Code (MCP) | ✅ Stable | `korva setup vscode` |
+| VS Code (MCP)   | ✅ Stable | `korva setup --vscode` |
+| Cursor          | ✅ Stable | `korva setup --cursor` |
+| Claude Code     | ✅ Stable | `korva setup --claude` |
+| Google Gemini CLI | ✅ Stable | `korva setup --gemini-cli` |
+| OpenCode        | ✅ Stable | `korva setup --opencode` |
+| OpenAI Codex CLI | ✅ Stable | `korva setup --codex` |
+
+Run `korva setup` with no flags to auto-detect every installed editor and
+configure them in one shot.
 
 Manifests live in [`integrations/`](integrations/). Each is a thin config that wires the editor to the local vault MCP server.
 

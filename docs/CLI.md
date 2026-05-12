@@ -57,24 +57,34 @@ Idempotent — safe to re-run.
 
 ---
 
-## `korva setup <editor>`
+## `korva setup`
 
-Wire one editor for the current project. Run from your project root.
+Wire one or more AI editors to use the Korva Vault MCP server. Run without
+flags to auto-detect every installed editor and configure them all at once.
 
 ```bash
-korva setup claude-code
-korva setup cursor
-korva setup vscode
-korva setup copilot
-korva setup opencode
-korva setup codex
-korva setup gemini
-korva setup windsurf
+korva setup                         # auto-detect + configure everything
+korva setup --vscode --cursor       # configure a specific subset
+korva setup --gemini-cli            # Google Gemini CLI
+korva setup --opencode              # OpenCode (open-source AI agent)
+korva setup --codex                 # OpenAI Codex CLI
+korva setup --global                # write only global editor settings
+korva setup --local                 # write only workspace files
+korva setup --force                 # overwrite even if already configured
 ```
 
-Each command writes editor-specific config files. Re-running a setup overwrites the existing config (idempotent).
+Supported targets (each behind its own flag):
 
-You can run multiple setups in the same project — they don't conflict with each other.
+| Flag | Config file |
+|---|---|
+| `--vscode`     | `~/Library/Application Support/Code/User/settings.json` + `.vscode/mcp.json` |
+| `--cursor`     | `~/.cursor/mcp.json` |
+| `--claude`     | `~/.claude/settings.json` |
+| `--gemini-cli` | `~/.gemini/settings.json` |
+| `--opencode`   | `~/.config/opencode/opencode.json` |
+| `--codex`      | `~/.codex/config.toml` |
+
+Each writer is idempotent: re-running with the same flags is safe.
 
 ---
 
@@ -138,6 +148,58 @@ korva lore add my-team-scroll         # install a private scroll
 korva lore export                     # dump all scrolls as JSON
 korva lore search "JWT rotation"      # full-text search
 ```
+
+---
+
+## `korva projects`
+
+Inspect, consolidate, and clean up project namespaces.
+
+```bash
+korva projects list                                       # inventory + counts
+korva projects suggest                                    # merge candidates
+korva projects consolidate --canonical X --source A --source B
+korva projects prune                                      # dry-run (default)
+korva projects prune --apply                              # actually delete
+```
+
+Use this when a single team has accumulated variants (`alpha` vs `Alpha`,
+`my-project` vs `my_project`) or orphan sessions from abandoned MCP runs.
+`suggest` groups projects whose names normalize to the same canonical form
+and proposes the variant with the most observations as the target;
+`consolidate` folds the sources into the canonical name; `prune` drops
+sessions whose project has zero observations.
+
+All four subcommands require an admin key — run `korva init --admin` first.
+
+---
+
+## `korva export obsidian`
+
+Render the vault as Obsidian-flavored markdown.
+
+```bash
+korva export obsidian --out ~/vaults/korva
+korva export obsidian --out /tmp/scoped --project korva    # one project
+korva export obsidian --out /tmp/scoped --type decision    # one type
+```
+
+Output layout:
+
+```
+<out>/
+  README.md                     ← root index of every project
+  <project>/_index.md           ← per-project index, grouped by type
+  <project>/<type>/<slug>.md    ← one note per observation
+```
+
+Each note carries a YAML frontmatter block, the title as H1, the content,
+and a Related section with `[[wikilinks]]` to every reachable relation.
+The slug picks `topic_key` when present (stable across re-saves), else the
+last 8 chars of the ULID. Re-running over the same output directory is
+safe — note files are byte-stable; only the root index timestamp moves.
+
+Open the output folder in Obsidian via *File → Open vault → choose folder*.
 
 ---
 
