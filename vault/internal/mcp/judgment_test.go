@@ -13,7 +13,7 @@ import (
 
 // dispatchOn runs a tool call directly against an in-memory Server, sharing
 // the same store across calls. The standard sendAndReceive helper allocates
-// a fresh store per request, which masks the auto-scan behaviour because it
+// a fresh store per request, which masks the auto-scan behavior because it
 // cannot reach across observations.
 func dispatchOn(t *testing.T, srv *Server, name string, args map[string]any) map[string]any {
 	t.Helper()
