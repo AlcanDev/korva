@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.8.0](https://github.com/AlcanDev/korva/compare/v1.7.0...v1.8.0) (2026-05-12)
+
+
+### 🚀 Features
+
+* **cli:** `korva beacon` launcher + Beacon section in `korva status` ([#21](https://github.com/AlcanDev/korva/issues/21)) ([2c19889](https://github.com/AlcanDev/korva/commit/2c19889f1b6cd4ab32ce70f6d83e91532fa7521d))
+
 ## [1.7.0](https://github.com/AlcanDev/korva/compare/v1.6.1...v1.7.0) (2026-05-12)
 
 
