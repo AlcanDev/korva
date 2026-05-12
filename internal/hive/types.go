@@ -66,16 +66,45 @@ type SyncPhase string
 const (
 	PhaseIdle     SyncPhase = "idle"     // worker is waiting for the next tick
 	PhasePushing  SyncPhase = "pushing"  // actively sending a batch to Hive
+	PhasePulling  SyncPhase = "pulling"  // actively fetching observations from Hive
 	PhaseBackoff  SyncPhase = "backoff"  // waiting after a push failure
 	PhaseError    SyncPhase = "error"    // unrecoverable error; worker stopped
 	PhaseHealthy  SyncPhase = "healthy"  // last push succeeded
 	PhaseDisabled SyncPhase = "disabled" // KORVA_HIVE_DISABLE=1
 )
 
+// ReasonCode classifies why the worker is in its current phase (mainly
+// backoff/error states). Empty for healthy/idle/pushing/pulling. Operators
+// can dispatch on this in dashboards and CLI output without parsing
+// free-form error strings.
+type ReasonCode string
+
+const (
+	// ReasonNone is the zero value; emit when there's nothing to explain.
+	ReasonNone ReasonCode = ""
+	// ReasonTransportFailed — network/DNS/timeout: the request never reached
+	// a server that could speak our protocol. Retryable.
+	ReasonTransportFailed ReasonCode = "transport_failed"
+	// ReasonAuthRequired — server rejected credentials (401/403). Not
+	// retryable until the operator re-authenticates.
+	ReasonAuthRequired ReasonCode = "auth_required"
+	// ReasonPolicyForbidden — the cloud privacy filter (or server-side
+	// policy) refused to accept the observation. Not retryable for that row.
+	ReasonPolicyForbidden ReasonCode = "policy_forbidden"
+	// ReasonServerUnsupported — protocol/schema mismatch (e.g. 410 Gone,
+	// 426 Upgrade Required, 501). Retry only after a Korva upgrade.
+	ReasonServerUnsupported ReasonCode = "server_unsupported"
+	// ReasonInternalError — server-side 5xx. Retryable with backoff.
+	ReasonInternalError ReasonCode = "internal_error"
+	// ReasonSyncPaused — operator set KORVA_HIVE_DISABLE; worker is parked.
+	ReasonSyncPaused ReasonCode = "sync_paused"
+)
+
 // WorkerStatus is a point-in-time snapshot of the Hive worker state.
 // It is safe to read from any goroutine via Worker.Status().
 type WorkerStatus struct {
 	Phase             SyncPhase  `json:"phase"`
+	Reason            ReasonCode `json:"reason,omitempty"`
 	LastSyncAt        *time.Time `json:"last_sync_at,omitempty"`
 	LastPullAt        *time.Time `json:"last_pull_at,omitempty"`
 	ConsecutiveErrors int        `json:"consecutive_errors"`
