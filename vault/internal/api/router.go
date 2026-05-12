@@ -260,6 +260,10 @@ func Router(ctx context.Context, s *store.Store, cfg RouterConfig) http.Handler 
 	mux.Handle("PUT /admin/sentinel/rules", adminMW(withBodyLimit(withCORS(adminPutSentinelRules(cfg.ConfigPathLocal)))))
 	mux.Handle("POST /admin/sentinel/test", adminMW(withBodyLimit(withCORS(adminTestSentinelRule()))))
 
+	// Observatory — Integrity diagnostics + repair (doctor v2)
+	mux.Handle("GET /admin/integrity", adminMW(withCORS(adminGetIntegrity(s))))
+	mux.Handle("POST /admin/integrity/repair", adminMW(withBodyLimit(withCORS(adminRepairIntegrity(s)))))
+
 	// --- Team member routes (X-Session-Token required) ---
 	// A valid session token is sufficient proof of team membership — the team's
 	// existence in the DB implies the vault admin created it with a Teams license.
