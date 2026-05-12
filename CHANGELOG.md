@@ -1,5 +1,90 @@
 # Changelog
 
+## [1.0.0](https://github.com/AlcanDev/korva/compare/v1.9.0...v1.0.0) (2026-05-12)
+
+
+### release
+
+* v1.0.0 prep — docs rewrite + new scrolls + cleanup ([#7](https://github.com/AlcanDev/korva/issues/7)) ([e92d016](https://github.com/AlcanDev/korva/commit/e92d016759015b5cc1ea4b6240918a5cda8edddb))
+
+
+### 🚀 Features
+
+* add Makefile for build, test, lint, and sync commands; update privacy model in README and roadmap targets ([66b047f](https://github.com/AlcanDev/korva/commit/66b047f7177095c9e75717c89d1172bc4fdff9a3))
+* **admin:** multi-user access via session token (role=admin) ([a4c2845](https://github.com/AlcanDev/korva/commit/a4c2845b23e500e08ddf5a3386e437ca67595748))
+* **api:** add Hive-compatible ingest endpoints (/v1/health, /v1/observations/batch, /v1/search) ([284116a](https://github.com/AlcanDev/korva/commit/284116abd79cb1f62d341357d5d7f2d128f36134))
+* **beacon+vault:** observability dashboard with sessions browser ([a5de3e4](https://github.com/AlcanDev/korva/commit/a5de3e4a1d66bc8b861b68d35e2d2e8a33ad2149))
+* **beacon:** private admin panel at /admin ([09e2d69](https://github.com/AlcanDev/korva/commit/09e2d69cf91ffffc10dc7299a52937d83b11ce2e))
+* **beacon:** v1.0.0 — i18n, KorvaLogo, tests, security hardening ([c596d6f](https://github.com/AlcanDev/korva/commit/c596d6f8501b20103067d88c4aaf9a0571228cdf))
+* **behavior:** adopt Karpathy-style behavioral guidelines across all IDEs ([e46e7d4](https://github.com/AlcanDev/korva/commit/e46e7d49ad57e3dc40e40a28b65d0de03b472ee8))
+* **ci:** automated release pipeline + korva update self-install ([6730365](https://github.com/AlcanDev/korva/commit/6730365e04c9db2643151a88d7e56b35bd417488))
+* **cli:** `korva beacon` launcher + Beacon section in `korva status` ([#21](https://github.com/AlcanDev/korva/issues/21)) ([2c19889](https://github.com/AlcanDev/korva/commit/2c19889f1b6cd4ab32ce70f6d83e91532fa7521d))
+* **cli:** add best-effort usage telemetry for Teams installs ([04edd3d](https://github.com/AlcanDev/korva/commit/04edd3d755c89f327233e6f1cf5c1d652e485257))
+* **cli:** add cmd/korva entry point ([110f3ef](https://github.com/AlcanDev/korva/commit/110f3ef55218f7e0eaee4bf8205c9d78658c1031))
+* **cli:** add config command, commands help, and global setup flag ([35fbfbd](https://github.com/AlcanDev/korva/commit/35fbfbd24ab56465172a2e8e63a81c16d8ed4d15))
+* **cli:** korva setup command ([09e2d69](https://github.com/AlcanDev/korva/commit/09e2d69cf91ffffc10dc7299a52937d83b11ce2e))
+* **cli:** rich update notifications with changelog preview and MCP notice ([413fdf5](https://github.com/AlcanDev/korva/commit/413fdf5db083db6a8d11032953b1f31b8e96e3a7))
+* **cli:** show license tier in korva status output ([4c93819](https://github.com/AlcanDev/korva/commit/4c93819dce78e91dfbe74742e11300bfc34ba3a7))
+* **config:** support KORVA_HOME env var for container deployments ([4f1ea6f](https://github.com/AlcanDev/korva/commit/4f1ea6fe73960e92d6da6c5df2fe0c76642348a0))
+* **demo:** add sales demo GIF, MP4, and HTML showcase ([724f6b7](https://github.com/AlcanDev/korva/commit/724f6b74481e6b7f678c2c0ca31c3e689fe6fa8c))
+* **demo:** replace Pillow GIF with live browser-captured demo ([01fc26a](https://github.com/AlcanDev/korva/commit/01fc26aef223605bef5d12b920ac93deab7eb8d5))
+* **deploy:** Dockerfile + docker-compose.yml ([09e2d69](https://github.com/AlcanDev/korva/commit/09e2d69cf91ffffc10dc7299a52937d83b11ce2e))
+* **deploy:** production-ready Docker build for Coolify ([ec18f52](https://github.com/AlcanDev/korva/commit/ec18f52b109c909087fad1b0ad5c979f59e2655e))
+* doctor v2 (integrity + repair) and project-scoped normalized-hash dedup ([#23](https://github.com/AlcanDev/korva/issues/23)) ([017a537](https://github.com/AlcanDev/korva/commit/017a537c5627f6217caf5baee77ad2444844327f))
+* enhance CI configuration with concurrency, improved testing, and add golangci-lint setup ([fd08ee3](https://github.com/AlcanDev/korva/commit/fd08ee39df277b112824043541c8a9e8fa63b6aa))
+* **enterprise:** Business tier, license-gated MCP tools, BEHAVIOR.md integrations ([6ad1134](https://github.com/AlcanDev/korva/commit/6ad113463cec155ed468d86975352ae47152c4e5))
+* **hooks:** post-commit auto-sync ([09e2d69](https://github.com/AlcanDev/korva/commit/09e2d69cf91ffffc10dc7299a52937d83b11ce2e))
+* initial Korva release — AI ecosystem for enterprise teams ([725ebff](https://github.com/AlcanDev/korva/commit/725ebff2eb6fb644b188a7f77758296b0325367d))
+* Korva Hive + Teams + vault operational improvements ([f34f776](https://github.com/AlcanDev/korva/commit/f34f7763fe57f9534f4be5f35ea7b25d96391bbf))
+* korva setup + server deployment + admin panel + auto-sync ([09e2d69](https://github.com/AlcanDev/korva/commit/09e2d69cf91ffffc10dc7299a52937d83b11ce2e))
+* **license:** activate + deactivate endpoints — vault API + Beacon UI ([32cedf3](https://github.com/AlcanDev/korva/commit/32cedf3b0372128dbd2aa24ec58edb4fed55afb1))
+* **license:** add enterprise tier ([909a63c](https://github.com/AlcanDev/korva/commit/909a63c59cf7b5e997a02db270b8ce9e59e2f7fb))
+* **observatory:** dashboard with IDE detection, token analytics, config editor & Sentinel rules UI ([#19](https://github.com/AlcanDev/korva/issues/19)) ([f7b08fa](https://github.com/AlcanDev/korva/commit/f7b08fa402fcb672ae16de9b732cefccd2f2f0d6))
+* Phase 1-3 — interactions log, clean install, bidirectional Hive sync ([545bca9](https://github.com/AlcanDev/korva/commit/545bca9142714637288869b7da37d2fd71891658))
+* **release:** add .deb/.rpm packages and shell completion installs ([3c2a78c](https://github.com/AlcanDev/korva/commit/3c2a78c816ba0d7ead2e127aba303db0e24305cc))
+* **release:** re-enable homebrew tap publishing via fine-grained PAT ([656c790](https://github.com/AlcanDev/korva/commit/656c7900d50915138b4100f755f66fa173b8c5a9))
+* security hardening, prompts CRUD, i18n completeness, UX improvements ([ebd9ee6](https://github.com/AlcanDev/korva/commit/ebd9ee64caf05389c22700bdb58cd2cca42277bc))
+* **teams:** complete Teams admin flow — RBAC, team-scoped scrolls, MCP session context ([5e3b41f](https://github.com/AlcanDev/korva/commit/5e3b41ffc31c57eed3fba2f9caf5958d6d83c33f))
+* update testing guidelines for Jest and NestJS, enhance TypeScript practices, and introduce token efficiency principles ([fb80fd5](https://github.com/AlcanDev/korva/commit/fb80fd576cea6de54edc6a0b3094a476da18593e))
+* **v1.0:** license activate/deactivate + Beacon UI v1.0 ([88caf56](https://github.com/AlcanDev/korva/commit/88caf56c08986f4b7b8516e9e9d0deff0c5658c3))
+* **v1.0:** quality gates, hybrid context, security hardening ([40cf9ab](https://github.com/AlcanDev/korva/commit/40cf9ab54576e39d5b701a7093dcba4e77bc7df6))
+* **v1.1:** smart skill auto-loader + caveman compression + multi-IDE manifests ([640ff1a](https://github.com/AlcanDev/korva/commit/640ff1ad85dfaa2d6224e278fc4bec25d71bd093))
+* **v1.1:** store improvements, MCP profiles, hive sync, IDE integrations ([9a150c9](https://github.com/AlcanDev/korva/commit/9a150c9f2adcb25659db042ce34d75e9121d681f))
+* **vault:** /api/v1/sessions/all endpoint for admin panel ([09e2d69](https://github.com/AlcanDev/korva/commit/09e2d69cf91ffffc10dc7299a52937d83b11ce2e))
+* **vault:** harden security, performance, and input validation ([6663c93](https://github.com/AlcanDev/korva/commit/6663c93b45a7241c2442cf60428a6bce405faf33))
+* **vault:** support KORVA_ADMIN_KEY env var for containerised deployments ([bf71659](https://github.com/AlcanDev/korva/commit/bf7165953b89b9ba5a25018ce6f05e294984bc8e))
+* **vault:** topic_key upsert, vault_update/relate/capture/merge, project auto-detection ([82e0aca](https://github.com/AlcanDev/korva/commit/82e0acaaece87d2ee0588902fa86102fb59f38e5))
+
+
+### 🐛 Bug Fixes
+
+* **beacon+vault:** sessions page, type enum, and release trigger ([fd27554](https://github.com/AlcanDev/korva/commit/fd275549ae019154493817bddb3fdf5e23b49747))
+* **beacon:** unlock Teams sections for business and enterprise tiers ([5cd32df](https://github.com/AlcanDev/korva/commit/5cd32df905079bb0b3b83d93fd658f577f94d093))
+* **beacon:** update landing page version badge to v1.1.0 ([5aa738f](https://github.com/AlcanDev/korva/commit/5aa738fab4eaf2deba5b1e22f0b895338a4a3f84))
+* **ci:** correct wait-on-check-action job name to match CI ([84b7474](https://github.com/AlcanDev/korva/commit/84b74740b49787842dbba63b90cd346d77950963))
+* **ci:** regenerate package-lock.json using public npm registry ([5c8d43a](https://github.com/AlcanDev/korva/commit/5c8d43aeb11c7a1dd8353e1ae0eca71b2721cab4))
+* **ci:** remove manual release-patch/minor/major targets from Makefile ([fc033dd](https://github.com/AlcanDev/korva/commit/fc033dd769b68b00b241b5394f19cd61889f8f2e))
+* **ci:** resolve all CI failures (npm E401, gitleaks false positives) ([8adf41f](https://github.com/AlcanDev/korva/commit/8adf41f423e565c671216648b2fcb17ae1cd4ed9))
+* **cli:** apply gofmt formatting to commands.go and config.go ([fe85c74](https://github.com/AlcanDev/korva/commit/fe85c7422bf2522f8797682ebaad3bd1fc8b6003))
+* **cli:** preserve int() cast on syscall.Stdin for Windows builds ([581bb53](https://github.com/AlcanDev/korva/commit/581bb530550b0495d721b30ff0374f9d1f81d53d))
+* **hive:** gofmt worker.go struct field alignment ([b3fc699](https://github.com/AlcanDev/korva/commit/b3fc699faa12119067df4af7edc7f8448e649180))
+* **install:** correct archive naming in scripts/ installers ([76ab1dd](https://github.com/AlcanDev/korva/commit/76ab1dd6f0acf78ea64cfe4f3089898e884f45f7))
+* **license:** update production public key to match licensing server ([04ea003](https://github.com/AlcanDev/korva/commit/04ea003dd7ece54fb7c8480b4f30fa3a374ff3b5))
+* **lint:** gofmt alignment in integrations_test manifest map ([c18c9ce](https://github.com/AlcanDev/korva/commit/c18c9ce3d7be2a674d6f077ec3c4d615f8c43364))
+* **lint:** resolve all golangci-lint v2 violations across workspace ([4661417](https://github.com/AlcanDev/korva/commit/4661417fa71d2f7a0cb79862c0a278a116d151c6))
+* **mcp+beacon:** auto-load session token + pass team_id on scroll save ([be38fda](https://github.com/AlcanDev/korva/commit/be38fda6cbdcc59e06087716f0b880a2d17093d1))
+* **release:** always skip homebrew — tap token needs separate setup ([9471687](https://github.com/AlcanDev/korva/commit/9471687e50e61d21fe1a8d63c1c8af174317e4c5))
+* **release:** drop empty 'go generate ./...' hook from goreleaser ([6586d1f](https://github.com/AlcanDev/korva/commit/6586d1f9ede1406a2021950e0c8d92d0824ac22a))
+* **release:** make Homebrew tap publishing optional ([b235370](https://github.com/AlcanDev/korva/commit/b23537095bc3171559066829f706c4e90a22e243))
+* **security:** remove all company-specific internal references ([#5](https://github.com/AlcanDev/korva/issues/5)) ([71958ef](https://github.com/AlcanDev/korva/commit/71958ef8073d0bada47295aa0946d3e16d7d0a75))
+* **ui:** unify DistFS type across embedui and stub builds ([49cb95c](https://github.com/AlcanDev/korva/commit/49cb95cdf0a4fb1fe039a83af069cbb117a8e02c))
+* **vault:** apply gofmt to models.go relation constants ([e7a5fa8](https://github.com/AlcanDev/korva/commit/e7a5fa8bd4f8178a374c137fd98eecca66d9db68))
+* **vault:** auto-generate install.id on startup if missing ([ac0b028](https://github.com/AlcanDev/korva/commit/ac0b028e7ba2321bd8da1bcdc3e32d773df3b652))
+* **vault:** read license from disk on each request instead of startup cache ([01bcba5](https://github.com/AlcanDev/korva/commit/01bcba5db8d2ba1d2286ef1c0c67a576212007bd))
+* **vault:** return 422 instead of 502 on activation error ([87a3d2b](https://github.com/AlcanDev/korva/commit/87a3d2bf43eb033f9251a8409caeef5b124b9085))
+* **vault:** route /v1/* to vaultAPI handler, bypassing Beacon SPA catch-all ([9129686](https://github.com/AlcanDev/korva/commit/9129686cb4ba2c1f8fca841f09a0f27fc24d2be9))
+* **vault:** serve SPA for unknown /admin/* routes instead of 404 ([29bb45b](https://github.com/AlcanDev/korva/commit/29bb45b5dc38e17955752d6ef87e7d2f23d154e5))
+
 ## [1.9.0](https://github.com/AlcanDev/korva/compare/v1.8.0...v1.9.0) (2026-05-12)
 
 
