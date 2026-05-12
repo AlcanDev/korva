@@ -55,6 +55,7 @@ func init() {
 	rootCmd.AddCommand(beaconCmd)
 	rootCmd.AddCommand(conflictsCmd)
 	rootCmd.AddCommand(projectsCmd)
+	rootCmd.AddCommand(exportCmd)
 }
 
 func printSuccess(msg string) {
