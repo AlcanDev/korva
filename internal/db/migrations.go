@@ -405,4 +405,84 @@ var migrations = []string{
 	`CREATE INDEX IF NOT EXISTS idx_mcp_calls_tool    ON mcp_calls(tool)`,
 	`CREATE INDEX IF NOT EXISTS idx_mcp_calls_created ON mcp_calls(created_at DESC)`,
 	`CREATE INDEX IF NOT EXISTS idx_mcp_calls_project ON mcp_calls(project)`,
+
+	// ── interactions: prompt-level activity log for Observatory dashboard ─────────
+	// Distinct from mcp_calls (which is per-tool). One row per prompt round-trip.
+	// Tokens fields are real when the client reports `usage` from the Anthropic SDK,
+	// otherwise estimated server-side (estimated=1) from prompt+response length / 4.
+	// prompt_excerpt and response_excerpt are privacy-filtered and capped at 8 KiB.
+	`CREATE TABLE IF NOT EXISTS interactions (
+		id                TEXT PRIMARY KEY,
+		session_id        TEXT,
+		project           TEXT NOT NULL DEFAULT '',
+		team              TEXT NOT NULL DEFAULT '',
+		agent             TEXT NOT NULL DEFAULT '',
+		model             TEXT NOT NULL DEFAULT '',
+		prompt_excerpt    TEXT NOT NULL DEFAULT '',
+		response_excerpt  TEXT NOT NULL DEFAULT '',
+		input_tokens      INTEGER NOT NULL DEFAULT 0,
+		output_tokens     INTEGER NOT NULL DEFAULT 0,
+		cache_read        INTEGER NOT NULL DEFAULT 0,
+		cache_creation    INTEGER NOT NULL DEFAULT 0,
+		duration_ms       INTEGER NOT NULL DEFAULT 0,
+		tool_calls        TEXT NOT NULL DEFAULT '[]',
+		status            TEXT NOT NULL DEFAULT 'ok',
+		error_msg         TEXT NOT NULL DEFAULT '',
+		estimated         INTEGER NOT NULL DEFAULT 0,
+		created_at        TEXT NOT NULL DEFAULT (datetime('now')),
+		FOREIGN KEY (session_id) REFERENCES sessions(id)
+	)`,
+	`CREATE INDEX IF NOT EXISTS idx_interactions_created_at ON interactions(created_at DESC)`,
+	`CREATE INDEX IF NOT EXISTS idx_interactions_project   ON interactions(project, created_at DESC)`,
+	`CREATE INDEX IF NOT EXISTS idx_interactions_model     ON interactions(model)`,
+	`CREATE INDEX IF NOT EXISTS idx_interactions_agent     ON interactions(agent)`,
+	`CREATE INDEX IF NOT EXISTS idx_interactions_status    ON interactions(status)`,
+
+	// ── interactions FTS5 virtual table — full-text search on prompts/responses ──
+	`CREATE VIRTUAL TABLE IF NOT EXISTS interactions_fts USING fts5(
+		prompt_excerpt,
+		response_excerpt,
+		content='interactions',
+		content_rowid='rowid',
+		tokenize='porter unicode61'
+	)`,
+
+	// ── interactions FTS5 sync triggers ──────────────────────────────────────────
+	`CREATE TRIGGER IF NOT EXISTS interactions_ai
+		AFTER INSERT ON interactions BEGIN
+			INSERT INTO interactions_fts(rowid, prompt_excerpt, response_excerpt)
+			VALUES (new.rowid, new.prompt_excerpt, new.response_excerpt);
+		END`,
+
+	`CREATE TRIGGER IF NOT EXISTS interactions_ad
+		AFTER DELETE ON interactions BEGIN
+			INSERT INTO interactions_fts(interactions_fts, rowid, prompt_excerpt, response_excerpt)
+			VALUES ('delete', old.rowid, old.prompt_excerpt, old.response_excerpt);
+		END`,
+
+	`CREATE TRIGGER IF NOT EXISTS interactions_au
+		AFTER UPDATE ON interactions BEGIN
+			INSERT INTO interactions_fts(interactions_fts, rowid, prompt_excerpt, response_excerpt)
+			VALUES ('delete', old.rowid, old.prompt_excerpt, old.response_excerpt);
+			INSERT INTO interactions_fts(rowid, prompt_excerpt, response_excerpt)
+			VALUES (new.rowid, new.prompt_excerpt, new.response_excerpt);
+		END`,
+
+	// ── config_snapshots: full-content snapshot of korva.config.json before each PUT
+	// Coexists with audit_logs: the audit row records the EVENT, the snapshot stores
+	// the CONTENT for rollback. before_json is the file contents pre-mutation; after_json
+	// is the post-mutation contents. Hashes are SHA-256 over the serialized JSON.
+	`CREATE TABLE IF NOT EXISTS config_snapshots (
+		id           TEXT PRIMARY KEY,
+		actor        TEXT NOT NULL DEFAULT '',
+		scope        TEXT NOT NULL,
+		file_path    TEXT NOT NULL,
+		before_hash  TEXT NOT NULL DEFAULT '',
+		after_hash   TEXT NOT NULL DEFAULT '',
+		before_json  TEXT NOT NULL DEFAULT '',
+		after_json   TEXT NOT NULL DEFAULT '',
+		created_at   TEXT NOT NULL DEFAULT (datetime('now'))
+	)`,
+	`CREATE INDEX IF NOT EXISTS idx_config_snapshots_created_at ON config_snapshots(created_at DESC)`,
+	`CREATE INDEX IF NOT EXISTS idx_config_snapshots_scope      ON config_snapshots(scope, created_at DESC)`,
 }

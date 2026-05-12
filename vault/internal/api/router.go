@@ -69,6 +69,16 @@ type RouterConfig struct {
 	// WebhookURL receives a POST for every saved observation (async, best-effort).
 	// Set from VaultConfig.WebhookURL. Empty = disabled.
 	WebhookURL string
+	// VaultStartedAt is the wall-clock time the vault process started, used to
+	// compute uptime in /admin/system-status. Zero value disables uptime.
+	VaultStartedAt time.Time
+	// VaultVersion is reported by /admin/system-status. Defaults to "" when unset.
+	VaultVersion string
+	// VaultPort is the listening port; reported by /admin/system-status.
+	VaultPort int
+	// ConfigPathLocal is the project-local korva.config.json path used by
+	// /admin/system-status (and later by /admin/config). Empty = best-effort.
+	ConfigPathLocal string
 }
 
 // Router builds the HTTP mux for the Vault API.
@@ -130,6 +140,12 @@ func Router(ctx context.Context, s *store.Store, cfg RouterConfig) http.Handler 
 
 	// Prompts — write is unauthenticated so MCP can save without admin key
 	mux.HandleFunc("POST /api/v1/prompts", withBodyLimit(withCORS(savePrompt(s))))
+
+	// Observatory — interactions ingest (Observatory dashboard)
+	// Public endpoint: any IDE wrapper can POST a prompt round-trip with token usage.
+	// The global rate limiter (120 req/min) caps abuse; privacy filter is applied
+	// inside the store layer.
+	mux.HandleFunc("POST /api/v1/interactions", withBodyLimit(withCORS(ingestInteraction(s))))
 
 	// Auth — public; member redeems invite → session token
 	mux.HandleFunc("POST /auth/redeem", withCORS(authRedeem(s)))
@@ -213,6 +229,36 @@ func Router(ctx context.Context, s *store.Store, cfg RouterConfig) http.Handler 
 	// MCP call interactions log — query and aggregate tool usage
 	mux.Handle("GET /admin/interactions", adminMW(withCORS(adminListInteractions(s))))
 	mux.Handle("GET /admin/interactions/stats", adminMW(withCORS(adminInteractionStats(s))))
+
+	// Observatory — prompt-level activity timeline + token analytics
+	mux.Handle("GET /admin/activity", adminMW(withCORS(adminListActivity(s))))
+	mux.Handle("GET /admin/activity/{id}", adminMW(withCORS(adminGetActivity(s))))
+	mux.Handle("GET /admin/tokens/stats", adminMW(withCORS(adminTokenStats(s))))
+
+	// Observatory — single-fetch system status (IDE, Vault, Hive, Sentinel, Lore, Skills, License, counts)
+	mux.Handle("GET /admin/system-status", adminMW(withCORS(adminSystemStatus(systemStatusInputs{
+		Store:           s,
+		HiveWorker:      cfg.HiveWorker,
+		License:         cfg.License,
+		StartedAt:       cfg.VaultStartedAt,
+		Version:         cfg.VaultVersion,
+		Port:            cfg.VaultPort,
+		ConfigPathLocal: cfg.ConfigPathLocal,
+	}))))
+
+	// Observatory — Configuration editor (read + write korva.config.json)
+	configEP := newConfigEndpoint(s, cfg.ConfigPathLocal)
+	mux.Handle("GET /admin/config", adminMW(withCORS(adminGetConfig(configEP))))
+	mux.Handle("PUT /admin/config", adminMW(withBodyLimit(withCORS(adminPutConfig(configEP)))))
+	mux.Handle("GET /admin/config/snapshots", adminMW(withCORS(adminListConfigSnapshots(s))))
+
+	// Observatory — Vault restart (replaces the running process with a fresh copy)
+	mux.Handle("POST /admin/vault/restart", adminMW(withCORS(adminRestartVault())))
+
+	// Observatory — Sentinel rules editor (custom YAML rules + dry-run playground)
+	mux.Handle("GET /admin/sentinel/rules", adminMW(withCORS(adminGetSentinelRules(cfg.ConfigPathLocal))))
+	mux.Handle("PUT /admin/sentinel/rules", adminMW(withBodyLimit(withCORS(adminPutSentinelRules(cfg.ConfigPathLocal)))))
+	mux.Handle("POST /admin/sentinel/test", adminMW(withBodyLimit(withCORS(adminTestSentinelRule()))))
 
 	// --- Team member routes (X-Session-Token required) ---
 	// A valid session token is sufficient proof of team membership — the team's

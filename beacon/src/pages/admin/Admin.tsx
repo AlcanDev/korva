@@ -2,7 +2,7 @@ import _React, { useState } from 'react'
 import { NavLink, Routes, Route, Navigate } from 'react-router'
 import {
   LayoutDashboard, Database, BookOpen, LogOut,
-  Users, Wand2, Lock, ClipboardList, KeyRound, Menu, X, Activity, Clock, BookMarked, Zap
+  Users, Wand2, Lock, ClipboardList, KeyRound, Menu, X, Activity, Clock, BookMarked, Zap, Telescope,
 } from 'lucide-react'
 import { KorvaLogo } from '@/components/KorvaLogo'
 import { useAdminStore } from '@/stores/admin'
@@ -21,6 +21,7 @@ import AdminCodeHealth from './AdminCodeHealth'
 import AdminSessions from './AdminSessions'
 import AdminPrompts from './AdminPrompts'
 import AdminInteractions from './AdminInteractions'
+import Observatory from '../observatory/Observatory'
 
 export default function Admin() {
   const { isAuthenticated, logout } = useAdminStore()
@@ -68,7 +69,8 @@ export default function Admin() {
 
         <main className="flex-1 overflow-auto">
           <Routes>
-            <Route path="/" element={<Navigate to="dashboard" replace />} />
+            <Route path="/" element={<Navigate to="/admin/observatory/health" replace />} />
+            <Route path="observatory/*" element={<Observatory />} />
             <Route path="dashboard" element={<AdminDashboard />} />
             <Route path="vault" element={<AdminVault />} />
             <Route path="scrolls" element={<AdminScrolls />} />
@@ -138,6 +140,7 @@ function AdminSidebar({ onLogout, onNavigate }: { onLogout: () => void; onNaviga
   const isTeams = isPaidTier(lic?.tier)
 
   const communityItems = [
+    { to: 'observatory/health', icon: Telescope,       label: 'Observatory',       subtitle: 'health · tokens · config' },
     { to: 'dashboard',   icon: LayoutDashboard, label: t.nav.dashboard },
     { to: 'vault',       icon: Database,        label: t.nav.vaultBrowser,  subtitle: t.nav.vaultSubtitle },
     { to: 'sessions',    icon: Clock,           label: t.nav.sessions,      subtitle: t.nav.sessionsSubtitle },
