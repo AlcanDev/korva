@@ -71,10 +71,7 @@ func (s *Store) AddRelation(sourceID, targetID string, rel RelationType, reason,
 func (s *Store) GetRelations(observationID string) (*ObservationRelations, error) {
 	result := &ObservationRelations{}
 
-	rows, err := s.db.Query(`
-		SELECT id, source_id, target_id, relation, status,
-		       COALESCE(reason,''), COALESCE(author,''), project, created_at
-		FROM observation_relations
+	rows, err := s.db.Query(relationSelectClause+`
 		WHERE source_id = ? OR target_id = ?
 		ORDER BY created_at DESC`, observationID, observationID)
 	if err != nil {
@@ -105,10 +102,7 @@ func (s *Store) ListRelationsByProject(project string, relType RelationType) ([]
 		args = append(args, string(relType))
 	}
 
-	rows, err := s.db.Query(`
-		SELECT id, source_id, target_id, relation, status,
-		       COALESCE(reason,''), COALESCE(author,''), project, created_at
-		FROM observation_relations
+	rows, err := s.db.Query(relationSelectClause+`
 		WHERE project = ?`+typeFilter+`
 		ORDER BY created_at DESC`, args...)
 	if err != nil {
@@ -137,15 +131,35 @@ func (s *Store) DeleteRelation(id string) (bool, error) {
 	return n > 0, nil
 }
 
+// relationSelectClause centralizes the column list so every callsite reads the
+// same fields in the same order. Keeps scanRelation portable.
+const relationSelectClause = `
+	SELECT id, source_id, target_id, relation, status,
+	       COALESCE(reason,''), COALESCE(author,''), project, created_at,
+	       judgment_status, confidence, COALESCE(evidence,''),
+	       marked_by_actor, marked_by_kind, COALESCE(marked_by_model,''),
+	       COALESCE(session_id,''), judged_at
+	  FROM observation_relations
+`
+
 func scanRelation(row *sql.Rows) (*Relation, error) {
 	var r Relation
 	var createdAt string
+	var judgedAt sql.NullString
 	if err := row.Scan(
 		&r.ID, &r.SourceID, &r.TargetID, &r.Relation, &r.Status,
 		&r.Reason, &r.Author, &r.Project, &createdAt,
+		&r.JudgmentStatus, &r.Confidence, &r.Evidence,
+		&r.MarkedByActor, &r.MarkedByKind, &r.MarkedByModel,
+		&r.SessionID, &judgedAt,
 	); err != nil {
 		return nil, err
 	}
 	r.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
+	if judgedAt.Valid && judgedAt.String != "" {
+		if t, err := time.Parse(time.RFC3339, judgedAt.String); err == nil {
+			r.JudgedAt = &t
+		}
+	}
 	return &r, nil
 }

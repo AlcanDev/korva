@@ -53,6 +53,7 @@ func init() {
 	rootCmd.AddCommand(obsCmd)
 	rootCmd.AddCommand(skillsCmd)
 	rootCmd.AddCommand(beaconCmd)
+	rootCmd.AddCommand(conflictsCmd)
 }
 
 func printSuccess(msg string) {

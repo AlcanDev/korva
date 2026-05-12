@@ -264,6 +264,20 @@ func Router(ctx context.Context, s *store.Store, cfg RouterConfig) http.Handler 
 	mux.Handle("GET /admin/integrity", adminMW(withCORS(adminGetIntegrity(s))))
 	mux.Handle("POST /admin/integrity/repair", adminMW(withBodyLimit(withCORS(adminRepairIntegrity(s)))))
 
+	// Observatory — Conflict judgment workflow
+	mux.Handle("GET /admin/conflicts", adminMW(withCORS(adminListConflicts(s))))
+	mux.Handle("GET /admin/conflicts/{id}", adminMW(withCORS(adminGetConflict(s))))
+	mux.Handle("POST /admin/conflicts/{id}/judge", adminMW(withBodyLimit(withCORS(adminJudgeConflict(s)))))
+	mux.Handle("POST /admin/conflicts/{id}/ignore", adminMW(withBodyLimit(withCORS(adminIgnoreConflict(s)))))
+	mux.Handle("POST /admin/conflicts/compare", adminMW(withBodyLimit(withCORS(adminCompareConflict(s)))))
+	mux.Handle("POST /admin/observations/{id}/scan-conflicts", adminMW(withBodyLimit(withCORS(adminScanConflicts(s)))))
+
+	// Observatory — Deferred-apply queue (cloud sync resilience)
+	mux.Handle("GET /admin/cloud/deferred", adminMW(withCORS(adminListDeferred(s))))
+	mux.Handle("POST /admin/cloud/deferred/{sync_id}/retry", adminMW(withBodyLimit(withCORS(adminRetryDeferred(s)))))
+	mux.Handle("POST /admin/cloud/deferred/{sync_id}/applied", adminMW(withCORS(adminMarkDeferredApplied(s))))
+	mux.Handle("DELETE /admin/cloud/deferred/{sync_id}", adminMW(withCORS(adminDeleteDeferred(s))))
+
 	// --- Team member routes (X-Session-Token required) ---
 	// A valid session token is sufficient proof of team membership — the team's
 	// existence in the DB implies the vault admin created it with a Teams license.
