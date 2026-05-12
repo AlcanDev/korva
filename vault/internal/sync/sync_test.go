@@ -1,6 +1,7 @@
 package sync
 
 import (
+	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -108,7 +109,9 @@ func TestExport_MultipleObservations(t *testing.T) {
 	dir := t.TempDir()
 	s := newTestStore(t)
 	for i := 0; i < 5; i++ {
-		saveObs(t, s, "obs", "content")
+		// Distinct titles so the project-scoped normalized-hash dedup does
+		// not coalesce them into a single observation.
+		saveObs(t, s, fmt.Sprintf("obs-%d", i), fmt.Sprintf("content-%d", i))
 		time.Sleep(time.Millisecond) // ensure distinct ULIDs
 	}
 
@@ -218,10 +221,10 @@ func TestImport_EmptyDir(t *testing.T) {
 func TestImport_RoundTrip(t *testing.T) {
 	dir := t.TempDir()
 
-	// Source store: 3 observations
+	// Source store: 3 observations with distinct titles to bypass dedup.
 	src := newTestStore(t)
 	for i := 0; i < 3; i++ {
-		saveObs(t, src, "obs", "content")
+		saveObs(t, src, fmt.Sprintf("obs-%d", i), fmt.Sprintf("content-%d", i))
 		time.Sleep(time.Millisecond)
 	}
 	sy1 := New(src, dir)

@@ -1,11 +1,12 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
-	"context"
 	"testing"
 	"time"
 
@@ -32,13 +33,14 @@ func TestSearch_Pagination(t *testing.T) {
 	}
 	defer s.Close()
 
-	// Insert 5 observations in the "pg" project.
+	// Insert 5 observations in the "pg" project. Distinct titles so the
+	// project-scoped normalized-hash dedup does not coalesce them.
 	for i := 0; i < 5; i++ {
 		s.Save(store.Observation{ //nolint:errcheck
 			Project: "pg",
 			Type:    store.TypePattern,
-			Title:   "obs",
-			Content: "content",
+			Title:   fmt.Sprintf("obs-%d", i),
+			Content: fmt.Sprintf("content-%d", i),
 		})
 	}
 

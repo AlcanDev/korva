@@ -281,7 +281,7 @@ func TestSave_ContentHashDedup_WithinSession(t *testing.T) {
 // TestSave_NormalizedDedup_AcrossSessions verifies that the new project-scoped
 // normalized-hash dedup collapses two identical saves into one row even when
 // no session_id is set. This replaces the old contract where cross-session
-// saves were always distinct — the new behavior is to recognise the same
+// saves were always distinct — the new behavior is to recognize the same
 // knowledge regardless of session, within the dedup window.
 func TestSave_NormalizedDedup_AcrossSessions(t *testing.T) {
 	s := newTestStore(t)

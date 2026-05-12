@@ -29,8 +29,8 @@ func TestAdminGetIntegrity_HappyPath(t *testing.T) {
 		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
 	}
 	var resp struct {
-		Healthy bool                    `json:"healthy"`
-		Checks  []store.IntegrityCheck  `json:"checks"`
+		Healthy bool                   `json:"healthy"`
+		Checks  []store.IntegrityCheck `json:"checks"`
 	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("decode: %v", err)

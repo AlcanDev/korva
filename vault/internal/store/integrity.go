@@ -72,7 +72,7 @@ type RepairAction struct {
 	Error         string `json:"error,omitempty"`
 }
 
-// RepairReport summarises a RepairIntegrity call.
+// RepairReport summarizes a RepairIntegrity call.
 type RepairReport struct {
 	Mode        RepairMode     `json:"mode"`
 	Actions     []RepairAction `json:"actions"`
@@ -363,7 +363,7 @@ func (s *Store) repairPurgeOrphanRels(mode RepairMode) (RepairAction, error) {
 	const cond = `WHERE NOT EXISTS (SELECT 1 FROM observations o WHERE o.id = r.source_id)
                   OR NOT EXISTS (SELECT 1 FROM observations o WHERE o.id = r.target_id)`
 	var n int
-	if err := s.db.QueryRow(`SELECT COUNT(*) FROM observation_relations r `+cond).Scan(&n); err != nil {
+	if err := s.db.QueryRow(`SELECT COUNT(*) FROM observation_relations r ` + cond).Scan(&n); err != nil {
 		return action, err
 	}
 	action.EstimatedRows = n
