@@ -226,7 +226,7 @@ type Relation struct {
 	CreatedAt time.Time    `json:"created_at"`
 
 	// ── judgment workflow (added in Phase 2) ────────────────────────────────
-	// Pre-Phase-2 rows materialise with JudgmentStatus="judged" + Confidence=1.0
+	// Pre-Phase-2 rows materialize with JudgmentStatus="judged" + Confidence=1.0
 	// + MarkedBy*="admin"/"manual", so the legacy AddRelation flow stays
 	// semantically equivalent to "this verdict was already decided".
 	JudgmentStatus JudgmentStatus `json:"judgment_status"`

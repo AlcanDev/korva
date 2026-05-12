@@ -131,7 +131,7 @@ func (s *Store) DeleteRelation(id string) (bool, error) {
 	return n > 0, nil
 }
 
-// relationSelectClause centralises the column list so every callsite reads the
+// relationSelectClause centralizes the column list so every callsite reads the
 // same fields in the same order. Keeps scanRelation portable.
 const relationSelectClause = `
 	SELECT id, source_id, target_id, relation, status,

@@ -287,11 +287,32 @@ func (s *Store) IgnoreJudgment(judgmentID, reason, sessionID string) error {
 // ListPendingJudgments returns pending judgments scoped to a project. An empty
 // project returns global pending judgments — useful for admin dashboards.
 func (s *Store) ListPendingJudgments(project string, limit int) ([]Relation, error) {
+	return s.ListJudgmentsByStatus(project, JudgmentPending, limit)
+}
+
+// ListJudgmentsByStatus is the generic project-scoped listing used by the
+// admin / CLI surfaces that need to inspect judged/orphaned/ignored rows in
+// addition to the default pending listing.
+func (s *Store) ListJudgmentsByStatus(project string, status JudgmentStatus, limit int) ([]Relation, error) {
 	if limit <= 0 || limit > 500 {
 		limit = 50
 	}
-	args := []any{}
-	clause := ` WHERE judgment_status = 'pending'`
+	if status == "" {
+		status = JudgmentPending
+	}
+	known := false
+	for _, allowed := range AllJudgmentStatuses {
+		if string(status) == allowed {
+			known = true
+			break
+		}
+	}
+	if !known {
+		return nil, fmt.Errorf("unknown judgment status %q (allowed: %v)", status, AllJudgmentStatuses)
+	}
+
+	args := []any{string(status)}
+	clause := ` WHERE judgment_status = ?`
 	if project != "" {
 		clause += ` AND project = ?`
 		args = append(args, project)
@@ -301,7 +322,7 @@ func (s *Store) ListPendingJudgments(project string, limit int) ([]Relation, err
 
 	rows, err := s.db.Query(relationSelectClause+clause, args...)
 	if err != nil {
-		return nil, fmt.Errorf("listing pending judgments: %w", err)
+		return nil, fmt.Errorf("listing judgments: %w", err)
 	}
 	defer rows.Close()
 	var out []Relation
