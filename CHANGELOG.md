@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.9.0](https://github.com/AlcanDev/korva/compare/v1.8.0...v1.9.0) (2026-05-12)
+
+
+### 🚀 Features
+
+* doctor v2 (integrity + repair) and project-scoped normalized-hash dedup ([#23](https://github.com/AlcanDev/korva/issues/23)) ([017a537](https://github.com/AlcanDev/korva/commit/017a537c5627f6217caf5baee77ad2444844327f))
+
 ## [1.8.0](https://github.com/AlcanDev/korva/compare/v1.7.0...v1.8.0) (2026-05-12)
 
 
