@@ -178,17 +178,65 @@ var AllRelationTypes = []string{
 	"supersedes", "conflicts_with", "related", "compatible", "scoped",
 }
 
+// JudgmentStatus captures the lifecycle of an auto-detected candidate conflict.
+// pending  — Vault flagged a likely conflict; waiting on an actor to weigh in.
+// judged   — Verdict recorded (the `relation` field carries the chosen verb).
+// orphaned — Source/target observation was deleted before judgment.
+// ignored  — Actor explicitly skipped this candidate (low confidence or noise).
+type JudgmentStatus string
+
+const (
+	JudgmentPending  JudgmentStatus = "pending"
+	JudgmentJudged   JudgmentStatus = "judged"
+	JudgmentOrphaned JudgmentStatus = "orphaned"
+	JudgmentIgnored  JudgmentStatus = "ignored"
+)
+
+// AllJudgmentStatuses lists every valid status, in lifecycle order.
+var AllJudgmentStatuses = []string{"pending", "judged", "orphaned", "ignored"}
+
+// ActorKind tags the role of the entity that filed a verdict.
+type ActorKind string
+
+const (
+	ActorAgent ActorKind = "agent" // an AI agent acting on its own heuristic
+	ActorUser  ActorKind = "user"  // a human operator
+	ActorAdmin ActorKind = "admin" // Vault internal / admin tooling
+)
+
+// VerdictKind tags how the verdict was reached.
+type VerdictKind string
+
+const (
+	VerdictHeuristic VerdictKind = "heuristic" // rule-based (e.g. FTS+confidence threshold)
+	VerdictLLM       VerdictKind = "llm"       // delegated to an external LLM
+	VerdictManual    VerdictKind = "manual"    // explicit human / admin action
+)
+
 // Relation is a directed semantic link between two observations.
 type Relation struct {
 	ID        string       `json:"id"`
 	SourceID  string       `json:"source_id"`
 	TargetID  string       `json:"target_id"`
 	Relation  RelationType `json:"relation"`
-	Status    string       `json:"status"` // confirmed | pending
+	Status    string       `json:"status"` // confirmed | pending (legacy)
 	Reason    string       `json:"reason,omitempty"`
 	Author    string       `json:"author,omitempty"`
 	Project   string       `json:"project"`
 	CreatedAt time.Time    `json:"created_at"`
+
+	// ── judgment workflow (added in Phase 2) ────────────────────────────────
+	// Pre-Phase-2 rows materialise with JudgmentStatus="judged" + Confidence=1.0
+	// + MarkedBy*="admin"/"manual", so the legacy AddRelation flow stays
+	// semantically equivalent to "this verdict was already decided".
+	JudgmentStatus JudgmentStatus `json:"judgment_status"`
+	Confidence     float64        `json:"confidence"`
+	Evidence       string         `json:"evidence,omitempty"`
+	MarkedByActor  ActorKind      `json:"marked_by_actor"`
+	MarkedByKind   VerdictKind    `json:"marked_by_kind"`
+	MarkedByModel  string         `json:"marked_by_model,omitempty"`
+	SessionID      string         `json:"session_id,omitempty"`
+	JudgedAt       *time.Time     `json:"judged_at,omitempty"`
 }
 
 // ObservationRelations holds all relations for a given observation.

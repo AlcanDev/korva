@@ -504,4 +504,47 @@ var migrations = []string{
 	`ALTER TABLE observations ADD COLUMN last_seen_at    TEXT`,
 	// Index optimizes the project-scoped, recency-aware lookup performed by Save().
 	`CREATE INDEX IF NOT EXISTS idx_observations_normhash ON observations(project, normalized_hash, created_at DESC)`,
+
+	// ── judgment workflow on observation_relations ───────────────────────────────
+	// Layered on top of the existing relation graph. `judgment_status` captures
+	// the lifecycle of a candidate conflict surfaced automatically at vault_save
+	// time:
+	//   pending  — Vault detected a likely conflict and is waiting for an actor
+	//              to weigh in (agent, user, or admin).
+	//   judged   — A verdict has been recorded (the relation field carries the
+	//              chosen verb: supersedes | conflicts_with | related | …).
+	//   orphaned — Source or target observation got deleted before judgment.
+	//   ignored  — Actor explicitly chose to skip this candidate.
+	//
+	// Existing rows default to 'judged' so any pre-workflow relations stay
+	// semantically equivalent to "this verdict was already decided".
+	`ALTER TABLE observation_relations ADD COLUMN judgment_status TEXT    NOT NULL DEFAULT 'judged'`,
+	`ALTER TABLE observation_relations ADD COLUMN confidence      REAL    NOT NULL DEFAULT 1.0`,
+	`ALTER TABLE observation_relations ADD COLUMN evidence        TEXT    NOT NULL DEFAULT ''`,
+	`ALTER TABLE observation_relations ADD COLUMN marked_by_actor TEXT    NOT NULL DEFAULT 'admin'`,
+	`ALTER TABLE observation_relations ADD COLUMN marked_by_kind  TEXT    NOT NULL DEFAULT 'manual'`,
+	`ALTER TABLE observation_relations ADD COLUMN marked_by_model TEXT    NOT NULL DEFAULT ''`,
+	`ALTER TABLE observation_relations ADD COLUMN session_id      TEXT`,
+	`ALTER TABLE observation_relations ADD COLUMN judged_at       TEXT`,
+	// Composite index for the most common admin/CLI query: "show me everything
+	// still pending in this project, newest first".
+	`CREATE INDEX IF NOT EXISTS idx_obs_relation_judgment ON observation_relations(project, judgment_status, created_at DESC)`,
+
+	// ── cloud_apply_deferred: queue for pulled payloads that cannot apply yet ───
+	// When a Hive pull delivers a relation before the observation it references,
+	// the apply layer enqueues the payload here so the cursor can advance instead
+	// of stalling. A background replay re-attempts each row; entries that exceed
+	// the retry ceiling are marked 'dead' and surfaced by Doctor for manual
+	// inspection.
+	`CREATE TABLE IF NOT EXISTS cloud_apply_deferred (
+		sync_id           TEXT PRIMARY KEY,
+		entity            TEXT NOT NULL,
+		payload           BLOB NOT NULL,
+		apply_status      TEXT NOT NULL DEFAULT 'deferred',
+		retry_count       INTEGER NOT NULL DEFAULT 0,
+		last_error        TEXT NOT NULL DEFAULT '',
+		first_seen_at     TEXT NOT NULL DEFAULT (datetime('now')),
+		last_attempted_at TEXT
+	)`,
+	`CREATE INDEX IF NOT EXISTS idx_cad_status_seen ON cloud_apply_deferred(apply_status, first_seen_at)`,
 }
