@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.11.0](https://github.com/AlcanDev/korva/compare/v1.10.0...v1.11.0) (2026-05-12)
+
+
+### 🚀 Features
+
+* **phase-2b:** MCP vault_judge/vault_compare + auto-scan + Beacon Conflicts tab ([#28](https://github.com/AlcanDev/korva/issues/28)) ([a9b000c](https://github.com/AlcanDev/korva/commit/a9b000c5ba7c8bb6058b13f076c44593c6b373aa))
+
 ## [1.10.0](https://github.com/AlcanDev/korva/compare/v1.9.0...v1.10.0) (2026-05-12)
 
 
