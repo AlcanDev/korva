@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.0](https://github.com/AlcanDev/korva/compare/v1.6.1...v1.7.0) (2026-05-12)
+
+
+### 🚀 Features
+
+* **observatory:** dashboard with IDE detection, token analytics, config editor & Sentinel rules UI ([#19](https://github.com/AlcanDev/korva/issues/19)) ([f7b08fa](https://github.com/AlcanDev/korva/commit/f7b08fa402fcb672ae16de9b732cefccd2f2f0d6))
+
 ## [1.6.1](https://github.com/AlcanDev/korva/compare/v1.6.0...v1.6.1) (2026-05-05)
 
 
