@@ -485,4 +485,23 @@ var migrations = []string{
 	)`,
 	`CREATE INDEX IF NOT EXISTS idx_config_snapshots_created_at ON config_snapshots(created_at DESC)`,
 	`CREATE INDEX IF NOT EXISTS idx_config_snapshots_scope      ON config_snapshots(scope, created_at DESC)`,
+
+	// ── normalized dedup columns on observations ────────────────────────────────
+	// Complements content_hash (which is session-scoped exact match) with a
+	// project-scoped, case+whitespace-normalized fingerprint so AI agents that
+	// re-emit a known fact with slight formatting differences upsert into the
+	// original row instead of cluttering the timeline.
+	//
+	// normalized_hash: SHA-256 of (lowercased, whitespace-collapsed)
+	//                  title+'|'+content+'|'+project, first 32 hex chars.
+	// duplicate_count: incremented every time the same normalized_hash arrives
+	//                  within the dedup window (default 15 minutes).
+	// last_seen_at:    refreshed on every duplicate hit so callers can tell
+	//                  "we saw this knowledge again 2 hours ago" even when the
+	//                  original row is days old.
+	`ALTER TABLE observations ADD COLUMN normalized_hash TEXT NOT NULL DEFAULT ''`,
+	`ALTER TABLE observations ADD COLUMN duplicate_count INTEGER NOT NULL DEFAULT 0`,
+	`ALTER TABLE observations ADD COLUMN last_seen_at    TEXT`,
+	// Index optimizes the project-scoped, recency-aware lookup performed by Save().
+	`CREATE INDEX IF NOT EXISTS idx_observations_normhash ON observations(project, normalized_hash, created_at DESC)`,
 }

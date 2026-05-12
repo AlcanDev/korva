@@ -1,6 +1,7 @@
 package store
 
 import (
+	"fmt"
 	"testing"
 	"time"
 )
@@ -26,8 +27,9 @@ func quickSave(t *testing.T, s *Store, project string, typ ObservationType, titl
 
 func TestContext_ReturnsMostRecent(t *testing.T) {
 	s := newTestStore(t)
+	// Distinct titles so the normalized-hash dedup does not coalesce them.
 	for i := 0; i < 5; i++ {
-		quickSave(t, s, "home-api", TypeDecision, "obs")
+		quickSave(t, s, "home-api", TypeDecision, fmt.Sprintf("obs-%d", i))
 		time.Sleep(time.Millisecond)
 	}
 
@@ -73,8 +75,10 @@ func TestContext_EmptyProjectReturnsNothing(t *testing.T) {
 
 func TestContext_DefaultLimit(t *testing.T) {
 	s := newTestStore(t)
+	// Distinct titles so the normalized-hash dedup window does not coalesce
+	// them into a single observation (verified by TestSave_NormalizedDedup).
 	for i := 0; i < 5; i++ {
-		quickSave(t, s, "proj", TypeDecision, "obs")
+		quickSave(t, s, "proj", TypeDecision, fmt.Sprintf("obs-%d", i))
 	}
 	// limit=0 should use default (10)
 	results, err := s.Context("proj", nil, 0)

@@ -1,6 +1,7 @@
 package store
 
 import (
+	"fmt"
 	"testing"
 	"time"
 )
@@ -21,12 +22,14 @@ func TestPurge_ByProject(t *testing.T) {
 	s, _ := NewMemory(nil)
 	defer s.Close()
 
-	save := func(project, typ string) {
-		s.Save(Observation{Project: project, Type: ObservationType(typ), Title: "t", Content: "c"}) //nolint:errcheck
+	save := func(project, typ, title string) {
+		// Distinct titles so the normalized-hash dedup does not coalesce them
+		// — Purge is a separate concern from Save-time dedup.
+		s.Save(Observation{Project: project, Type: ObservationType(typ), Title: title, Content: "content-" + title}) //nolint:errcheck
 	}
-	save("alpha", "pattern")
-	save("alpha", "pattern")
-	save("beta", "pattern")
+	save("alpha", "pattern", "alpha-1")
+	save("alpha", "pattern", "alpha-2")
+	save("beta", "pattern", "beta-1")
 
 	n, err := s.Purge(PurgeOptions{Project: "alpha"})
 	if err != nil {
@@ -92,7 +95,8 @@ func TestExport_All(t *testing.T) {
 	defer s.Close()
 
 	for i := 0; i < 3; i++ {
-		s.Save(Observation{Project: "p", Type: "pattern", Title: "t", Content: "c"}) //nolint:errcheck
+		// Distinct titles to avoid the new normalized-hash coalescing.
+		s.Save(Observation{Project: "p", Type: "pattern", Title: fmt.Sprintf("t-%d", i), Content: fmt.Sprintf("c-%d", i)}) //nolint:errcheck
 	}
 
 	obs, err := s.Export(ExportOptions{})
@@ -139,13 +143,35 @@ func TestDedup_NoDuplicates(t *testing.T) {
 	}
 }
 
+// insertLegacyDuplicate is a test helper that bypasses the normalized-hash
+// dedup in Save() so we can stage rows that look like data written before
+// dedup landed (or that escaped the recency window). The post-hoc Dedup()
+// helper is still useful for cleaning that legacy footprint, and its tests
+// need to be able to set it up.
+func insertLegacyDuplicate(t *testing.T, s *Store, project, typ, title, content string) {
+	t.Helper()
+	id := newID()
+	if _, err := s.db.Exec(`
+		INSERT INTO observations
+		  (id, session_id, project, team, country, type, title, content, tags, author,
+		   created_at, content_hash, normalized_hash, topic_key, working_dir, last_seen_at)
+		VALUES (?, NULL, ?, '', '', ?, ?, ?, '[]', '', datetime('now'), '', '', NULL, '', datetime('now'))`,
+		id, project, typ, title, content,
+	); err != nil {
+		t.Fatalf("insertLegacyDuplicate: %v", err)
+	}
+}
+
 func TestDedup_RemovesDuplicates(t *testing.T) {
 	s, _ := NewMemory(nil)
 	defer s.Close()
 
-	// Save the same (project, type, content) three times.
+	// Stage three legacy rows directly so the new Save()-time dedup does
+	// not collapse them at write time — Dedup() exists to clean up data
+	// that landed before normalized-hash dedup existed, and we have to be
+	// able to test that path.
 	for i := 0; i < 3; i++ {
-		s.Save(Observation{Project: "proj", Type: "pattern", Title: "title", Content: "same content"}) //nolint:errcheck
+		insertLegacyDuplicate(t, s, "proj", "pattern", "title", "same content")
 	}
 
 	res, err := s.Dedup("proj", false)
@@ -171,7 +197,7 @@ func TestDedup_DryRun(t *testing.T) {
 	defer s.Close()
 
 	for i := 0; i < 2; i++ {
-		s.Save(Observation{Project: "proj", Type: "pattern", Title: "t", Content: "dup"}) //nolint:errcheck
+		insertLegacyDuplicate(t, s, "proj", "pattern", "t", "dup")
 	}
 
 	res, err := s.Dedup("proj", true)
@@ -252,19 +278,46 @@ func TestSave_ContentHashDedup_WithinSession(t *testing.T) {
 	}
 }
 
-func TestSave_ContentHashDedup_CrossSession_NotDeduped(t *testing.T) {
+// TestSave_NormalizedDedup_AcrossSessions verifies that the new project-scoped
+// normalized-hash dedup collapses two identical saves into one row even when
+// no session_id is set. This replaces the old contract where cross-session
+// saves were always distinct — the new behavior is to recognise the same
+// knowledge regardless of session, within the dedup window.
+func TestSave_NormalizedDedup_AcrossSessions(t *testing.T) {
 	s := newTestStore(t)
 	obs := Observation{
 		Project: "home-api",
 		Type:    TypeDecision,
 		Title:   "Same knowledge, different sessions",
-		Content: "This should be stored twice across different sessions",
+		Content: "This should coalesce within the dedup window",
 	}
-	// No session_id → not deduplicated.
 	id1, _ := s.Save(obs)
 	id2, _ := s.Save(obs)
+	if id1 != id2 {
+		t.Errorf("identical content in the same project within the window should coalesce; id1=%s id2=%s", id1, id2)
+	}
+	// And the duplicate count on the original row is bumped.
+	got, _ := s.Get(id1)
+	if got == nil {
+		t.Fatal("first observation should be retrievable")
+	}
+}
+
+// TestSave_NormalizedDedup_DifferentProjects verifies that the same content
+// in a different project does NOT dedupe — projects are isolated namespaces.
+func TestSave_NormalizedDedup_DifferentProjects(t *testing.T) {
+	s := newTestStore(t)
+	obs := Observation{
+		Type:    TypeDecision,
+		Title:   "Cross-project insight",
+		Content: "Same words, different projects",
+	}
+	obs.Project = "alpha"
+	id1, _ := s.Save(obs)
+	obs.Project = "beta"
+	id2, _ := s.Save(obs)
 	if id1 == id2 {
-		t.Error("cross-session (no session_id) saves must NOT be deduplicated")
+		t.Error("dedup must be project-scoped — different projects must keep distinct rows")
 	}
 }
 

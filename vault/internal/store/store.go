@@ -155,6 +155,36 @@ func (s *Store) Save(obs Observation) (string, error) {
 		}
 	}
 
+	// 4. Normalized-hash dedup (project-scoped, recency-windowed).
+	//    Captures near-duplicates where the same insight is re-emitted with
+	//    cosmetic differences (case, whitespace). Inside the dedup window we
+	//    bump duplicate_count + last_seen_at on the original row instead of
+	//    spawning a new one; outside the window we treat it as a fresh
+	//    learning so timeline replays remain truthful.
+	normHash := obsNormalizedHash(obs.Title, obs.Content, obs.Project)
+	if normHash != "" && obs.Project != "" {
+		windowStart := obs.CreatedAt.Add(-dedupNormalizedWindow).UTC().Format(time.RFC3339)
+		var existingID string
+		row := s.db.QueryRow(
+			`SELECT id FROM observations
+			  WHERE project = ? AND normalized_hash = ? AND created_at >= ?
+			  ORDER BY created_at DESC LIMIT 1`,
+			obs.Project, normHash, windowStart,
+		)
+		if err := row.Scan(&existingID); err == nil && existingID != "" {
+			now := obs.CreatedAt.UTC().Format(time.RFC3339)
+			if _, uErr := s.db.Exec(
+				`UPDATE observations
+				    SET duplicate_count = duplicate_count + 1, last_seen_at = ?
+				  WHERE id = ?`,
+				now, existingID,
+			); uErr != nil {
+				return "", fmt.Errorf("incrementing duplicate_count: %w", uErr)
+			}
+			return existingID, nil
+		}
+	}
+
 	tags, err := json.Marshal(obs.Tags)
 	if err != nil {
 		return "", fmt.Errorf("serializing tags: %w", err)
@@ -166,13 +196,15 @@ func (s *Store) Save(obs Observation) (string, error) {
 		topicKeyPtr = &topicKeyVal
 	}
 
+	firstSeen := obs.CreatedAt.UTC().Format(time.RFC3339)
 	_, err = s.db.Exec(`
 		INSERT INTO observations
-		  (id, session_id, project, team, country, type, title, content, tags, author, created_at, content_hash, topic_key, working_dir)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		  (id, session_id, project, team, country, type, title, content, tags, author,
+		   created_at, content_hash, normalized_hash, topic_key, working_dir, last_seen_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		obs.ID, nullString(obs.SessionID), obs.Project, obs.Team, obs.Country,
 		string(obs.Type), obs.Title, obs.Content, string(tags), obs.Author,
-		obs.CreatedAt.UTC().Format(time.RFC3339), hash, topicKeyPtr, obs.WorkingDir,
+		firstSeen, hash, normHash, topicKeyPtr, obs.WorkingDir, firstSeen,
 	)
 	if err != nil {
 		return "", fmt.Errorf("inserting observation: %w", err)
@@ -195,6 +227,30 @@ func obsContentHash(title, content, project string) string {
 	return fmt.Sprintf("%x", h)[:32]
 }
 
+// dedupNormalizedWindow is the recency window in which two observations with
+// the same normalized_hash are treated as duplicates instead of separate
+// learnings. Outside this window an exact-text re-save creates a new row so
+// the timeline retains "we re-discovered this 3 days later".
+const dedupNormalizedWindow = 15 * time.Minute
+
+// normalizeForHash lowercases s and collapses every run of whitespace
+// (including line breaks) into a single space. The result is what feeds the
+// project-scoped duplicate detector, so two observations differing only in
+// capitalisation, indentation or trailing newlines collapse to a single
+// fingerprint.
+func normalizeForHash(s string) string {
+	lower := strings.ToLower(s)
+	return strings.Join(strings.Fields(lower), " ")
+}
+
+// obsNormalizedHash mirrors obsContentHash but feeds the inputs through
+// normalizeForHash so cosmetic differences (case, whitespace) do not produce
+// distinct fingerprints. Returned hash is 32 hex chars, project-scoped.
+func obsNormalizedHash(title, content, project string) string {
+	h := sha256.Sum256([]byte(normalizeForHash(title) + "|" + normalizeForHash(content) + "|" + project))
+	return fmt.Sprintf("%x", h)[:32]
+}
+
 // ExistsObservation returns true if an observation with this ID is already in the DB.
 func (s *Store) ExistsObservation(id string) (bool, error) {
 	var count int
@@ -211,12 +267,14 @@ func (s *Store) SavePulled(id, project, obsType, title, content, author string, 
 
 	tagsJSON, _ := json.Marshal(tags)
 	hash := obsContentHash(filteredTitle, filteredContent, project)
+	normHash := obsNormalizedHash(filteredTitle, filteredContent, project)
 
 	_, err := s.db.Exec(`
 		INSERT OR IGNORE INTO observations
-		  (id, session_id, project, team, country, type, title, content, tags, author, created_at, content_hash, topic_key, working_dir)
-		VALUES (?, NULL, ?, '', '', ?, ?, ?, ?, datetime('now'), ?, NULL, '')`,
-		id, project, obsType, filteredTitle, filteredContent, string(tagsJSON), author, hash,
+		  (id, session_id, project, team, country, type, title, content, tags, author,
+		   created_at, content_hash, normalized_hash, topic_key, working_dir, last_seen_at)
+		VALUES (?, NULL, ?, '', '', ?, ?, ?, ?, datetime('now'), ?, ?, NULL, '', datetime('now'))`,
+		id, project, obsType, filteredTitle, filteredContent, string(tagsJSON), author, hash, normHash,
 	)
 	return err
 }
