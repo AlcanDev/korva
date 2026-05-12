@@ -50,11 +50,11 @@ type WriteOptions struct {
 
 // WriteResult is returned by WriteAtomic on success.
 type WriteResult struct {
-	BeforeJSON       string   // raw bytes that were on disk (empty if file was new)
-	AfterJSON        string   // raw bytes now on disk
-	BeforeHash       string   // SHA-256 of BeforeJSON
-	AfterHash        string   // SHA-256 of AfterJSON
-	RestartRequired  []string // dotted field paths whose change requires a vault restart
+	BeforeJSON      string   // raw bytes that were on disk (empty if file was new)
+	AfterJSON       string   // raw bytes now on disk
+	BeforeHash      string   // SHA-256 of BeforeJSON
+	AfterHash       string   // SHA-256 of AfterJSON
+	RestartRequired []string // dotted field paths whose change requires a vault restart
 }
 
 // restartRequiredFields lists the dotted-path fields whose change requires the

@@ -13,18 +13,18 @@ import (
 // an estimated count based on prompt+response character length and tags the row
 // with `estimated=true`.
 type ingestInteractionRequest struct {
-	SessionID  string                 `json:"session_id"`
-	Project    string                 `json:"project"`
-	Team       string                 `json:"team"`
-	Agent      string                 `json:"agent"`
-	Model      string                 `json:"model"`
-	Prompt     string                 `json:"prompt"`
-	Response   string                 `json:"response"`
-	Usage      *ingestInteractionUse  `json:"usage,omitempty"`
-	DurationMs int64                  `json:"duration_ms"`
-	ToolCalls  json.RawMessage        `json:"tool_calls,omitempty"`
-	Status     string                 `json:"status"`
-	ErrorMsg   string                 `json:"error_msg"`
+	SessionID  string                `json:"session_id"`
+	Project    string                `json:"project"`
+	Team       string                `json:"team"`
+	Agent      string                `json:"agent"`
+	Model      string                `json:"model"`
+	Prompt     string                `json:"prompt"`
+	Response   string                `json:"response"`
+	Usage      *ingestInteractionUse `json:"usage,omitempty"`
+	DurationMs int64                 `json:"duration_ms"`
+	ToolCalls  json.RawMessage       `json:"tool_calls,omitempty"`
+	Status     string                `json:"status"`
+	ErrorMsg   string                `json:"error_msg"`
 }
 
 // ingestInteractionUse mirrors the `usage` object Anthropic returns on each

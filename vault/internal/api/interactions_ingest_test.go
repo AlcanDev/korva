@@ -76,8 +76,8 @@ func TestIngestInteraction_RequiresProjectAndAgent(t *testing.T) {
 		body string
 	}{
 		{"missing project", `{"agent":"claude"}`},
-		{"missing agent",   `{"project":"korva"}`},
-		{"invalid json",    `not-json`},
+		{"missing agent", `{"project":"korva"}`},
+		{"invalid json", `not-json`},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

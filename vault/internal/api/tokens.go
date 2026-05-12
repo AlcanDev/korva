@@ -47,12 +47,12 @@ func adminTokenStats(s *store.Store) http.HandlerFunc {
 
 		writeJSON(w, http.StatusOK, map[string]any{
 			"totals": map[string]any{
-				"input_tokens":        stats.InputTokens,
-				"output_tokens":       stats.OutputTokens,
-				"cache_read":          stats.CacheRead,
-				"cache_creation":      stats.CacheCreation,
-				"interactions_count":  stats.InteractionsCount,
-				"estimated_count":     stats.EstimatedCount,
+				"input_tokens":       stats.InputTokens,
+				"output_tokens":      stats.OutputTokens,
+				"cache_read":         stats.CacheRead,
+				"cache_creation":     stats.CacheCreation,
+				"interactions_count": stats.InteractionsCount,
+				"estimated_count":    stats.EstimatedCount,
 			},
 			"cache_hit_pct":           stats.CacheHitPct,
 			"reduction_pct_estimated": reduction,
@@ -79,7 +79,8 @@ func estimateBaselineTokens(dir string) int64 {
 	var total int64
 	err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
-			return nil // skip unreadable entries
+			//nolint:nilerr // intentionally skip unreadable entries, do not abort the walk
+			return nil
 		}
 		if d.IsDir() {
 			if isSkippableDir(d.Name()) {
@@ -90,6 +91,7 @@ func estimateBaselineTokens(dir string) int64 {
 		// Skip very large binary-looking files.
 		info, err := d.Info()
 		if err != nil {
+			//nolint:nilerr // intentionally skip entries whose info cannot be read
 			return nil
 		}
 		if info.Size() > 5*1024*1024 {

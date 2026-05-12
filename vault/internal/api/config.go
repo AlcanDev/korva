@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"os"
 
 	"github.com/alcandev/korva/internal/config"
 	"github.com/alcandev/korva/vault/internal/store"
@@ -94,9 +93,10 @@ type putConfigRequest struct {
 // adminPutConfig handles PUT /admin/config: validate, snapshot, atomic write.
 //
 // Errors:
-//   400 — invalid body / unknown scope / validation failure
-//   409 — on-disk hash differs from expected_hash (concurrent write)
-//   500 — disk I/O failure
+//
+//	400 — invalid body / unknown scope / validation failure
+//	409 — on-disk hash differs from expected_hash (concurrent write)
+//	500 — disk I/O failure
 func adminPutConfig(c *configEndpoint) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req putConfigRequest
@@ -152,11 +152,11 @@ func adminPutConfig(c *configEndpoint) http.HandlerFunc {
 		if snapErr != nil {
 			// Soft-fail: include in the response so the UI can surface a warning.
 			writeJSON(w, http.StatusOK, map[string]any{
-				"status":            "saved",
-				"snapshot_warning":  snapErr.Error(),
-				"hash":              res.AfterHash,
-				"restart_required":  res.RestartRequired,
-				"path":              path,
+				"status":           "saved",
+				"snapshot_warning": snapErr.Error(),
+				"hash":             res.AfterHash,
+				"restart_required": res.RestartRequired,
+				"path":             path,
 			})
 			return
 		}
@@ -186,15 +186,4 @@ func adminListConfigSnapshots(s *store.Store) http.HandlerFunc {
 			"count":     len(snaps),
 		})
 	}
-}
-
-// pathExistsForRequest is a small helper that wraps pathExists so the config
-// endpoint can be tested without bringing in the system_status helpers. It
-// references os.Stat directly to avoid duplicating the file-level helper.
-func pathExistsForRequest(p string) bool {
-	if p == "" {
-		return false
-	}
-	_, err := os.Stat(p)
-	return err == nil
 }

@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -211,6 +212,7 @@ func countScrollFiles(dir string) int {
 	count := 0
 	_ = filepath.WalkDir(dir, func(_ string, d os.DirEntry, err error) error {
 		if err != nil || d == nil {
+			//nolint:nilerr // intentionally swallow walk errors; counting scrolls is best-effort
 			return nil
 		}
 		if !d.IsDir() && strings.HasSuffix(strings.ToLower(d.Name()), ".md") {
@@ -316,7 +318,10 @@ func lastSkillSyncAt(s *store.Store) (*time.Time, error) {
 	}
 	t, err := time.Parse("2006-01-02 15:04:05", *raw)
 	if err != nil {
-		return nil, nil //nolint:nilerr // missing timestamp ≠ failure
+		// Treat unparseable timestamps as "no sync yet" rather than failing
+		// the whole status endpoint — the column may have been written by an
+		// older binary with a different format.
+		return nil, fmt.Errorf("parsing skill sync timestamp %q: %w", *raw, err)
 	}
 	return &t, nil
 }

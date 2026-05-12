@@ -29,16 +29,16 @@ type Interaction struct {
 	Model           string          `json:"model"`
 	PromptExcerpt   string          `json:"prompt_excerpt"`
 	ResponseExcerpt string          `json:"response_excerpt,omitempty"`
-	InputTokens    int64            `json:"input_tokens"`
-	OutputTokens   int64            `json:"output_tokens"`
-	CacheRead      int64            `json:"cache_read"`
-	CacheCreation  int64            `json:"cache_creation"`
-	DurationMs     int64            `json:"duration_ms"`
-	ToolCalls      json.RawMessage  `json:"tool_calls"`
-	Status         string           `json:"status"`
-	ErrorMsg       string           `json:"error_msg,omitempty"`
-	Estimated      bool             `json:"estimated"`
-	CreatedAt      time.Time        `json:"created_at"`
+	InputTokens     int64           `json:"input_tokens"`
+	OutputTokens    int64           `json:"output_tokens"`
+	CacheRead       int64           `json:"cache_read"`
+	CacheCreation   int64           `json:"cache_creation"`
+	DurationMs      int64           `json:"duration_ms"`
+	ToolCalls       json.RawMessage `json:"tool_calls"`
+	Status          string          `json:"status"`
+	ErrorMsg        string          `json:"error_msg,omitempty"`
+	Estimated       bool            `json:"estimated"`
+	CreatedAt       time.Time       `json:"created_at"`
 }
 
 // InteractionFilters constrains ListInteractions queries.

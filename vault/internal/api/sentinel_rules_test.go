@@ -28,10 +28,10 @@ func TestAdminGetSentinelRules_EmptyFile(t *testing.T) {
 		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
 	}
 	var resp struct {
-		Profile   string         `json:"profile"`
-		RulesPath string         `json:"rules_path"`
+		Profile   string           `json:"profile"`
+		RulesPath string           `json:"rules_path"`
 		Builtin   []map[string]any `json:"builtin"`
-		Custom    []sentinelRule `json:"custom"`
+		Custom    []sentinelRule   `json:"custom"`
 	}
 	_ = json.Unmarshal(rec.Body.Bytes(), &resp)
 	if !strings.HasSuffix(resp.RulesPath, "sentinel-rules.yaml") {
