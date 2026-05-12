@@ -62,12 +62,12 @@ func (s *Store) SuggestConsolidations() ([]ConsolidationProposal, error) {
 	return out, nil
 }
 
-// EmptyProject summarises a project that has zero observations but still owns
+// EmptyProject summarizes a project that has zero observations but still owns
 // sessions or prompts. These are the rows `korva projects prune` would clean.
 type EmptyProject struct {
-	Project       string `json:"project"`
-	SessionCount  int    `json:"session_count"`
-	PromptCount   int    `json:"prompt_count"`
+	Project      string `json:"project"`
+	SessionCount int    `json:"session_count"`
+	PromptCount  int    `json:"prompt_count"`
 }
 
 // PruneOptions controls PruneEmptyProjects's behavior.

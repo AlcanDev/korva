@@ -74,9 +74,9 @@ func adminConsolidateProjects(s *store.Store) http.HandlerFunc {
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]any{
-			"status":              "merged",
-			"canonical":           req.Canonical,
-			"sources":             req.Sources,
+			"status":               "merged",
+			"canonical":            req.Canonical,
+			"sources":              req.Sources,
 			"observations_updated": obsN,
 			"sessions_updated":     sessN,
 			"prompts_updated":      promptsN,

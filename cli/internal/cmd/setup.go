@@ -30,16 +30,16 @@ Safe to re-run — it never duplicates settings.`,
 }
 
 var (
-	setupAll     bool
-	setupVSCode  bool
-	setupCursor  bool
-	setupClaude  bool
-	setupGemini  bool
-	setupOpen    bool
-	setupCodex   bool
-	setupForce   bool
-	setupGlobal  bool
-	setupLocal   bool
+	setupAll    bool
+	setupVSCode bool
+	setupCursor bool
+	setupClaude bool
+	setupGemini bool
+	setupOpen   bool
+	setupCodex  bool
+	setupForce  bool
+	setupGlobal bool
+	setupLocal  bool
 )
 
 func init() {
@@ -491,13 +491,9 @@ func opencodeConfigPath() (string, error) {
 }
 
 func upsertOpenCodeMCP(path, bin string) error {
-	type opencodeConfig struct {
-		Schema     string                    `json:"$schema,omitempty"`
-		MCP        map[string]map[string]any `json:"mcp"`
-		Passthrough map[string]any           `json:"-"` // we reload the rest below
-	}
-
-	// We round-trip the file as a generic map so we don't drop unknown keys.
+	// We round-trip the file as a generic map so we don't drop unknown
+	// top-level keys (theme, autosave, $schema, etc.) that the user may
+	// have hand-tuned.
 	var raw map[string]any
 	if data, err := os.ReadFile(path); err == nil {
 		_ = json.Unmarshal(data, &raw)
