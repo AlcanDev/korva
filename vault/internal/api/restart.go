@@ -3,8 +3,6 @@ package api
 import (
 	"net/http"
 	"os"
-	"runtime"
-	"syscall"
 	"time"
 )
 
@@ -17,9 +15,10 @@ const restartDelay = 150 * time.Millisecond
 // restart so the client can poll /healthz to know when the new server is up.
 //
 // Implementation: spawn a copy of os.Args[0] with the same arguments and
-// environment using os.StartProcess, then exit cleanly. POSIX could use
-// syscall.Exec for a true exec(3); spawn-and-exit is simpler and works on
-// Windows too.
+// environment using os.StartProcess, then exit cleanly. POSIX detaches the
+// new process into its own session via syscall.SysProcAttr.Setsid (defined
+// in restart_unix.go); on Windows the spawn uses default attributes
+// (restart_windows.go).
 func adminRestartVault() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// Best-effort: if we can't even resolve the executable, fail loudly so
@@ -61,14 +60,4 @@ func performRestart(exe string, args []string, env []string) {
 
 	// Hand off cleanly. The parent has already responded.
 	os.Exit(0)
-}
-
-// restartSysProcAttr returns OS-specific process attributes for the spawned
-// replacement. On POSIX we put the new process in its own session group so it
-// survives the parent exit; on Windows we use the default attributes.
-func restartSysProcAttr() *syscall.SysProcAttr {
-	if runtime.GOOS == "windows" {
-		return nil
-	}
-	return &syscall.SysProcAttr{Setsid: true}
 }
