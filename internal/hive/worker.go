@@ -86,6 +86,7 @@ func (w *Worker) setPhase(phase SyncPhase) {
 func (w *Worker) recordSuccess(now time.Time) {
 	w.mu.Lock()
 	w.status.Phase = PhaseHealthy
+	w.status.Reason = ReasonNone
 	w.status.LastSyncAt = &now
 	w.status.ConsecutiveErrors = 0
 	w.status.LastError = ""
@@ -105,6 +106,7 @@ func (w *Worker) recordFailure(err error) {
 	w.mu.Lock()
 	w.status.ConsecutiveErrors++
 	w.status.LastError = err.Error()
+	w.status.Reason = ClassifyError(err)
 	until := time.Now().UTC().Add(jitterBackoff(w.status.ConsecutiveErrors))
 	w.status.BackoffUntil = &until
 	w.status.Phase = PhaseBackoff
@@ -118,7 +120,10 @@ func (w *Worker) Run(ctx context.Context) {
 	defer t.Stop()
 	for {
 		if killSwitch() {
-			w.setPhase(PhaseDisabled)
+			w.mu.Lock()
+			w.status.Phase = PhaseDisabled
+			w.status.Reason = ReasonSyncPaused
+			w.mu.Unlock()
 			log.Printf("hive: KORVA_HIVE_DISABLE active, skipping tick")
 		} else if w.inBackoff() {
 			// Still cooling down from a previous failure — skip this tick.
@@ -188,13 +193,26 @@ func (w *Worker) tick(ctx context.Context) error {
 func (w *Worker) pullTick(ctx context.Context) error {
 	w.mu.RLock()
 	cursor := w.lastPullCursor
+	prevPhase := w.status.Phase
 	w.mu.RUnlock()
+
+	// Surface the pull as a distinct phase so dashboards can distinguish
+	// "actively fetching" from "actively shipping". We restore the previous
+	// phase on the no-op path; success/failure write their own phase below.
+	w.setPhase(PhasePulling)
 
 	resp, err := w.client.PullBatch(ctx, cursor, 100)
 	if err != nil {
+		// Don't poison the worker's overall phase — pull errors are non-fatal
+		// (see tick()), but we do want to record the reason for observability.
+		w.mu.Lock()
+		w.status.Reason = ClassifyError(err)
+		w.status.Phase = prevPhase
+		w.mu.Unlock()
 		return fmt.Errorf("pull batch: %w", err)
 	}
 	if resp.Count == 0 {
+		w.setPhase(prevPhase)
 		return nil
 	}
 
@@ -227,6 +245,9 @@ func (w *Worker) pullTick(ctx context.Context) error {
 		w.recordPullSuccess(saved)
 		log.Printf("hive: pulled %d new observations (cursor: %s)", saved, resp.NextSince)
 	}
+	// Restore the caller's phase — the tick() flow has already set Healthy
+	// (when a push succeeded) or Idle (when there was nothing to push).
+	w.setPhase(prevPhase)
 	return nil
 }
 
