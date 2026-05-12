@@ -69,6 +69,18 @@ func (p *Paths) VaultLogFile() string {
 	return filepath.Join(p.LogsDir, "vault.log")
 }
 
+// BeaconPIDFile returns the path to the Beacon dev-server PID file.
+// Lives next to VaultPIDFile so a single `~/.korva/vault/` dir holds all
+// long-running process state.
+func (p *Paths) BeaconPIDFile() string {
+	return filepath.Join(p.VaultDir, "beacon.pid")
+}
+
+// BeaconLogFile returns the path to the Beacon dev-server log file.
+func (p *Paths) BeaconLogFile() string {
+	return filepath.Join(p.LogsDir, "beacon.log")
+}
+
 // ProfileDir returns the local clone path for a given profile ID.
 // The profile ID is sanitized to prevent path traversal.
 func (p *Paths) ProfileDir(profileID string) string {
