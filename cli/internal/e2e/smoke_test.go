@@ -103,7 +103,7 @@ func TestEndToEnd_FullLifecycle(t *testing.T) {
 			{"project": "vault-mcp", "type": "decision", "title": "stdio transport", "content": "JSON-RPC over stdio.", "topic_key": "stdio-transport"},
 		} {
 			var resp map[string]string
-			c.postJSON(t, "/api/v1/observations", obs, &resp, http.StatusCreated, /*admin=*/ false)
+			c.postJSON(t, "/api/v1/observations", obs, &resp, http.StatusCreated /*admin=*/, false)
 			if resp["id"] == "" {
 				t.Errorf("save returned empty id: %+v", resp)
 			}

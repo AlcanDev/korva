@@ -80,4 +80,3 @@ func runExportObsidian(cmd *cobra.Command, _ []string) error {
 	fmt.Println("  and follow the wikilinks under each project's _index.md.")
 	return nil
 }
-
