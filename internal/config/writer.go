@@ -75,6 +75,9 @@ func Validate(cfg KorvaConfig) error {
 	if cfg.Vault.Port != 0 && (cfg.Vault.Port < 1024 || cfg.Vault.Port > 65535) {
 		return &ValidationError{Field: "vault.port", Message: "port must be between 1024 and 65535"}
 	}
+	if cfg.Beacon.Port != 0 && (cfg.Beacon.Port < 1024 || cfg.Beacon.Port > 65535) {
+		return &ValidationError{Field: "beacon.port", Message: "port must be between 1024 and 65535"}
+	}
 	if cfg.Agent != "" {
 		switch cfg.Agent {
 		case "claude", "cursor", "copilot":

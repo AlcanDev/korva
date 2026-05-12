@@ -69,6 +69,20 @@ func runStatus(cmd *cobra.Command, args []string) error {
 		fmt.Printf("    ○ Offline  (start with: korva-vault)\n")
 	}
 
+	// Beacon (local UI)
+	fmt.Println("")
+	fmt.Println("  Beacon UI:")
+	beaconPortNum := beaconPort(cfg)
+	beaconURL := fmt.Sprintf("http://localhost:%d/", beaconPortNum)
+	switch {
+	case httpReachable(beaconURL):
+		fmt.Printf("    ● Online  (%s)\n", beaconURL)
+	case cfg.Beacon.AutoStart:
+		fmt.Printf("    ○ Offline  (auto_start enabled — try: korva beacon start)\n")
+	default:
+		fmt.Printf("    ○ Offline  (start with: korva beacon start)\n")
+	}
+
 	// Scrolls
 	fmt.Println("")
 	fmt.Println("  Active Scrolls:")
@@ -99,13 +113,19 @@ func runStatus(cmd *cobra.Command, args []string) error {
 }
 
 func vaultRunning(url string) bool {
+	return httpReachable(url)
+}
+
+// httpReachable returns true when GET url answers with 2xx within 500ms.
+// Used by status to probe both the vault healthz and the Beacon dev server.
+func httpReachable(url string) bool {
 	client := &http.Client{Timeout: 500 * time.Millisecond}
 	resp, err := client.Get(url)
 	if err != nil {
 		return false
 	}
 	resp.Body.Close()
-	return resp.StatusCode == http.StatusOK
+	return resp.StatusCode >= 200 && resp.StatusCode < 300
 }
 
 func showVaultStats(port int) {

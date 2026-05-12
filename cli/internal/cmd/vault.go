@@ -134,6 +134,22 @@ func runVaultStart(cmd *cobra.Command, args []string) error {
 	// Server didn't respond within 5 s — still report PID so the user can check later.
 	printSuccess(fmt.Sprintf("Vault starting (PID %d) on port %d", pid, port))
 	printInfo("Server did not respond within 5 s — check 'korva vault status' or logs")
+	return maybeAutoStartBeacon(cmd, args)
+}
+
+// maybeAutoStartBeacon forwards to `korva beacon start` when the user has
+// `beacon.auto_start: true` in their config. Errors here do not fail the
+// vault-start flow — Beacon is optional UX, not a hard dependency.
+func maybeAutoStartBeacon(cmd *cobra.Command, args []string) error {
+	cfg, _ := config.Load(mustPaths().ConfigFile)
+	if !cfg.Beacon.AutoStart {
+		return nil
+	}
+	if err := runBeaconStart(cmd, args); err != nil {
+		printError(fmt.Sprintf("beacon auto-start failed: %v", err))
+		// Intentional: do not propagate the error — the vault is already up.
+		return nil //nolint:nilerr
+	}
 	return nil
 }
 

@@ -12,7 +12,22 @@ type KorvaConfig struct {
 	Sentinel SentinelConfig `json:"sentinel"`
 	Hive     HiveConfig     `json:"hive"`
 	License  LicenseConfig  `json:"license"`
+	Beacon   BeaconConfig   `json:"beacon,omitempty"`
 	Agent    string         `json:"agent"` // copilot | claude | cursor
+}
+
+// BeaconConfig controls the Beacon UI dev server (the local React app served
+// by Vite on port 5173 by default). Beacon is optional — installs that only
+// use the CLI / MCP do not need it.
+type BeaconConfig struct {
+	// AutoStart spawns Beacon alongside `korva vault start` when true.
+	AutoStart bool `json:"auto_start,omitempty"`
+	// Port is the Vite dev server port. Empty / 0 ⇒ 5173.
+	Port int `json:"port,omitempty"`
+	// DevDir overrides the auto-detected Beacon source directory. Useful when
+	// the user invokes the CLI from outside the repo. Empty ⇒ probe CWD and
+	// up to three parent directories for a `beacon/package.json`.
+	DevDir string `json:"dev_dir,omitempty"`
 }
 
 // HiveConfig controls the cloud community brain (Korva Hive).
@@ -178,6 +193,10 @@ func DefaultConfig() KorvaConfig {
 		},
 		License: LicenseConfig{
 			ActivationURL: "https://licensing.korva.dev/v1/activate",
+		},
+		Beacon: BeaconConfig{
+			AutoStart: false, // opt-in: Beacon is optional and not all installs ship it
+			Port:      5173,
 		},
 		Agent: "copilot",
 	}
