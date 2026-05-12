@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.13.0](https://github.com/AlcanDev/korva/compare/v1.12.0...v1.13.0) (2026-05-12)
+
+
+### 🚀 Features
+
+* **phase-4:** project hygiene CLI/API + multi-agent setup + Hive PhasePulling ([#32](https://github.com/AlcanDev/korva/issues/32)) ([8841a26](https://github.com/AlcanDev/korva/commit/8841a26ad9e36b10fe6c3ec7536798a7d0ea7580))
+
 ## [1.12.0](https://github.com/AlcanDev/korva/compare/v1.11.0...v1.12.0) (2026-05-12)
 
 
