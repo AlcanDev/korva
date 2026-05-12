@@ -113,6 +113,50 @@ func tools() []Tool {
 			},
 		},
 		{
+			Name: "vault_current_project",
+			Description: "Auto-detect the active project for the given working directory. " +
+				"This tool never errors — even when nothing matches it returns a best-effort guess and tells you how it was reached. " +
+				"Call it first thing in a session so subsequent vault_save / vault_search calls land in the right project bucket, " +
+				"or whenever the agent switches between repositories on the same machine.",
+			InputSchema: Schema{
+				Type: "object",
+				Properties: map[string]Property{
+					"working_dir": {Type: "string", Description: "Absolute path to inspect (optional — defaults to the vault process cwd)"},
+				},
+			},
+		},
+		{
+			Name: "vault_suggest_topic_key",
+			Description: "Propose a stable topic_key for an observation so future vault_save calls upsert into the same row instead of accumulating duplicates. " +
+				"Pass the proposed title (required) plus optional type and project. The server returns a slug derived from the title plus any near-matches against the existing topic_keys in the same project. " +
+				"Use the returned key in vault_save's topic_key argument.",
+			InputSchema: Schema{
+				Type: "object",
+				Properties: map[string]Property{
+					"title":   {Type: "string", Description: "The observation title you intend to save"},
+					"type":    {Type: "string", Description: "Observation type — when set the suggestion is namespaced (e.g. 'decision/...')", Enum: obsTypeEnum},
+					"project": {Type: "string", Description: "Restrict the similar-key lookup to this project (recommended)"},
+				},
+				Required: []string{"title"},
+			},
+		},
+		{
+			Name: "vault_capture_passive",
+			Description: "Bulk-save observations parsed from a freeform markdown block (session notes, tool output, retrospective summary). " +
+				"Looks for sections like '## Key Learnings:' or '## Decisions:' and turns each bullet under them into a separate vault_save. " +
+				"Returns a summary {saved, skipped, ids} so the agent can audit what was persisted.",
+			InputSchema: Schema{
+				Type: "object",
+				Properties: map[string]Property{
+					"text":         {Type: "string", Description: "Markdown block to scan for capture-friendly sections"},
+					"project":      {Type: "string", Description: "Project to attribute the captured observations to (required)"},
+					"default_type": {Type: "string", Description: "Type assigned when a section's heading does not map to one (default: 'learning')", Enum: obsTypeEnum},
+					"author":       {Type: "string", Description: "Author tag for the captured observations (optional)"},
+				},
+				Required: []string{"text", "project"},
+			},
+		},
+		{
 			Name: "vault_capture",
 			Description: "Extract and persist multiple learnings from a block of freeform text in one call. " +
 				"Pass the raw text (session notes, code review comments, retrospective output, chat transcript) and Korva will identify distinct observations and save them. " +

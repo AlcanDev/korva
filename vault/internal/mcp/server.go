@@ -448,6 +448,12 @@ func (s *Server) dispatchInner(tool string, args map[string]any) (any, error) {
 		return s.toolJudge(args)
 	case "vault_compare":
 		return s.toolCompare(args)
+	case "vault_current_project":
+		return s.toolCurrentProject(args)
+	case "vault_suggest_topic_key":
+		return s.toolSuggestTopicKey(args)
+	case "vault_capture_passive":
+		return s.toolCapturePassive(args)
 	case "vault_capture":
 		return s.toolCapture(args)
 	case "vault_merge_projects":
