@@ -158,6 +158,84 @@ func (s *Store) CreatePendingJudgments(sourceID string, candidates []Observation
 	return created, nil
 }
 
+// PendingJudgment is the wire-shape result of EnsurePendingForSource. It tells
+// the caller "for this candidate observation, here is the judgment_id you can
+// pass to vault_judge". AlreadyExisted lets the caller distinguish a newly
+// created pending row from one that was already waiting from a prior scan.
+type PendingJudgment struct {
+	JudgmentID     string `json:"judgment_id"`
+	CandidateID    string `json:"candidate_id"`
+	CandidateTitle string `json:"candidate_title"`
+	CandidateType  string `json:"candidate_type"`
+	AlreadyExisted bool   `json:"already_existed"`
+}
+
+// EnsurePendingForSource inserts pending judgments for any (sourceID, candidate)
+// pairs missing from observation_relations and returns one PendingJudgment per
+// candidate — including those that were already pending from a prior scan. The
+// MCP `vault_save` auto-scan uses this so the agent always sees the full set
+// of judgments waiting on this observation, not just the ones we just created.
+func (s *Store) EnsurePendingForSource(sourceID string, candidates []Observation) ([]PendingJudgment, error) {
+	if sourceID == "" || len(candidates) == 0 {
+		return nil, nil
+	}
+	source, err := s.Get(sourceID)
+	if err != nil || source == nil {
+		return nil, fmt.Errorf("source observation %q not found", sourceID)
+	}
+
+	tx, err := s.db.Begin()
+	if err != nil {
+		return nil, fmt.Errorf("begin tx: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	out := make([]PendingJudgment, 0, len(candidates))
+	now := time.Now().UTC().Format(time.RFC3339)
+	for _, c := range candidates {
+		if c.ID == sourceID || c.Project != source.Project {
+			continue
+		}
+		newJudgmentID := newID()
+		res, err := tx.Exec(`
+			INSERT INTO observation_relations
+			  (id, source_id, target_id, relation, status, reason, author, project, created_at,
+			   judgment_status, confidence, evidence, marked_by_actor, marked_by_kind, marked_by_model)
+			VALUES (?, ?, ?, '', 'pending', '', '', ?, ?, 'pending', 0.0, '', 'admin', 'heuristic', '')
+			ON CONFLICT(source_id, target_id) DO NOTHING`,
+			newJudgmentID, sourceID, c.ID, source.Project, now,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("inserting pending judgment for %s↔%s: %w", sourceID, c.ID, err)
+		}
+		inserted, _ := res.RowsAffected()
+		entry := PendingJudgment{
+			CandidateID:    c.ID,
+			CandidateTitle: c.Title,
+			CandidateType:  string(c.Type),
+			AlreadyExisted: inserted == 0,
+		}
+		if inserted > 0 {
+			entry.JudgmentID = newJudgmentID
+		} else {
+			// Row already existed — look up its canonical ID so the agent
+			// still knows what to call vault_judge with.
+			var existingID string
+			if err := tx.QueryRow(
+				`SELECT id FROM observation_relations WHERE source_id = ? AND target_id = ?`,
+				sourceID, c.ID,
+			).Scan(&existingID); err == nil {
+				entry.JudgmentID = existingID
+			}
+		}
+		out = append(out, entry)
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, fmt.Errorf("commit pending judgments: %w", err)
+	}
+	return out, nil
+}
+
 // JudgeInput captures the verdict recorded by vault_judge.
 type JudgeInput struct {
 	Relation      RelationType

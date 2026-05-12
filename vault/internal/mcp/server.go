@@ -444,6 +444,10 @@ func (s *Server) dispatchInner(tool string, args map[string]any) (any, error) {
 		return s.toolUpdate(args)
 	case "vault_relate":
 		return s.toolRelate(args)
+	case "vault_judge":
+		return s.toolJudge(args)
+	case "vault_compare":
+		return s.toolCompare(args)
 	case "vault_capture":
 		return s.toolCapture(args)
 	case "vault_merge_projects":
@@ -547,7 +551,93 @@ func (s *Server) toolSave(args map[string]any) (any, error) {
 		resp["conflicts"] = conflicts
 		resp["conflict_tip"] = "Review the conflicting decisions listed above. If this is intentional, no action needed. If not, consider using vault_delete to remove the outdated decision."
 	}
+
+	// Auto-scan: surface candidate conflicts so the agent can call vault_judge
+	// on them. This is the heart of the Phase 2 judgment workflow — agents
+	// resolve overlaps proactively instead of letting the knowledge base
+	// accumulate silent contradictions. Best-effort: any error here is
+	// swallowed because the observation was already persisted.
+	if !boolArg(args, "skip_scan") {
+		if candidates, err := s.store.FindRelationCandidates(id, store.FindRelationCandidatesOpts{}); err == nil && len(candidates) > 0 {
+			if pendings, err := s.store.EnsurePendingForSource(id, candidates); err == nil && len(pendings) > 0 {
+				resp["judgment_required"] = true
+				resp["pending_judgments"] = pendings
+				resp["judgment_tip"] = "Vault detected candidate conflicts for this observation. Call vault_judge with each judgment_id to record a verdict (supersedes | conflicts_with | related | compatible | scoped), or vault_compare to log an LLM-evaluated verdict for a specific pair."
+			}
+		}
+	}
+
 	return resp, nil
+}
+
+// toolJudge resolves a pending judgment by recording the verdict.
+func (s *Server) toolJudge(args map[string]any) (any, error) {
+	judgmentID := stringArg(args, "judgment_id")
+	if judgmentID == "" {
+		return nil, fmt.Errorf("judgment_id is required")
+	}
+
+	input := store.JudgeInput{
+		Relation:      store.RelationType(stringArg(args, "relation")),
+		Reason:        stringArg(args, "reason"),
+		Evidence:      stringArg(args, "evidence"),
+		Confidence:    floatArg(args, "confidence"),
+		MarkedByActor: store.ActorKind(stringArg(args, "marked_by_actor")),
+		MarkedByKind:  store.VerdictKind(stringArg(args, "marked_by_kind")),
+		MarkedByModel: stringArg(args, "marked_by_model"),
+	}
+	// Default to "agent / heuristic" — the most likely caller is an AI agent
+	// resolving without external LLM help.
+	if input.MarkedByActor == "" {
+		input.MarkedByActor = store.ActorAgent
+	}
+	if input.MarkedByKind == "" {
+		input.MarkedByKind = store.VerdictHeuristic
+	}
+	if input.Confidence == 0 {
+		input.Confidence = 1.0
+	}
+
+	got, err := s.store.Judge(judgmentID, input)
+	if err != nil {
+		return nil, err
+	}
+	return map[string]any{
+		"status":          "judged",
+		"judgment_id":     got.ID,
+		"relation":        got.Relation,
+		"confidence":      got.Confidence,
+		"judgment_status": got.JudgmentStatus,
+	}, nil
+}
+
+// toolCompare persists an LLM-evaluated comparison directly, skipping the
+// pending step entirely.
+func (s *Server) toolCompare(args map[string]any) (any, error) {
+	input := store.CompareInput{
+		SourceID:      stringArg(args, "source_id"),
+		TargetID:      stringArg(args, "target_id"),
+		Relation:      store.RelationType(stringArg(args, "relation")),
+		Reason:        stringArg(args, "reason"),
+		Evidence:      stringArg(args, "evidence"),
+		Confidence:    floatArg(args, "confidence"),
+		MarkedByActor: store.ActorAgent,
+		MarkedByModel: stringArg(args, "marked_by_model"),
+	}
+	if input.Confidence == 0 {
+		input.Confidence = 1.0
+	}
+
+	id, err := s.store.CompareAndStore(input)
+	if err != nil {
+		return nil, err
+	}
+	return map[string]any{
+		"status":      "stored",
+		"judgment_id": id,
+		"relation":    input.Relation,
+		"confidence":  input.Confidence,
+	}, nil
 }
 
 func (s *Server) toolBulkSave(args map[string]any) (any, error) {
@@ -1625,6 +1715,21 @@ func boolArg(args map[string]any, key string) bool {
 		}
 	}
 	return false
+}
+
+// floatArg reads a number-typed argument. JSON unmarshals numbers as float64,
+// so this is the canonical helper for any tool input typed as `number` in
+// the MCP schema (confidence, bm25_floor, etc.).
+func floatArg(args map[string]any, key string) float64 {
+	if v, ok := args[key]; ok {
+		switch n := v.(type) {
+		case float64:
+			return n
+		case int:
+			return float64(n)
+		}
+	}
+	return 0
 }
 
 func stringSliceArg(args map[string]any, key string) []string {
