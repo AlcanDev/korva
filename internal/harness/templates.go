@@ -132,29 +132,30 @@ func Generate(opts InitOptions) ([]string, error) {
 // an existing file unless opts.Overwrite is set.
 func walkAndWrite(fsDir string, opts InitOptions, written *[]string) error {
 	tmplVars := templateVars(opts)
-	return fs.WalkDir(templateFS, fsDir, func(path string, d fs.DirEntry, err error) error {
+	return fs.WalkDir(templateFS, fsDir, func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 		if d.IsDir() {
 			return nil
 		}
-		rel, err := filepath.Rel(fsDir, path)
-		if err != nil {
-			return err
-		}
+		// embed.FS paths use forward slashes on every OS. Stay in slash-land
+		// for the logical `outRel` (so the `written` slice and template names
+		// look the same on Linux/macOS/Windows) and only switch to OS-native
+		// separators when materializing the destination file.
+		rel := strings.TrimPrefix(p, fsDir+"/")
 		// Strip the .tmpl suffix used to mark template files.
 		outRel := strings.TrimSuffix(rel, ".tmpl")
-		outPath := filepath.Join(opts.Root, outRel)
+		outPath := filepath.Join(opts.Root, filepath.FromSlash(outRel))
 		if exists(outPath) && !opts.Overwrite {
 			return nil
 		}
 		if err := os.MkdirAll(filepath.Dir(outPath), 0o755); err != nil {
 			return fmt.Errorf("mkdir %s: %w", outPath, err)
 		}
-		content, err := templateFS.ReadFile(path)
+		content, err := templateFS.ReadFile(p)
 		if err != nil {
-			return fmt.Errorf("read embed %s: %w", path, err)
+			return fmt.Errorf("read embed %s: %w", p, err)
 		}
 		// Process only .tmpl files; raw .md/.sh files are written verbatim
 		// so `{{` in code samples doesn't get interpreted.
