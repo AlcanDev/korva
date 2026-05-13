@@ -1,0 +1,47 @@
+# Verification — {{.Project}}
+
+> Step-by-step protocol an agent runs before declaring a feature `done`.
+
+## 1. Run `./init.sh`
+
+It must exit `0` with every `[OK]` line green. If anything is `[FAIL]`,
+fix the underlying issue — do not edit `init.sh` to mask the failure.
+
+## 2. Validate the feature against its acceptance criteria
+
+For each bullet under the feature's `acceptance` array in
+`feature_list.json`:
+
+- Does the code satisfy it?
+- Is there a test that exercises it?
+
+A bullet without a test is not satisfied.
+
+## 3. Run the test suite
+
+```bash
+npm test
+```
+
+All tests must pass.
+
+## 4. Static checks
+
+```bash
+npm run typecheck    # or `tsc --noEmit`
+npm run lint         # eslint
+npx prettier --check .
+```
+
+## 5. Walk `CHECKPOINTS.md`
+
+Open `CHECKPOINTS.md` and check that C1-C5 are all `[x]`.
+
+## 6. Close cleanly
+
+- Move the session entry from `progress/current.md` to `progress/history.md`.
+- Empty `progress/current.md` to its template.
+- Set the feature's status to `done` via `korva harness done <id>`.
+
+If any step fails: set the feature to `blocked` (`korva harness block <id>`),
+write the blocker into `progress/current.md`, and stop the session.

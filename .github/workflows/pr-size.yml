@@ -2,7 +2,10 @@ name: PR Cognitive Budget
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened]
+    # `labeled` / `unlabeled` are essential — the `size:exception` bypass below
+    # reads the PR's labels from the event payload, so adding the label after
+    # the gate fails must trigger a re-evaluation.
+    types: [opened, synchronize, reopened, labeled, unlabeled]
 
 jobs:
   check-size:

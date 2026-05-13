@@ -1,0 +1,31 @@
+# Conventions — {{.Project}}
+
+> Style + naming + structural rules. Pull requests / agent sessions that
+> violate these are rejected by the reviewer.
+
+## Naming
+
+- File names: lowercase, words separated by `_` (or `-` if the language
+  prefers it). Match the dominant style of the language being used.
+- Test files live next to the code they test (or in a sibling folder
+  the language convention prescribes).
+
+## Code structure
+
+- Public API at the top of the file; helpers below.
+- Every public function or type carries a doc comment that says *why*,
+  not just *what*.
+- Constants live at the top of their module.
+
+## Errors
+
+- Errors are returned / raised, never silently logged and discarded.
+- Error messages are operator-readable: include the relevant id, path,
+  or input fragment.
+
+## Tests
+
+- One test per acceptance criterion in `feature_list.json`.
+- Test names describe the contract, not the implementation:
+  `TestSaveSession_RejectsEmptyProject` not `TestSaveSession_3`.
+- Tests use real fixtures (temp dirs, ephemeral DBs) where possible.

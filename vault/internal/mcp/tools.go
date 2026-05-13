@@ -495,5 +495,125 @@ func tools() []Tool {
 				},
 			},
 		},
+		// ── Harness Engineering ────────────────────────────────────────
+		// Tools that let an agent drive a repo's Harness state machine
+		// (feature_list.json) without shelling out. The `root` argument is
+		// optional everywhere — falls back to $KORVA_HARNESS_ROOT and
+		// finally to the server's CWD.
+		{
+			Name: "vault_harness_init",
+			Description: "Bootstrap a Harness Engineering layout in a repo: AGENTS.md, init.sh, feature_list.json, docs/, progress/, optional .claude/agents/. " +
+				"Idempotent: existing files are kept unless overwrite=true.",
+			InputSchema: Schema{
+				Type: "object",
+				Properties: map[string]Property{
+					"root":           {Type: "string", Description: "Target directory (defaults to $KORVA_HARNESS_ROOT or CWD)"},
+					"project":        {Type: "string", Description: "Project name (required)"},
+					"description":    {Type: "string", Description: "Short blurb for AGENTS.md and feature_list.json"},
+					"stack":          {Type: "string", Description: "Stack preset", Enum: []string{"go", "typescript", "python", "generic"}},
+					"with_subagents": {Type: "boolean", Description: "Also install .claude/agents/{leader,implementer,reviewer}.md"},
+					"overwrite":      {Type: "boolean", Description: "Replace existing harness files"},
+				},
+				Required: []string{"project"},
+			},
+		},
+		{
+			Name:        "vault_harness_status",
+			Description: "Show backlog counts + currently in_progress feature + next pending id for the harness at `root`.",
+			InputSchema: Schema{
+				Type: "object",
+				Properties: map[string]Property{
+					"root": {Type: "string", Description: "Target directory (defaults to $KORVA_HARNESS_ROOT or CWD)"},
+				},
+			},
+		},
+		{
+			Name:        "vault_harness_list",
+			Description: "List every feature in the backlog with its status. Optional status filter narrows the response.",
+			InputSchema: Schema{
+				Type: "object",
+				Properties: map[string]Property{
+					"root":   {Type: "string", Description: "Target directory (defaults to $KORVA_HARNESS_ROOT or CWD)"},
+					"status": {Type: "string", Description: "Filter by status", Enum: []string{"pending", "in_progress", "done", "blocked"}},
+				},
+			},
+		},
+		{
+			Name:        "vault_harness_next",
+			Description: "Return the lowest-id pending feature with its acceptance criteria, or null when the backlog is clear.",
+			InputSchema: Schema{
+				Type: "object",
+				Properties: map[string]Property{
+					"root": {Type: "string", Description: "Target directory (defaults to $KORVA_HARNESS_ROOT or CWD)"},
+				},
+			},
+		},
+		{
+			Name:        "vault_harness_start",
+			Description: "Move a feature to in_progress. Fails if another feature is already in_progress (one-at-a-time rule).",
+			InputSchema: Schema{
+				Type: "object",
+				Properties: map[string]Property{
+					"root":  {Type: "string", Description: "Target directory"},
+					"id":    {Type: "number", Description: "Feature id"},
+					"agent": {Type: "string", Description: "Override the recorded owner (defaults to the MCP session email or 'mcp')"},
+				},
+				Required: []string{"id"},
+			},
+		},
+		{
+			Name:        "vault_harness_done",
+			Description: "Mark a feature as done. Requires the feature to be in_progress.",
+			InputSchema: Schema{
+				Type: "object",
+				Properties: map[string]Property{
+					"root":  {Type: "string", Description: "Target directory"},
+					"id":    {Type: "number", Description: "Feature id"},
+					"agent": {Type: "string", Description: "Override the recorded owner"},
+				},
+				Required: []string{"id"},
+			},
+		},
+		{
+			Name:        "vault_harness_block",
+			Description: "Mark a feature as blocked. The reviewer / leader is expected to write the blocker into progress/current.md.",
+			InputSchema: Schema{
+				Type: "object",
+				Properties: map[string]Property{
+					"root":  {Type: "string", Description: "Target directory"},
+					"id":    {Type: "number", Description: "Feature id"},
+					"agent": {Type: "string", Description: "Override the recorded owner"},
+				},
+				Required: []string{"id"},
+			},
+		},
+		{
+			Name:        "vault_harness_reopen",
+			Description: "Return a blocked or in_progress feature to pending so another session can pick it up.",
+			InputSchema: Schema{
+				Type: "object",
+				Properties: map[string]Property{
+					"root":  {Type: "string", Description: "Target directory"},
+					"id":    {Type: "number", Description: "Feature id"},
+					"agent": {Type: "string", Description: "Override the recorded owner"},
+				},
+				Required: []string{"id"},
+			},
+		},
+		{
+			Name:        "vault_harness_add",
+			Description: "Append a new feature to the backlog with a pending status.",
+			InputSchema: Schema{
+				Type: "object",
+				Properties: map[string]Property{
+					"root":        {Type: "string", Description: "Target directory"},
+					"name":        {Type: "string", Description: "Short slug (required)"},
+					"title":       {Type: "string", Description: "Human-readable title (defaults to name)"},
+					"description": {Type: "string", Description: "Longer description"},
+					"acceptance":  {Type: "array", Description: "Acceptance criteria — one bullet per item"},
+				},
+				Required: []string{"name"},
+			},
+		},
 	}
 }
