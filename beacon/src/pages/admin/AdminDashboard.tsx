@@ -1,17 +1,44 @@
-import { Brain, Clock, FolderGit2, Zap, TrendingUp, Database, LayoutDashboard, ArrowRight, CheckCircle2, Circle, Terminal, Sparkles } from 'lucide-react'
+import { Brain, Clock, FolderGit2, Zap, Database, LayoutDashboard, ArrowRight, CheckCircle2, Circle, Terminal, Sparkles, DollarSign, TrendingUp } from 'lucide-react'
 import { NavLink } from 'react-router'
-import { useAdminStats, type DailyCount, type SessionRow } from '@/api/admin'
-import { PageHeader } from '@/components/PageHeader'
+import { useAdminStats, type SessionRow } from '@/api/admin'
+import { useCostSummary } from '@/api/cost'
 import { useI18n } from '@/contexts/i18n'
+import { MetricCard, PageHero, Card, CardHeader, CardBody, EmptyState, ErrorBanner, Spinner, Badge } from '@/components/ui'
+import { LineChart, DonutChart, BarChart, Sparkline, CHART_PALETTE } from '@/components/charts'
+
+// Phase 8.7 — refreshed AdminDashboard hero.
+//
+// The first screen an operator sees after login. Designed to communicate at
+// a glance: "Korva is healthy, here's what your team did, here's what it
+// costs". Drops the legacy PageHeader + KpiCard pattern in favour of the
+// Phase 7/8 design-system primitives (PageHero, MetricCard with sparkline,
+// LineChart with hover, DonutChart by type, BarChart of top projects). The
+// FirstRunChecklist, RecentSessions, and Teams blocks remain — they were
+// already well-shaped.
+
+const TYPE_COLOR: Record<string, string> = {
+  decision: CHART_PALETTE.cyan,
+  pattern: CHART_PALETTE.volt,
+  bugfix: CHART_PALETTE.rose,
+  learning: CHART_PALETTE.purple,
+  context: CHART_PALETTE.amber,
+  antipattern: CHART_PALETTE.rose,
+  task: CHART_PALETTE.emerald,
+  feature: CHART_PALETTE.coral,
+  refactor: CHART_PALETTE.cyan,
+  discovery: CHART_PALETTE.purple,
+  incident: CHART_PALETTE.rose,
+}
 
 export default function AdminDashboard() {
   const { data: stats, isLoading, error } = useAdminStats()
+  const cost = useCostSummary(30)
   const { t } = useI18n()
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-[#388bfd]" />
+      <div className="flex items-center justify-center h-64 text-volt">
+        <Spinner size={20} />
       </div>
     )
   }
@@ -24,9 +51,8 @@ export default function AdminDashboard() {
         ? 'Vault server unreachable — run korva-vault (or korva vault start) and reload.'
         : `Unexpected error: ${msg}`
     return (
-      <div className="m-6 bg-[#f8514912] border border-[#f8514930] rounded-xl p-5 space-y-1">
-        <p className="text-[#f85149] text-sm font-medium">{t.dashboard.couldNotLoad}</p>
-        <p className="text-[#8b949e] text-xs">{hint}</p>
+      <div className="p-4 sm:p-6">
+        <ErrorBanner title={t.dashboard.couldNotLoad} message={hint} />
       </div>
     )
   }
@@ -34,163 +60,214 @@ export default function AdminDashboard() {
   if (!stats) return null
 
   const topProjects = Object.entries(stats.by_project)
-    .sort(([, a], [, b]) => b - a)
-    .slice(0, 6)
-  const topTypes = Object.entries(stats.by_type).sort(([, a], [, b]) => b - a)
-  const maxProjectCount = Math.max(...topProjects.map(([, v]) => v), 1)
-  // Estimated tokens: chars / 4 (standard approximation)
+    .map(([label, value]) => ({ label, value }))
+    .sort((a, b) => b.value - a.value)
+    .slice(0, 8)
+  const typeDonut = Object.entries(stats.by_type)
+    .map(([label, value]) => ({
+      label,
+      value,
+      color: TYPE_COLOR[label] ?? CHART_PALETTE.indigo,
+    }))
+    .filter((d) => d.value > 0)
+    .sort((a, b) => b.value - a.value)
+
+  const dailyLine = stats.daily_activity && stats.daily_activity.length > 0
+    ? {
+        labels: stats.daily_activity.map((d) => d.date.slice(5)),
+        series: [
+          {
+            name: t.dashboard.observations,
+            color: CHART_PALETTE.cyan,
+            data: stats.daily_activity.map((d) => d.count),
+          },
+        ],
+        sparkData: stats.daily_activity.map((d) => d.count),
+      }
+    : null
+
+  // Estimated context tokens — chars/4 approximation against stored content.
   const estTokens = Math.round((stats.total_content_len ?? 0) / 4)
 
   return (
-    <div className="p-4 sm:p-6 space-y-6">
-      <PageHeader
-        icon={<LayoutDashboard size={17} />}
-        iconColor="#388bfd"
+    <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-5 animate-fade-up">
+      <PageHero
+        eyebrow="Mission control"
+        icon={<LayoutDashboard size={22} />}
         title={t.dashboard.title}
-        description={t.dashboard.description}
-        hint={{ command: 'korva status', label: t.dashboard.hintLabel }}
+        subtitle={t.dashboard.description}
+        badge={{
+          tone: 'success',
+          label: (
+            <span className="inline-flex items-center gap-1.5">
+              <span className="inline-block w-1.5 h-1.5 rounded-full bg-volt animate-pulse" />
+              {t.dashboard.hintLabel ?? 'live'}
+            </span>
+          ),
+        }}
       />
 
       {/* First-run checklist — shown when the vault is empty */}
       {stats.total_observations === 0 && <FirstRunChecklist />}
 
-      {/* KPI cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <KpiCard icon={<Brain size={18} className="text-[#388bfd]" />}
-          label={t.dashboard.observations} value={stats.total_observations} color="blue" />
-        <KpiCard icon={<Clock size={18} className="text-[#3fb950]" />}
-          label={t.dashboard.sessions} value={stats.total_sessions} color="green" />
-        <KpiCard icon={<FolderGit2 size={18} className="text-[#f0883e]" />}
-          label={t.dashboard.activeProjects} value={Object.keys(stats.by_project).length} color="orange" />
-        <KpiCard
-          icon={<Zap size={18} className="text-[#a371f7]" />}
+      {/* Hero metric strip — observations / sessions / projects / tokens + cost */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <MetricCard
+          label={t.dashboard.observations}
+          value={Intl.NumberFormat().format(stats.total_observations)}
+          tone="cyan"
+          icon={<Brain size={14} />}
+          sparkline={dailyLine?.sparkData ? <Sparkline data={dailyLine.sparkData} color="var(--color-cyan-400)" /> : null}
+        />
+        <MetricCard
+          label={t.dashboard.sessions}
+          value={Intl.NumberFormat().format(stats.total_sessions)}
+          tone="volt"
+          icon={<Clock size={14} />}
+        />
+        <MetricCard
+          label={t.dashboard.activeProjects}
+          value={Intl.NumberFormat().format(Object.keys(stats.by_project).length)}
+          tone="coral"
+          icon={<FolderGit2 size={14} />}
+        />
+        <MetricCard
           label={t.dashboard.contextTokens}
-          value={estTokens}
-          color="purple"
+          value={Intl.NumberFormat().format(estTokens)}
+          tone="purple"
+          icon={<Zap size={14} />}
           hint={t.dashboard.contextTokensHint}
         />
       </div>
 
-      {/* Activity timeline */}
-      {stats.daily_activity && stats.daily_activity.length > 0 && (
-        <ActivityChart data={stats.daily_activity} />
+      {/* Cost mini-strip — only shows when we have any spend */}
+      {cost.data && cost.data.total_usd > 0 && (
+        <Card variant="glass" tone="volt">
+          <CardBody className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <CostMicro
+              icon={<DollarSign size={14} />}
+              label="Spent (30d)"
+              value={`$${cost.data.total_usd.toFixed(2)}`}
+              tone="volt"
+            />
+            <CostMicro
+              icon={<TrendingUp size={14} />}
+              label="Savings"
+              value={`$${cost.data.savings_usd.toFixed(2)}`}
+              tone="coral"
+            />
+            <CostMicro
+              icon={<Sparkles size={14} />}
+              label="Cache hit"
+              value={`${(cost.data.cache_hit_pct * 100).toFixed(0)}%`}
+              tone="purple"
+            />
+            <NavLink
+              to="/admin/observatory/cost"
+              className="flex items-center justify-end gap-1.5 text-xs text-cyan-300 hover:text-cyan-200 transition-colors"
+            >
+              Open Cost & ROI <ArrowRight size={12} />
+            </NavLink>
+          </CardBody>
+        </Card>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Top projects */}
-        <div className="bg-[#161b22] border border-[#21262d] rounded-xl p-5">
-          <div className="flex items-center gap-2 mb-4">
-            <TrendingUp size={15} className="text-[#8b949e]" />
-            <h3 className="text-sm font-medium text-[#e6edf3]">{t.dashboard.topProjects}</h3>
-          </div>
-          {topProjects.length === 0 ? (
-            <p className="text-sm text-[#484f58]">{t.dashboard.noData}</p>
-          ) : (
-            <div className="space-y-3">
-              {topProjects.map(([project, count]) => (
-                <div key={project}>
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs text-[#e6edf3] font-mono truncate max-w-[160px]">{project}</span>
-                    <span className="text-xs text-[#8b949e]">{count}</span>
-                  </div>
-                  <div className="h-1.5 bg-[#21262d] rounded-full overflow-hidden">
-                    <div className="h-full bg-[#388bfd] rounded-full transition-all"
-                      style={{ width: `${(count / maxProjectCount) * 100}%` }} />
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+      {/* Activity line + by-type donut, side-by-side on desktop */}
+      <div className="grid grid-cols-1 xl:grid-cols-[2fr_1fr] gap-4">
+        <Card>
+          <CardHeader title={t.dashboard.activityTitle} subtitle={`${stats.daily_activity?.reduce((s, d) => s + d.count, 0) ?? 0} ${t.dashboard.observations.toLowerCase()}`} icon={<TrendingUp size={14} />} />
+          <CardBody>
+            {dailyLine ? (
+              <LineChart xLabels={dailyLine.labels} series={dailyLine.series} height={220} />
+            ) : (
+              <EmptyState
+                tone="cyan"
+                icon={<TrendingUp size={22} />}
+                title="No activity yet"
+                description="Save your first observation from any AI editor — it'll show up here."
+                compact
+              />
+            )}
+          </CardBody>
+        </Card>
 
-        {/* Observation types */}
-        <div className="bg-[#161b22] border border-[#21262d] rounded-xl p-5">
-          <div className="flex items-center gap-2 mb-4">
-            <Database size={15} className="text-[#8b949e]" />
-            <h3 className="text-sm font-medium text-[#e6edf3]">{t.dashboard.byType}</h3>
-          </div>
-          {topTypes.length === 0 ? (
-            <p className="text-sm text-[#484f58]">{t.dashboard.noData}</p>
-          ) : (
-            <div className="space-y-2.5">
-              {topTypes.map(([type, count]) => (
-                <div key={type} className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className={`inline-block w-2 h-2 rounded-full ${typeDotColor(type)}`} />
-                    <span className="text-xs text-[#e6edf3] capitalize">{type}</span>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div className="w-20 h-1.5 bg-[#21262d] rounded-full overflow-hidden">
-                      <div className={`h-full rounded-full ${typeDotColor(type)}`}
-                        style={{ width: `${(count / stats.total_observations) * 100}%` }} />
-                    </div>
-                    <span className="text-xs text-[#8b949e] w-6 text-right tabular-nums">{count}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+        <Card>
+          <CardHeader title={t.dashboard.byType} icon={<Database size={14} />} />
+          <CardBody>
+            {typeDonut.length === 0 ? (
+              <EmptyState tone="cyan" icon={<Database size={22} />} title={t.dashboard.noData} compact />
+            ) : (
+              <DonutChart
+                data={typeDonut}
+                centerLabel={t.dashboard.observations}
+                centerValue={stats.total_observations}
+                stroke={18}
+                size={140}
+              />
+            )}
+          </CardBody>
+        </Card>
       </div>
 
-      {/* Recent sessions */}
-      {stats.recent_sessions && stats.recent_sessions.length > 0 && (
-        <RecentSessions sessions={stats.recent_sessions} />
-      )}
+      {/* Top projects + recent sessions, side-by-side */}
+      <div className="grid grid-cols-1 xl:grid-cols-[1fr_1.5fr] gap-4">
+        <Card>
+          <CardHeader title={t.dashboard.topProjects} icon={<FolderGit2 size={14} />} />
+          <CardBody>
+            <BarChart
+              data={topProjects}
+              maxRows={8}
+              emptyMessage={t.dashboard.noData}
+            />
+          </CardBody>
+        </Card>
+
+        {stats.recent_sessions && stats.recent_sessions.length > 0 ? (
+          <RecentSessions sessions={stats.recent_sessions} />
+        ) : (
+          <Card>
+            <CardHeader title={t.dashboard.recentSessions} icon={<Clock size={14} />} />
+            <CardBody>
+              <EmptyState
+                tone="volt"
+                icon={<Clock size={22} />}
+                title="No sessions yet"
+                description="Sessions appear once an MCP client opens a conversation with your vault."
+                compact
+              />
+            </CardBody>
+          </Card>
+        )}
+      </div>
 
       {/* Teams breakdown */}
       {Object.keys(stats.by_team).length > 0 && (
-        <div className="bg-[#161b22] border border-[#21262d] rounded-xl p-5">
-          <div className="flex items-center gap-2 mb-4">
-            <Zap size={15} className="text-[#8b949e]" />
-            <h3 className="text-sm font-medium text-[#e6edf3]">{t.dashboard.teams}</h3>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {Object.entries(stats.by_team).map(([team, count]) => (
-              <span key={team} className="px-3 py-1.5 bg-[#21262d] rounded-lg text-xs text-[#e6edf3]">
-                {team} <span className="text-[#8b949e]">({count})</span>
-              </span>
-            ))}
-          </div>
-        </div>
+        <Card>
+          <CardHeader title={t.dashboard.teams} icon={<Zap size={14} />} />
+          <CardBody>
+            <div className="flex flex-wrap gap-2">
+              {Object.entries(stats.by_team).map(([team, count]) => (
+                <Badge key={team} tone="cyan" mono>
+                  {team} <span className="text-ink-400 ml-1">({count})</span>
+                </Badge>
+              ))}
+            </div>
+          </CardBody>
+        </Card>
       )}
     </div>
   )
 }
 
-// ── Activity Chart ────────────────────────────────────────────────────────────
-
-function ActivityChart({ data }: { data: DailyCount[] }) {
-  const { t } = useI18n()
-  const max = Math.max(...data.map(d => d.count), 1)
-  const total = data.reduce((s, d) => s + d.count, 0)
-
+function CostMicro({ icon, label, value, tone }: { icon: React.ReactNode; label: string; value: string; tone: 'volt' | 'coral' | 'purple' }) {
+  const color =
+    tone === 'volt' ? 'text-volt' : tone === 'coral' ? 'text-coral' : 'text-purple-400'
   return (
-    <div className="bg-[#161b22] border border-[#21262d] rounded-xl p-5">
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2">
-          <TrendingUp size={15} className="text-[#8b949e]" />
-          <h3 className="text-sm font-medium text-[#e6edf3]">{t.dashboard.activityTitle}</h3>
-        </div>
-        <span className="text-xs text-[#8b949e]">{t.dashboard.activityTotal(total)}</span>
-      </div>
-      <div className="flex items-end gap-[3px] h-16">
-        {data.map((d) => (
-          <div key={d.date} className="flex-1 flex flex-col items-center gap-1 group relative"
-            title={`${d.date}: ${d.count}`}>
-            <div
-              className="w-full bg-[#388bfd] rounded-sm opacity-80 hover:opacity-100 transition-opacity min-h-[2px]"
-              style={{ height: `${Math.max((d.count / max) * 100, 4)}%` }}
-            />
-            <div className="absolute -top-7 left-1/2 -translate-x-1/2 bg-[#21262d] border border-[#30363d] rounded px-1.5 py-0.5 text-[10px] text-[#e6edf3] whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
-              {d.date.slice(5)}: {d.count}
-            </div>
-          </div>
-        ))}
-      </div>
-      <div className="flex justify-between mt-2 text-[10px] text-[#484f58]">
-        <span>{data[0]?.date.slice(5)}</span>
-        <span>{data[data.length - 1]?.date.slice(5)}</span>
+    <div className="flex items-start gap-3">
+      <span className={`mt-1 ${color}`} aria-hidden>{icon}</span>
+      <div>
+        <p className="text-[10px] uppercase tracking-wider text-ink-400">{label}</p>
+        <p className={`font-mono font-700 text-xl ${color}`}>{value}</p>
       </div>
     </div>
   )
@@ -201,79 +278,55 @@ function ActivityChart({ data }: { data: DailyCount[] }) {
 function RecentSessions({ sessions }: { sessions: SessionRow[] }) {
   const { t } = useI18n()
   return (
-    <div className="bg-[#161b22] border border-[#21262d] rounded-xl p-5">
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2">
-          <Clock size={15} className="text-[#8b949e]" />
-          <h3 className="text-sm font-medium text-[#e6edf3]">{t.dashboard.recentSessions}</h3>
-        </div>
-        <NavLink to="sessions" relative="route"
-          className="flex items-center gap-1 text-xs text-[#388bfd] hover:text-[#58a6ff] transition-colors">
-          {t.dashboard.viewAll} <ArrowRight size={11} />
-        </NavLink>
-      </div>
-      <div className="space-y-2">
-        {sessions.map(s => (
-          <div key={s.id} className="flex items-center gap-3 py-2 border-b border-[#21262d] last:border-0">
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-mono text-[#388bfd] truncate max-w-[120px]">{s.project || '—'}</span>
-                {s.agent && (
-                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#21262d] text-[#8b949e] shrink-0">{s.agent}</span>
+    <Card>
+      <CardHeader
+        title={t.dashboard.recentSessions}
+        icon={<Clock size={14} />}
+        actions={
+          <NavLink
+            to="/admin/sessions"
+            className="flex items-center gap-1 text-xs text-cyan-300 hover:text-cyan-200 transition-colors"
+          >
+            {t.dashboard.viewAll} <ArrowRight size={11} />
+          </NavLink>
+        }
+      />
+      <CardBody className="!p-0">
+        <ul className="divide-y divide-white/5">
+          {sessions.map((s) => (
+            <li key={s.id} className="flex items-center gap-3 px-4 py-3 hover:bg-white/3 transition-colors">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs font-mono text-cyan-300 truncate max-w-[160px]">{s.project || '—'}</span>
+                  {s.agent && (
+                    <Badge tone="neutral" mono>
+                      {s.agent}
+                    </Badge>
+                  )}
+                </div>
+                {s.goal && (
+                  <p className="text-xs text-ink-400 truncate mt-0.5">{s.goal}</p>
                 )}
               </div>
-              {s.goal && (
-                <p className="text-xs text-[#8b949e] truncate mt-0.5">{s.goal}</p>
-              )}
-            </div>
-            <div className="flex items-center gap-3 shrink-0 text-right">
-              <div className="text-xs text-[#484f58]">
-                <span className="text-[#e6edf3] font-medium">{s.obs_count}</span> obs
-              </div>
-              {s.duration_min > 0 && (
-                <div className="text-xs text-[#484f58]">
-                  {s.duration_min < 60 ? `${s.duration_min}m` : `${Math.round(s.duration_min / 60)}h`}
+              <div className="flex items-center gap-3 shrink-0 text-right">
+                <div className="text-xs text-ink-500">
+                  <span className="text-ink-100 font-medium">{s.obs_count}</span> obs
                 </div>
-              )}
-              <div className="text-[10px] text-[#484f58]">
-                {formatRelative(s.started_at)}
+                {s.duration_min > 0 && (
+                  <div className="text-xs text-ink-500">
+                    {s.duration_min < 60 ? `${s.duration_min}m` : `${Math.round(s.duration_min / 60)}h`}
+                  </div>
+                )}
+                <div className="text-[10px] font-mono text-ink-500 tabular-nums">
+                  {formatRelative(s.started_at)}
+                </div>
               </div>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
+            </li>
+          ))}
+        </ul>
+      </CardBody>
+    </Card>
   )
-}
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-function KpiCard({ icon, label, value, color, hint }: {
-  icon: React.ReactNode
-  label: string
-  value: number
-  color: 'blue' | 'green' | 'purple' | 'orange'
-  hint?: string
-}) {
-  const borders = {
-    blue: 'border-[#388bfd30]', green: 'border-[#3fb95030]',
-    purple: 'border-[#a371f730]', orange: 'border-[#f0883e30]',
-  }
-  return (
-    <div className={`bg-[#161b22] border ${borders[color]} rounded-xl p-4`} title={hint}>
-      <div className="flex items-center justify-between mb-3">{icon}</div>
-      <div className="text-2xl font-bold text-[#e6edf3] tabular-nums">{value.toLocaleString()}</div>
-      <div className="text-xs text-[#8b949e] mt-0.5">{label}</div>
-    </div>
-  )
-}
-
-function typeDotColor(type: string): string {
-  const map: Record<string, string> = {
-    decision: 'bg-[#388bfd]', pattern: 'bg-[#3fb950]',
-    bugfix: 'bg-[#f85149]', learning: 'bg-[#a371f7]', context: 'bg-[#8b949e]',
-  }
-  return map[type] ?? 'bg-[#8b949e]'
 }
 
 // ── First-run checklist ───────────────────────────────────────────────────────
