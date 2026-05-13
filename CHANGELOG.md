@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.18.0](https://github.com/AlcanDev/korva/compare/v1.17.0...v1.18.0) (2026-05-13)
+
+
+### 🚀 Features
+
+* **phase-9:** trust + anomalies + knowledge graph + onboarding ([#42](https://github.com/AlcanDev/korva/issues/42)) ([ae41dae](https://github.com/AlcanDev/korva/commit/ae41dae533111b6162c93a02f71df2561637e117))
+
 ## [1.17.0](https://github.com/AlcanDev/korva/compare/v1.16.0...v1.17.0) (2026-05-13)
 
 
