@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.22.0](https://github.com/AlcanDev/korva/compare/v1.21.0...v1.22.0) (2026-05-13)
+
+
+### 🚀 Features
+
+* **phase-12:** email OTP self-service re-login ([#50](https://github.com/AlcanDev/korva/issues/50)) ([387abb2](https://github.com/AlcanDev/korva/commit/387abb21bb86ff5b13782d71c00f36189a293ded))
+
 ## [1.21.0](https://github.com/AlcanDev/korva/compare/v1.20.0...v1.21.0) (2026-05-13)
 
 
