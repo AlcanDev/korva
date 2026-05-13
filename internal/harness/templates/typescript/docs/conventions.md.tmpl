@@ -1,0 +1,55 @@
+# Conventions — {{.Project}}
+
+> TypeScript style + naming + structural rules. PRs / agent sessions that
+> violate these are rejected by the reviewer.
+
+## Naming
+
+- Files: `kebab-case.ts` for modules; `PascalCase.tsx` for React
+  components.
+- Types & interfaces: `PascalCase`. Don't prefix with `I` (use
+  `User`, not `IUser`).
+- Functions & variables: `camelCase`. Constants: `UPPER_SNAKE_CASE` only
+  for true compile-time constants.
+- React component file matches its exported component name.
+
+## File structure
+
+- One default export max per file (and only when it's the file's reason
+  to exist).
+- Named exports for everything else.
+- Tests live next to the code: `foo.ts` + `foo.test.ts`.
+
+## Errors
+
+- Throw `Error` subclasses, never plain strings.
+- Define domain errors:
+  ```ts
+  export class NotFoundError extends Error {
+    constructor(public readonly id: string) {
+      super(`not found: ${id}`);
+    }
+  }
+  ```
+- Functions document what they throw in JSDoc (`@throws`).
+
+## Async
+
+- Mark async functions `async` even when only `await`ing one call —
+  hoists the return type.
+- `Promise.all` for parallel work; never serial `await` in loops when
+  the work is independent.
+- `@typescript-eslint/no-floating-promises` must stay on.
+
+## Tests
+
+- One test per acceptance criterion in `feature_list.json`.
+- Test names describe the contract:
+  `it("rejects empty project name")`, not `it("test 3")`.
+- Use real temp dirs (`os.tmpdir()` + `fs.mkdtempSync`) for fs tests.
+
+## Lint
+
+- `eslint` clean (project config).
+- `prettier --check .` clean.
+- `tsc --noEmit` clean.

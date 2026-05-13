@@ -1,0 +1,42 @@
+# CHECKPOINTS — {{.Project}}
+
+> Objective checks any reviewer (human or AI) uses to decide if the
+> repository is in a healthy end-state. In multi-agent systems we don't
+> evaluate the path, we evaluate the destination.
+
+## C1 — Harness is complete
+
+- [ ] `AGENTS.md`, `init.sh`, `feature_list.json`, `progress/current.md` exist.
+- [ ] `docs/architecture.md`, `docs/conventions.md`, `docs/verification.md` exist.
+- [ ] `./init.sh` exits with code 0.
+
+## C2 — State is coherent
+
+- [ ] At most one feature is `in_progress` in `feature_list.json`.
+- [ ] Every `done` feature has tests that pass.
+- [ ] `progress/current.md` is empty OR describes the active session
+      (no leftover noise from prior sessions).
+
+## C3 — Code respects the architecture
+
+- [ ] The source tree only contains the modules listed in `docs/architecture.md`.
+- [ ] No accidental dependencies introduced (read `docs/conventions.md`).
+- [ ] No `print()` / `console.log` left over for debug; no orphan TODOs.
+
+## C4 — Verification is real
+
+- [ ] The test suite has at least one test per module under change.
+- [ ] Tests use real temp filesystems where applicable (no fs mocks).
+- [ ] Running the test command shows > 0 tests and all green.
+
+## C5 — The session closed cleanly
+
+- [ ] No suspicious untracked files (`*.tmp`, build artefacts not in `.gitignore`).
+- [ ] `progress/history.md` carries one entry for the most recent session.
+- [ ] The feature you worked on is in its correct final status.
+
+---
+
+**How to use this file:** a reviewer agent (see `.claude/agents/reviewer.md`)
+walks each checkbox, marks `[x]` or `[ ]`, and rejects the session close
+when any C1-C5 box is empty.

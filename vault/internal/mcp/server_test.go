@@ -92,17 +92,22 @@ func TestToolsList(t *testing.T) {
 	if !ok {
 		t.Fatal("tools should be an array")
 	}
-	// Phase 3 adds vault_current_project + vault_suggest_topic_key +
-	// vault_capture_passive on top of Phase 2b's vault_judge + vault_compare.
-	const wantTools = 32 // 29 prior + 3 Phase-3 utility tools
-	// vault_save, vault_search, vault_context, vault_timeline, vault_get, vault_hint,
-	// vault_code_health, vault_pattern_mine, vault_skill_match, vault_compress,
-	// vault_session_start, vault_session_end, vault_summary, vault_save_prompt,
-	// vault_stats, vault_delete, vault_query, vault_bulk_save, vault_sdd_phase,
-	// vault_qa_checklist, vault_qa_checkpoint, vault_team_context, vault_export_lore,
-	// vault_update, vault_relate, vault_capture, vault_merge_projects,
-	// vault_judge, vault_compare,
-	// vault_current_project, vault_suggest_topic_key, vault_capture_passive.
+	// Phase 11 adds the 9 vault_harness_* tools (init, status, list, next,
+	// start, done, block, reopen, add) on top of Phase 3's 32 vault tools.
+	const wantTools = 41 // 32 prior + 9 Harness Engineering tools
+	// Phase 3 baseline (32):
+	//   vault_save, vault_search, vault_context, vault_timeline, vault_get, vault_hint,
+	//   vault_code_health, vault_pattern_mine, vault_skill_match, vault_compress,
+	//   vault_session_start, vault_session_end, vault_summary, vault_save_prompt,
+	//   vault_stats, vault_delete, vault_query, vault_bulk_save, vault_sdd_phase,
+	//   vault_qa_checklist, vault_qa_checkpoint, vault_team_context, vault_export_lore,
+	//   vault_update, vault_relate, vault_capture, vault_merge_projects,
+	//   vault_judge, vault_compare,
+	//   vault_current_project, vault_suggest_topic_key, vault_capture_passive.
+	// Phase 11 additions (9):
+	//   vault_harness_init, vault_harness_status, vault_harness_list, vault_harness_next,
+	//   vault_harness_start, vault_harness_done, vault_harness_block,
+	//   vault_harness_reopen, vault_harness_add.
 	if len(toolsArr) != wantTools {
 		t.Errorf("expected exactly %d tools, got %d", wantTools, len(toolsArr))
 	}

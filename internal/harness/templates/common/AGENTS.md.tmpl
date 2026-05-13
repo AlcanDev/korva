@@ -1,0 +1,65 @@
+# AGENTS.md — {{.Project}}
+
+> Entry point for any AI agent working on this repository.
+> Read what you need, when you need it (progressive disclosure).
+
+## 0. Before you do anything
+
+1. Run `./init.sh`. If it doesn't end with `[OK]` lines, **stop**.
+2. Read `progress/current.md` to see what the last session was doing.
+3. Open `feature_list.json` and pick the lowest-id `pending` row.
+
+## 1. Repository map
+
+| File / folder                | What it carries                                                | When to read |
+|------------------------------|----------------------------------------------------------------|--------------|
+| `feature_list.json`          | Backlog with state (`pending` / `in_progress` / `done` / `blocked`) | Always, at the start |
+| `progress/current.md`        | Active session log                                             | Always, at the start |
+| `progress/history.md`        | Append-only past sessions                                      | If you need historical context |
+| `docs/architecture.md`       | What "good work" means here                                    | Before implementing |
+| `docs/conventions.md`        | Style, naming, structure rules                                 | Before writing code |
+| `docs/verification.md`       | How to verify your work is done                                | Before marking `done` |
+| `CHECKPOINTS.md`             | Objective end-state checks                                     | To self-evaluate |
+| `.claude/agents/`            | Optional subagent definitions (leader, implementer, reviewer)  | If you orchestrate work |
+
+## 2. Hard rules (non-negotiable)
+
+- **One feature at a time.** Don't mix changes across features in one session.
+- **Don't mark `done` without green tests.** `./init.sh` must end clean.
+- **Document while you work**, not at the end — in `progress/current.md`.
+- **Leave the repo clean** before you stop (see §5).
+- **If you don't know something, read `docs/`** before inventing.
+
+## 3. How to pick a feature
+
+```
+1. Open feature_list.json
+2. Filter where status == "pending"
+3. Pick the lowest id
+4. Set its status to "in_progress" and save (use `korva harness start <id>`)
+5. Note in progress/current.md: feature, start time, brief plan
+```
+
+## 4. Session lifecycle
+
+Before stopping:
+
+1. Run `./init.sh` — everything green.
+2. If the task is done: `korva harness done <id>` (sets status + appends to history).
+3. Move the summary of `progress/current.md` to `progress/history.md`.
+4. Empty `progress/current.md` to its template skeleton.
+5. No temp files, no `print()` debug, no orphan TODOs.
+
+## 5. If you get stuck
+
+- Re-read the relevant `docs/` section.
+- If a tool misbehaves, **don't invent a workaround**: write the blocker into
+  `progress/current.md`, set the feature to `blocked` (`korva harness block <id>`),
+  and stop the session.
+
+## 6. Korva integration
+
+This harness was bootstrapped by `korva harness init`. The state machine is also
+reachable from the MCP server via `vault_harness_*` tools, so an agent talking
+to the Korva Vault can pick / start / close features without leaving the editor.
+See `docs/verification.md` for the verification protocol.

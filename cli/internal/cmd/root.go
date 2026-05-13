@@ -56,6 +56,7 @@ func init() {
 	rootCmd.AddCommand(conflictsCmd)
 	rootCmd.AddCommand(projectsCmd)
 	rootCmd.AddCommand(exportCmd)
+	rootCmd.AddCommand(harnessCmd)
 }
 
 func printSuccess(msg string) {

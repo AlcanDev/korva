@@ -16,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/alcandev/korva/internal/harness"
 	"github.com/alcandev/korva/internal/license"
 	"github.com/alcandev/korva/internal/version"
 	"github.com/alcandev/korva/vault/internal/detect"
@@ -458,6 +459,24 @@ func (s *Server) dispatchInner(tool string, args map[string]any) (any, error) {
 		return s.toolCapture(args)
 	case "vault_merge_projects":
 		return s.toolMergeProjects(args)
+	case "vault_harness_init":
+		return s.toolHarnessInit(args)
+	case "vault_harness_status":
+		return s.toolHarnessStatus(args)
+	case "vault_harness_list":
+		return s.toolHarnessList(args)
+	case "vault_harness_next":
+		return s.toolHarnessNext(args)
+	case "vault_harness_start":
+		return s.toolHarnessTransition(harness.StatusInProgress)(args)
+	case "vault_harness_done":
+		return s.toolHarnessTransition(harness.StatusDone)(args)
+	case "vault_harness_block":
+		return s.toolHarnessTransition(harness.StatusBlocked)(args)
+	case "vault_harness_reopen":
+		return s.toolHarnessTransition(harness.StatusPending)(args)
+	case "vault_harness_add":
+		return s.toolHarnessAdd(args)
 	default:
 		return nil, fmt.Errorf("unknown tool: %s", tool)
 	}

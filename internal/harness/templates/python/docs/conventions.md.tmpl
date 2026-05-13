@@ -1,0 +1,54 @@
+# Conventions — {{.Project}}
+
+> Python style + naming + structural rules. PRs / agent sessions that
+> violate these are rejected by the reviewer.
+
+## Naming (PEP 8)
+
+- Modules: `lower_snake_case.py`.
+- Classes: `PascalCase`.
+- Functions & variables: `lower_snake_case`.
+- Constants: `UPPER_SNAKE_CASE`.
+- Test files: `test_<module>.py` under `tests/`.
+
+## File structure
+
+- Public API at the top of the module; private helpers below
+  (`_underscore_prefix`).
+- Imports grouped: stdlib, third-party, first-party — each group
+  alphabetized. Run `isort` (or ruff's import sorter) to enforce.
+- One class per file when the class is the file's reason to exist.
+
+## Errors
+
+- Define domain exceptions in a single `errors.py` module:
+  ```python
+  class NotFoundError(Exception):
+      def __init__(self, ident: str) -> None:
+          super().__init__(f"not found: {ident}")
+          self.ident = ident
+  ```
+- Never `except Exception:` without re-raising or logging+raising a
+  domain error. Bare `except:` is forbidden.
+
+## Type hints
+
+- Every public function has type hints on parameters and return.
+- Use `from __future__ import annotations` at the top of each module so
+  hints are lazy-evaluated.
+- `typing.Optional[T]` is fine but prefer `T | None` on Python 3.10+.
+
+## Tests
+
+- One test per acceptance criterion in `feature_list.json`.
+- Test names describe the contract:
+  `def test_save_session_rejects_empty_project()`, not `test_3`.
+- Use `tmp_path` for filesystem fixtures; never write to the project
+  directory.
+- `pytest -q` must run green.
+
+## Lint
+
+- `ruff check .` clean (or `flake8` if the project predates ruff).
+- `ruff format` or `black .` applied.
+- `mypy` clean if configured.

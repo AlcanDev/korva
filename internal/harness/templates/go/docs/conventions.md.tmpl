@@ -1,0 +1,47 @@
+# Conventions — {{.Project}}
+
+> Go style + naming + structural rules. PRs / agent sessions that violate
+> these are rejected by the reviewer.
+
+## Naming
+
+- Packages: short, lowercase, no underscores. `harness`, not `harness_util`.
+- Exported types & functions: `CamelCase`. Unexported: `camelCase`.
+- Test names describe the contract:
+  `TestSetStatus_RejectsIllegalTransition`, not `TestSetStatus_3`.
+- Interfaces named after the verb (`Reader`, `Walker`) when single-method.
+
+## File structure
+
+- One package per directory.
+- Public API at the top of the file; helpers below.
+- Constants at the top of their file (`const ( ... )` block).
+- Tests live in `<name>_test.go` next to the code they test.
+
+## Errors
+
+- Return `error`, never `panic` for expected failure paths.
+- Wrap with `%w`: `fmt.Errorf("read config %s: %w", path, err)`.
+- `panic` is reserved for programmer errors (nil map deref, etc.) the
+  compiler can't catch.
+
+## Doc comments
+
+- Every exported identifier has a doc comment that starts with its name:
+  `// LoadConfig reads ...`.
+- The comment explains *why* the function exists, not just *what* it
+  does. The body shows the *what*.
+
+## Tests
+
+- One test per acceptance criterion in `feature_list.json`.
+- Table-driven where the input space is enumerable.
+- `t.TempDir()` for filesystem fixtures — never `os.TempDir()` directly.
+- Use `t.Helper()` in test helpers so failures point at the caller.
+- Race-detector clean: `go test -race ./...` must pass.
+
+## Linting
+
+- `gofmt -s` and `goimports` clean.
+- `go vet ./...` clean.
+- `golangci-lint run` clean if the project ships a `.golangci.yml`.

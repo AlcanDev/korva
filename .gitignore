@@ -67,6 +67,11 @@ desktop.ini
 
 # Claude Code project settings (local only)
 .claude/
+# Exception: ship the subagent templates that `korva harness init --with-subagents`
+# materializes into a target repo. These templates need to be tracked even though
+# the literal `.claude/` directory pattern would otherwise ignore them.
+!internal/harness/templates/subagents/.claude/
+!internal/harness/templates/subagents/.claude/**
 
 # Build artifacts
 *.tar.gz

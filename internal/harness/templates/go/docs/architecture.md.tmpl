@@ -1,0 +1,39 @@
+# Architecture — {{.Project}}
+
+> This document is the standard a reviewer evaluates code against. If it
+> isn't here, it isn't a requirement.
+
+## Principles
+
+1. **Package boundaries are explicit.** Each package has one job. Public
+   API at the package root; implementation details in `internal/` or
+   unexported types.
+
+2. **Errors are values.** Return `error`, don't `panic`. Wrap with
+   `fmt.Errorf("doing X: %w", err)` so callers can `errors.Is` /
+   `errors.As`.
+
+3. **No `init()` for business logic.** Use explicit constructors. `init()`
+   is for registration only (e.g. database/sql drivers).
+
+4. **Dependencies flow inward.** The `cmd/` layer wires; `internal/`
+   contains domain logic; nothing in `internal/` imports `cmd/`.
+
+5. **Concurrency is opt-in.** Functions are sequential by default. Any
+   goroutine has a documented owner and a clear lifetime — no fire-and-
+   forget background work.
+
+6. **Tests are real.** Use `t.TempDir()` for filesystem fixtures.
+   In-memory SQLite for store tests. `httptest.Server` for HTTP. Mock
+   only at process boundaries (network, time, randomness).
+
+## Module map
+
+> Fill in once you carve out the first real features. Until then this
+> section is the catch-all for "what lives where".
+
+| Package          | Responsibility |
+|------------------|----------------|
+| `cmd/<bin>/`     | Process entry point (flags, wiring, exit codes) |
+| `internal/<pkg>` | Domain logic; pure Go, no `cmd/` imports |
+| `_test.go`       | Tests live next to the code they exercise |
