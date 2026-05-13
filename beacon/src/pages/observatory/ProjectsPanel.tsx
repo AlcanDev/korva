@@ -53,7 +53,7 @@ export default function ProjectsPanel() {
 	];
 
 	return (
-		<div className="p-6 max-w-7xl mx-auto space-y-5 animate-fade-up">
+		<div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-4 sm:space-y-5 animate-fade-up">
 			<PageHero
 				eyebrow={tx.eyebrow}
 				icon={<FolderTree size={22} />}
@@ -122,7 +122,7 @@ function ProjectsList({ tx }: { tx: ProjectsLang }) {
 				/>
 			</div>
 
-			<div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-4 mt-4">
+			<div className="grid grid-cols-1 xl:grid-cols-[1fr_360px] gap-4 mt-4">
 				{/* Table */}
 				<Card>
 					<CardHeader
@@ -141,7 +141,13 @@ function ProjectsList({ tx }: { tx: ProjectsLang }) {
 					/>
 					{projects.length === 0 ? (
 						<CardBody>
-							<EmptyState title={tx.emptyTitle} description={tx.emptyDesc} />
+							<EmptyState
+								tone="cyan"
+								icon={<FolderTree size={22} />}
+								title={tx.emptyTitle}
+								description={tx.emptyDesc}
+								hint="vault_save → start tracking"
+							/>
 						</CardBody>
 					) : (
 						<div className="overflow-x-auto">
@@ -215,7 +221,13 @@ function ConsolidateView({ tx }: { tx: ProjectsLang }) {
 			/>
 			<CardBody>
 				{proposals.length === 0 ? (
-					<EmptyState title={tx.consolidateEmpty} description={tx.consolidateEmptyDesc} />
+					<EmptyState
+						tone="volt"
+						icon={<GitMerge size={22} />}
+						title={tx.consolidateEmpty}
+						description={tx.consolidateEmptyDesc}
+						hint="Korva normalizes names automatically"
+					/>
 				) : (
 					<div className="space-y-3">
 						{proposals.map((p) => (
@@ -383,7 +395,13 @@ function PruneView({ tx }: { tx: ProjectsLang }) {
 				</div>
 				{prune.error && <ErrorBanner message={String(prune.error)} />}
 				{data && empty.length === 0 && (
-					<EmptyState title={tx.pruneEmptyTitle} description={tx.pruneEmptyDesc} />
+					<EmptyState
+						tone="volt"
+						icon={<Check size={22} />}
+						title={tx.pruneEmptyTitle}
+						description={tx.pruneEmptyDesc}
+						hint="Nothing to clean — you're tidy"
+					/>
 				)}
 				{data && empty.length > 0 && (
 					<div className="overflow-x-auto rounded-lg border border-white/8">

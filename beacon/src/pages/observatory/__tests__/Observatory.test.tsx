@@ -114,6 +114,23 @@ const fetchMock = vi.fn(async (input?: RequestInfo | URL | string | null) => {
     commands: [],
     local_only: true,
   })
+  if (url.includes('/admin/cost/summary')) return jsonResponse({
+    window_days: 30,
+    from: '2026-04-12T00:00:00Z',
+    to: '2026-05-12T00:00:00Z',
+    total_usd: 0,
+    total_tokens: 0,
+    input_tokens: 0,
+    output_tokens: 0,
+    cache_read: 0,
+    cache_hit_pct: 0,
+    savings_usd: 0,
+    reduction_pct: 0,
+    by_model: [],
+    by_project: [],
+    daily: [],
+    interactions_count: 0,
+  })
   return jsonResponse({})
 })
 vi.stubGlobal('fetch', fetchMock)
@@ -149,7 +166,7 @@ describe('Observatory navigation', () => {
     expect(OBSERVATORY_BASE).toBe('/admin/observatory')
   })
 
-  it('renders 9 sub-tabs with absolute hrefs from /admin/observatory/health', () => {
+  it('renders 11 sub-tabs with absolute hrefs from /admin/observatory/health', () => {
     renderAt('/admin/observatory/health')
     const nav = screen.getByRole('navigation', { name: /observatory sections/i })
     const hrefs = Array.from(nav.querySelectorAll('a')).map(
@@ -157,6 +174,8 @@ describe('Observatory navigation', () => {
     )
     expect(hrefs).toEqual([
       '/admin/observatory/health',
+      '/admin/observatory/live',
+      '/admin/observatory/cost',
       '/admin/observatory/tokens',
       '/admin/observatory/activity',
       '/admin/observatory/commands',
@@ -174,11 +193,10 @@ describe('Observatory navigation', () => {
     const hrefs = Array.from(nav.querySelectorAll('a')).map(
       (a) => (a as HTMLAnchorElement).getAttribute('href'),
     )
-    // Bug repro: previously, hrefs from /admin/observatory/tokens were
-    // /admin/observatory/tokens/health, /admin/observatory/tokens/tokens, …
-    // The fix uses absolute paths so this is invariant.
     expect(hrefs).toEqual([
       '/admin/observatory/health',
+      '/admin/observatory/live',
+      '/admin/observatory/cost',
       '/admin/observatory/tokens',
       '/admin/observatory/activity',
       '/admin/observatory/commands',
@@ -234,6 +252,8 @@ describe('Observatory navigation', () => {
 
   it.each([
     ['health', /System Health/i],
+    ['live', /Live activity/i],
+    ['cost', /Cost & ROI/i],
     ['tokens', /Token Analytics/i],
     ['activity', /Activity Timeline/i],
     ['commands', /Commands/i],

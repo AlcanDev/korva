@@ -9,7 +9,8 @@ import { useAdminStore } from '@/stores/admin'
 import { useLicenseStatus, isPaidTier } from '@/api/license'
 import { useSystemStatus } from '@/api/observatory'
 import { useI18n, type EditorKey, EDITOR_INTEGRATION } from '@/contexts/i18n'
-import { Spinner } from '@/components/ui'
+import { Spinner, useCommandPalette } from '@/components/ui'
+import { Search } from 'lucide-react'
 
 // Login is loaded eagerly so an unauthenticated user sees the form instantly.
 import AdminLogin from './AdminLogin'
@@ -43,6 +44,7 @@ function RouteFallback() {
 export default function Admin() {
   const { isAuthenticated, logout } = useAdminStore()
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const { open: openPalette } = useCommandPalette()
 
   if (!isAuthenticated) {
     return <AdminLogin />
@@ -58,9 +60,9 @@ export default function Admin() {
         />
       )}
 
-      {/* Sidebar */}
+      {/* Sidebar — wider drawer on mobile, classic side rail on md+ */}
       <div
-        className={`fixed inset-y-0 left-0 z-30 w-56 flex-shrink-0 transform transition-transform duration-200 md:relative md:translate-x-0 md:z-auto ${
+        className={`fixed inset-y-0 left-0 z-30 w-[280px] sm:w-72 md:w-56 flex-shrink-0 transform transition-transform duration-200 md:relative md:translate-x-0 md:z-auto ${
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
@@ -69,19 +71,29 @@ export default function Admin() {
 
       {/* Main content */}
       <div className="flex-1 flex flex-col overflow-hidden min-w-0">
-        {/* Mobile top bar */}
-        <div className="flex items-center gap-3 px-4 py-3 border-b border-[#21262d] bg-[#161b22] md:hidden flex-shrink-0">
+        {/* Mobile top bar — hamburger + brand + command palette button */}
+        <div className="flex items-center gap-3 px-3 py-3 border-b border-[#21262d] bg-[#161b22] md:hidden flex-shrink-0">
           <button
+            type="button"
             onClick={() => setSidebarOpen(true)}
-            className="text-[#8b949e] hover:text-[#e6edf3] transition-colors"
+            className="h-10 w-10 flex items-center justify-center -ml-1 text-[#8b949e] hover:text-[#e6edf3] transition-colors rounded-md hover:bg-white/5"
             aria-label="Open menu"
           >
             <Menu size={20} />
           </button>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-1 min-w-0">
             <KorvaLogo size={20} />
-            <span className="font-semibold text-[#e6edf3] text-sm">Korva Admin</span>
+            <span className="font-semibold text-[#e6edf3] text-sm truncate">Korva Admin</span>
           </div>
+          <button
+            type="button"
+            onClick={openPalette}
+            className="h-10 px-3 inline-flex items-center gap-1.5 text-xs text-[#8b949e] border border-white/10 rounded-md hover:bg-white/5 hover:text-[#e6edf3] transition-colors"
+            aria-label="Open command palette"
+          >
+            <Search size={13} />
+            <kbd className="font-mono text-[10px] bg-space-700 border border-white/10 rounded px-1 py-0.5 hidden sm:inline">⌘K</kbd>
+          </button>
         </div>
 
         <main className="flex-1 overflow-auto">

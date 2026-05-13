@@ -457,6 +457,64 @@ export const en = {
     badgeProjects: (n: number) => `${n} projects`,
   },
 
+  liveActivity: {
+    title: 'Live activity',
+    eyebrow: 'Real-time observability',
+    subtitle:
+      'Server-Sent Events stream every observation, command, and conflict the moment it happens. Open this on a side monitor during a code review.',
+    badgeLive: 'Live',
+    badgeDisconnected: 'Disconnected',
+    badgeConnecting: 'Connecting…',
+    streamTitle: 'Stream',
+    waitingFirst: 'Waiting for the first event…',
+    bufferedCount: (n: number) =>
+      `${n} event(s) buffered (most recent first)`,
+    emptyTitle: 'No activity yet',
+    emptyDesc:
+      'Save an observation from your editor or run a korva CLI command. Events show up here within milliseconds.',
+    emptyHint: 'vault_save → live stream',
+    labelObservationSaved: 'Observation saved',
+    labelSessionStarted: 'Session started',
+    labelSessionEnded: 'Session ended',
+    labelConflictDetected: 'Conflict detected',
+    labelCommandRun: 'Command run',
+    labelExportWritten: 'Obsidian export',
+    labelHivePhaseChanged: 'Hive phase changed',
+    by: 'by',
+  },
+
+  cost: {
+    title: 'Cost & ROI',
+    eyebrow: 'Cost & ROI',
+    subtitle:
+      "What your AI actually costs — by model, by project, by day. The savings line shows what Korva's caching paid back.",
+    metricSpent: 'Spent',
+    metricSpentHint: (days: number) => `last ${days} days`,
+    metricTokens: 'Tokens',
+    metricCalls: (n: number) => `${Intl.NumberFormat().format(n)} calls`,
+    metricCacheHit: 'Cache hit',
+    metricCacheRead: (n: number) => `${Intl.NumberFormat().format(n)} read`,
+    metricSavings: 'Savings',
+    metricSavingsHint: 'vs. uncached input',
+    dailyTitle: 'USD spent per day',
+    dailySubtitle:
+      'A flat line is healthy; a slope to the right is your AI bill growing.',
+    dailyEmptyTitle: 'No spend yet',
+    dailyEmptyDesc:
+      'Once interactions land in this window the daily cost curve will appear here.',
+    dailyEmptyHint: 'Run an AI session to populate',
+    byModelTitle: 'By model',
+    byModelSubtitle: 'Where the dollars go',
+    byModelEmpty: 'No model usage in window',
+    byProjectTitle: 'By project',
+    byProjectSubtitle: 'Top spenders',
+    byProjectEmpty: 'No project breakdown',
+    couldNotLoad: "Couldn't load cost summary",
+    estimatedDisclaimer:
+      'Prices are best-effort estimates from public pricing pages. Run',
+    estimatedBadge: 'estimated',
+  },
+
   commands: {
     title: 'Commands',
     eyebrow: 'Operator console',

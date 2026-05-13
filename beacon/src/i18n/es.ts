@@ -462,6 +462,67 @@ export const es = {
     badgeProjects: (n: number) => `${n} proyectos`,
   },
 
+  liveActivity: {
+    title: 'Actividad en vivo',
+    eyebrow: 'Observabilidad en tiempo real',
+    subtitle:
+      'Server-Sent Events transmiten cada observación, comando y conflicto en el instante que ocurren. Ábrelo en un monitor lateral durante un code review.',
+    badgeLive: 'En vivo',
+    badgeDisconnected: 'Desconectado',
+    badgeConnecting: 'Conectando…',
+    streamTitle: 'Stream',
+    waitingFirst: 'Esperando el primer evento…',
+    bufferedCount: (n: number) =>
+      `${n} evento${n !== 1 ? 's' : ''} en buffer (más recientes primero)`,
+    emptyTitle: 'Sin actividad aún',
+    emptyDesc:
+      'Guarda una observación desde tu editor o corre un comando de korva CLI. Los eventos aparecen aquí en milisegundos.',
+    emptyHint: 'vault_save → stream en vivo',
+    labelObservationSaved: 'Observación guardada',
+    labelSessionStarted: 'Sesión iniciada',
+    labelSessionEnded: 'Sesión terminada',
+    labelConflictDetected: 'Conflicto detectado',
+    labelCommandRun: 'Comando ejecutado',
+    labelExportWritten: 'Export a Obsidian',
+    labelHivePhaseChanged: 'Hive cambió de fase',
+    by: 'por',
+  },
+
+  cost: {
+    title: 'Costo y ROI',
+    eyebrow: 'Costo y ROI',
+    subtitle:
+      'Lo que tu IA realmente cuesta — por modelo, por proyecto, por día. La línea de ahorros muestra cuánto te devolvió el caching de Korva.',
+    metricSpent: 'Gastado',
+    metricSpentHint: (days: number) =>
+      `últimos ${days} día${days !== 1 ? 's' : ''}`,
+    metricTokens: 'Tokens',
+    metricCalls: (n: number) =>
+      `${Intl.NumberFormat().format(n)} llamada${n !== 1 ? 's' : ''}`,
+    metricCacheHit: 'Cache hit',
+    metricCacheRead: (n: number) =>
+      `${Intl.NumberFormat().format(n)} leídos`,
+    metricSavings: 'Ahorros',
+    metricSavingsHint: 'vs. input sin cache',
+    dailyTitle: 'USD gastados por día',
+    dailySubtitle:
+      'Una línea plana es saludable; una pendiente a la derecha es tu factura de IA creciendo.',
+    dailyEmptyTitle: 'Sin gasto aún',
+    dailyEmptyDesc:
+      'Cuando lleguen interacciones a esta ventana la curva de costo diario aparecerá aquí.',
+    dailyEmptyHint: 'Corre una sesión IA para poblarlo',
+    byModelTitle: 'Por modelo',
+    byModelSubtitle: 'Adónde van los dólares',
+    byModelEmpty: 'Sin uso de modelos en la ventana',
+    byProjectTitle: 'Por proyecto',
+    byProjectSubtitle: 'Top de consumidores',
+    byProjectEmpty: 'Sin desglose por proyecto',
+    couldNotLoad: 'No se pudo cargar el resumen de costos',
+    estimatedDisclaimer:
+      'Los precios son estimaciones del esfuerzo público. Ejecuta',
+    estimatedBadge: 'estimado',
+  },
+
   commands: {
     title: 'Comandos',
     eyebrow: 'Consola del operador',

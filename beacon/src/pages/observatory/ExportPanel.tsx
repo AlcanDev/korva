@@ -69,7 +69,7 @@ export default function ExportPanel() {
 	}
 
 	return (
-		<div className="p-6 max-w-5xl mx-auto space-y-5 animate-fade-up">
+		<div className="p-4 sm:p-6 max-w-5xl mx-auto space-y-4 sm:space-y-5 animate-fade-up">
 			<PageHero
 				eyebrow={tx.eyebrow}
 				icon={<Download size={22} />}

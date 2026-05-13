@@ -74,7 +74,7 @@ export function Tabs<T extends string = string>({
 						onClick={() => onChange(tab.value)}
 						role="tab"
 						aria-selected={active}
-						className={`inline-flex items-center gap-1.5 px-4 py-2.5 text-xs font-medium border-b-2 transition-colors -mb-px ${
+						className={`inline-flex items-center gap-1.5 px-3 sm:px-4 py-2.5 min-h-[40px] text-xs sm:text-sm font-medium border-b-2 transition-colors -mb-px whitespace-nowrap ${
 							active
 								? "border-volt text-ink-100"
 								: "border-transparent text-ink-400 hover:text-ink-200"

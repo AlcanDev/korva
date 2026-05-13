@@ -81,6 +81,16 @@ type RouterConfig struct {
 	ConfigPathLocal string
 }
 
+// EventBus is the package-level event bus used to fan out activity to the
+// SSE endpoint. Initialized lazily by Router so tests can reuse it without
+// spinning up the full router.
+var eventBus = NewEventBus()
+
+// PublishEvent is the package-public entry point for the SSE bus. Exported
+// so other packages (store decorators, hive worker, …) can publish without
+// importing the bus type. No-op when the bus is closed.
+func PublishEvent(ev Event) { eventBus.Publish(ev) }
+
 // Router builds the HTTP mux for the Vault API.
 // ctx is used to stop the background rate-limiter cleanup goroutine when the
 // server shuts down. Pass a zero-value RouterConfig for a minimal Community-tier
@@ -285,6 +295,12 @@ func Router(ctx context.Context, s *store.Store, cfg RouterConfig) http.Handler 
 	mux.Handle("GET /admin/commands", adminMW(withCORS(adminListCommands())))
 	mux.Handle("POST /admin/commands/run", adminMW(withBodyLimit(withCORS(adminRunCommand()))))
 
+	// Observatory — Real-time event stream (Phase 8.5)
+	mux.Handle("GET /admin/events", adminMW(withCORS(adminEventsSSE(eventBus))))
+
+	// Observatory — Cost & ROI (Phase 8.6)
+	mux.Handle("GET /admin/cost/summary", adminMW(withCORS(adminCostSummary(s))))
+
 	// Observatory — Deferred-apply queue (cloud sync resilience)
 	mux.Handle("GET /admin/cloud/deferred", adminMW(withCORS(adminListDeferred(s))))
 	mux.Handle("POST /admin/cloud/deferred/{sync_id}/retry", adminMW(withBodyLimit(withCORS(adminRetryDeferred(s)))))
@@ -343,6 +359,14 @@ func saveObservation(s *store.Store, webhookURL string) http.HandlerFunc {
 		}
 		obs.ID = id
 		notifyWebhook(webhookURL, obs)
+		// Fan out to the SSE bus so live-dashboards update instantly.
+		PublishEvent(Event{
+			Kind:    EventObservationSaved,
+			Project: obs.Project,
+			Title:   obs.Title,
+			Actor:   obs.Author,
+			Meta:    map[string]any{"id": id, "type": string(obs.Type)},
+		})
 		writeJSON(w, http.StatusCreated, map[string]string{"id": id})
 	}
 }
