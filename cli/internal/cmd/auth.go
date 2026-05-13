@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -40,10 +41,38 @@ var authLogoutCmd = &cobra.Command{
 	RunE:  runAuthLogout,
 }
 
+// authLoginOpts captures the flags for `korva auth login`. The email comes
+// from --email; the code is normally typed interactively (so it can be
+// scripted via `--code` for tests / automation).
+var authLoginOpts struct {
+	Email string
+	Code  string
+}
+
+var authLoginCmd = &cobra.Command{
+	Use:   "login",
+	Short: "Sign in with email — a one-time code is sent to your inbox",
+	Long: `Sign in to Korva for Teams by email. Requires that an admin has already
+added your address to the team (run 'korva teams invite' once per member).
+
+Flow:
+  1. Vault emails a 6-digit code to the address you provide.
+  2. Enter the code at the prompt (or pass it with --code for automation).
+  3. A 30-day session token is saved at ~/.korva/session.token.
+
+This is the way to re-authenticate after a session expires or when
+installing the CLI on a new machine — no admin in the loop.`,
+	RunE: runAuthLogin,
+}
+
 func init() {
 	authCmd.AddCommand(authRedeemCmd)
 	authCmd.AddCommand(authStatusCmd)
 	authCmd.AddCommand(authLogoutCmd)
+	authCmd.AddCommand(authLoginCmd)
+
+	authLoginCmd.Flags().StringVarP(&authLoginOpts.Email, "email", "e", "", "email registered by your team admin (required)")
+	authLoginCmd.Flags().StringVar(&authLoginOpts.Code, "code", "", "skip the prompt and pass the OTP directly (for scripts/tests)")
 }
 
 // vaultBase returns the local vault base URL from config (default port 7437).
@@ -207,4 +236,122 @@ func readSessionToken(path string) (string, error) {
 		return "", err
 	}
 	return strings.TrimSpace(string(data)), nil
+}
+
+// loginIO is the test seam for `korva auth login`. Production paths use
+// os.Stdin / os.Stdout / os.Stderr; tests inject buffers so they can drive
+// the interactive prompt without a TTY.
+type loginIO struct {
+	in     io.Reader
+	out    io.Writer
+	prompt string // shown before the code is read; empty = no prompt printed
+}
+
+func defaultLoginIO() loginIO {
+	return loginIO{in: os.Stdin, out: os.Stdout, prompt: "Enter the 6-digit code: "}
+}
+
+func runAuthLogin(cmd *cobra.Command, _ []string) error {
+	email := strings.ToLower(strings.TrimSpace(authLoginOpts.Email))
+	if email == "" || !strings.Contains(email, "@") {
+		return fmt.Errorf("--email is required and must be a valid address")
+	}
+	return doAuthLogin(cmd.Context(), vaultBase(), mustPaths().SessionTokenFile,
+		email, authLoginOpts.Code, defaultLoginIO())
+}
+
+// doAuthLogin is the test-friendly core of `korva auth login`. It runs the
+// two-step OTP exchange (request → verify), persists the resulting session
+// token at `tokenPath`, and reports progress to `lio.out`.
+//
+// When `presetCode` is non-empty (e.g. CI / scripted use) the interactive
+// prompt is skipped entirely. Otherwise the function reads one line from
+// `lio.in` after printing `lio.prompt`.
+func doAuthLogin(ctx context.Context, baseURL, tokenPath, email, presetCode string, lio loginIO) error {
+	// Step 1: request the code.
+	ctxReq, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	body, _ := json.Marshal(map[string]string{"email": email})
+	req, err := http.NewRequestWithContext(ctxReq, http.MethodPost, baseURL+"/auth/otp/request",
+		bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("vault unreachable — is korva-vault running? (%w)", err)
+	}
+	_ = resp.Body.Close()
+	if resp.StatusCode == http.StatusTooManyRequests {
+		return fmt.Errorf("too many login attempts — wait an hour before trying again")
+	}
+	if resp.StatusCode >= 400 {
+		return fmt.Errorf("OTP request failed (status %d)", resp.StatusCode)
+	}
+
+	fmt.Fprintf(lio.out, "  → Code sent to %s. Check your inbox.\n", email)
+
+	// Step 2: read the code (interactive or preset).
+	code := strings.TrimSpace(presetCode)
+	if code == "" {
+		if lio.prompt != "" {
+			fmt.Fprint(lio.out, lio.prompt)
+		}
+		line, err := bufio.NewReader(lio.in).ReadString('\n')
+		if err != nil && err != io.EOF {
+			return fmt.Errorf("reading code: %w", err)
+		}
+		code = strings.TrimSpace(line)
+	}
+	if code == "" {
+		return fmt.Errorf("code is required")
+	}
+
+	// Step 3: verify.
+	ctxVer, cancelVer := context.WithTimeout(ctx, 10*time.Second)
+	defer cancelVer()
+	verifyBody, _ := json.Marshal(map[string]string{"email": email, "code": code})
+	req2, err := http.NewRequestWithContext(ctxVer, http.MethodPost, baseURL+"/auth/otp/verify",
+		bytes.NewReader(verifyBody))
+	if err != nil {
+		return err
+	}
+	req2.Header.Set("Content-Type", "application/json")
+	resp2, err := http.DefaultClient.Do(req2)
+	if err != nil {
+		return fmt.Errorf("vault unreachable (%w)", err)
+	}
+	defer resp2.Body.Close()
+	raw, _ := io.ReadAll(resp2.Body)
+	if resp2.StatusCode != http.StatusOK {
+		var e map[string]string
+		_ = json.Unmarshal(raw, &e)
+		if msg := e["error"]; msg != "" {
+			return fmt.Errorf("%s", msg)
+		}
+		return fmt.Errorf("OTP verify failed (status %d)", resp2.StatusCode)
+	}
+
+	var result struct {
+		SessionToken string `json:"session_token"`
+		Email        string `json:"email"`
+		Team         string `json:"team"`
+		ExpiresAt    string `json:"expires_at"`
+	}
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return fmt.Errorf("unexpected response: %w", err)
+	}
+	if err := os.WriteFile(tokenPath, []byte(result.SessionToken+"\n"), 0600); err != nil {
+		return fmt.Errorf("saving session token: %w", err)
+	}
+
+	fmt.Fprintf(lio.out, "  ✓ Authenticated as %s\n", result.Email)
+	if result.Team != "" {
+		fmt.Fprintf(lio.out, "  → Organization : %s\n", result.Team)
+	}
+	if t, err := time.Parse(time.RFC3339, result.ExpiresAt); err == nil {
+		fmt.Fprintf(lio.out, "  → Session valid until %s\n", t.Local().Format("2006-01-02"))
+	}
+	return nil
 }

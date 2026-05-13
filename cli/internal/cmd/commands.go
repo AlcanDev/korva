@@ -69,11 +69,12 @@ func runCommands(_ *cobra.Command, _ []string) {
 		{
 			"Teams & Auth",
 			[]entry{
-				{"korva auth login", "Authenticate with Korva Teams"},
+				{"korva auth login --email <x>", "Sign in by email — a one-time code is mailed to you"},
+				{"korva auth redeem <token>", "Redeem an admin-issued invite token (first-time setup)"},
 				{"korva auth logout", "Sign out of Korva Teams"},
 				{"korva auth status", "Show current authentication status"},
 				{"korva teams list", "List teams you belong to"},
-				{"korva teams join <id>", "Join a team by ID"},
+				{"korva teams invite <email>", "Admin: invite a member by email"},
 				{"korva hive enable", "Enable contribution to the Korva Hive community brain"},
 				{"korva hive disable", "Opt out of the Hive"},
 				{"korva skills list", "List team skills available for the current project"},

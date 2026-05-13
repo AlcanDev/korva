@@ -3,6 +3,7 @@ package email
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -195,5 +196,35 @@ func TestFormatExpiry_Invalid(t *testing.T) {
 	raw := "bad-date"
 	if got := formatExpiry(raw); got != raw {
 		t.Errorf("invalid date should return raw value, got: %q", got)
+	}
+}
+
+func TestOTPMessage_Fields(t *testing.T) {
+	msg := OTPMessage("alice@corp.com", "482917", 10)
+
+	if msg.To != "alice@corp.com" {
+		t.Errorf("To = %q", msg.To)
+	}
+	if msg.Subject == "" {
+		t.Error("Subject must not be empty")
+	}
+	if !strings.Contains(msg.Text, "482917") {
+		t.Error("plain-text body must contain the code")
+	}
+	if !strings.Contains(msg.HTML, "482917") {
+		t.Error("HTML body must contain the code")
+	}
+	if !strings.Contains(msg.Text, "10 minutes") {
+		t.Error("plain-text body must mention the TTL in minutes")
+	}
+}
+
+func TestOTPMessage_DifferentTTLs(t *testing.T) {
+	for _, ttl := range []int{1, 5, 10, 30} {
+		msg := OTPMessage("a@b.com", "111111", ttl)
+		want := strings.Replace("X minutes", "X", fmt.Sprintf("%d", ttl), 1)
+		if !strings.Contains(msg.Text, want) {
+			t.Errorf("TTL %d not rendered: %q", ttl, msg.Text)
+		}
 	}
 }

@@ -162,6 +162,13 @@ func Router(ctx context.Context, s *store.Store, cfg RouterConfig) http.Handler 
 	mux.HandleFunc("GET /auth/me", withCORS(authMe(s)))
 	mux.HandleFunc("DELETE /auth/session", withCORS(authLogout(s)))
 
+	// Phase 12 — passwordless re-login by email OTP for already-invited
+	// members. /request always responds 204 to avoid account enumeration;
+	// /verify mints a session identical in shape to /auth/redeem so the
+	// CLI persistence path is shared.
+	mux.HandleFunc("POST /auth/otp/request", withCORS(authOTPRequest(s, mailer)))
+	mux.HandleFunc("POST /auth/otp/verify", withCORS(authOTPVerify(s)))
+
 	// --- Admin-protected endpoints (X-Admin-Key required) ---
 
 	adminMW := withAdminOrSessionAdmin(cfg.AdminKeyPath, cfg.AdminKeyOverride, s)

@@ -203,6 +203,28 @@ var migrations = []string{
 	`CREATE UNIQUE INDEX IF NOT EXISTS uq_sessions_member ON member_sessions(email, team_id)`,
 	`CREATE INDEX IF NOT EXISTS idx_sessions_token   ON member_sessions(token_hash)`,
 
+	// --- auth_otp_codes: one-time codes for passwordless re-login ---
+	// A previously-invited member (row in team_members) can request a 6-digit
+	// code over email and exchange it for a fresh session, with no admin in
+	// the loop. The plaintext code is never stored — only SHA256(code).
+	//
+	// consumed_at NULL  = pending (still redeemable until expires_at)
+	// consumed_at !NULL = either successfully used OR attempts exhausted
+	//                     (we mark dead on attempt exhaustion to short-circuit
+	//                      further verify lookups against the same row)
+	`CREATE TABLE IF NOT EXISTS auth_otp_codes (
+		id          TEXT PRIMARY KEY,
+		email       TEXT NOT NULL,
+		code_hash   TEXT NOT NULL,
+		attempts    INTEGER NOT NULL DEFAULT 0,
+		created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+		expires_at  TEXT NOT NULL,
+		consumed_at TEXT
+	)`,
+	`CREATE INDEX IF NOT EXISTS idx_otp_email      ON auth_otp_codes(email)`,
+	`CREATE INDEX IF NOT EXISTS idx_otp_pending    ON auth_otp_codes(email) WHERE consumed_at IS NULL`,
+	`CREATE INDEX IF NOT EXISTS idx_otp_created_at ON auth_otp_codes(created_at)`,
+
 	// --- private_scrolls: team-managed knowledge documents served via Beacon ---
 	// Scoped per-team via team_id ('' = global/admin-managed).
 	// name is unique within a (team_id, name) pair.
