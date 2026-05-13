@@ -1,4 +1,4 @@
-import _React, { useState } from 'react'
+import { lazy, Suspense, useState } from 'react'
 import { NavLink, Routes, Route, Navigate } from 'react-router'
 import {
   LayoutDashboard, Database, BookOpen, LogOut,
@@ -9,20 +9,36 @@ import { useAdminStore } from '@/stores/admin'
 import { useLicenseStatus, isPaidTier } from '@/api/license'
 import { useSystemStatus } from '@/api/observatory'
 import { useI18n, type EditorKey, EDITOR_INTEGRATION } from '@/contexts/i18n'
+import { Spinner } from '@/components/ui'
+
+// Login is loaded eagerly so an unauthenticated user sees the form instantly.
 import AdminLogin from './AdminLogin'
-import AdminDashboard from './AdminDashboard'
-import AdminVault from './AdminVault'
-import AdminScrolls from './AdminScrolls'
-import AdminLicense from './AdminLicense'
-import AdminTeams from './AdminTeams'
-import AdminSkills from './AdminSkills'
-import AdminScrollsPrivate from './AdminScrollsPrivate'
-import AdminAudit from './AdminAudit'
-import AdminCodeHealth from './AdminCodeHealth'
-import AdminSessions from './AdminSessions'
-import AdminPrompts from './AdminPrompts'
-import AdminInteractions from './AdminInteractions'
-import Observatory from '../observatory/Observatory'
+
+// Phase 7 — code-split admin routes. Each AdminX page becomes its own chunk
+// so the initial JS bundle only carries what's needed to render the sidebar +
+// the active page. Cuts ~250 KiB off the first load on a fresh visit and
+// makes hot-path pages (Dashboard, Vault) noticeably snappier.
+const AdminDashboard       = lazy(() => import('./AdminDashboard'))
+const AdminVault           = lazy(() => import('./AdminVault'))
+const AdminScrolls         = lazy(() => import('./AdminScrolls'))
+const AdminLicense         = lazy(() => import('./AdminLicense'))
+const AdminTeams           = lazy(() => import('./AdminTeams'))
+const AdminSkills          = lazy(() => import('./AdminSkills'))
+const AdminScrollsPrivate  = lazy(() => import('./AdminScrollsPrivate'))
+const AdminAudit           = lazy(() => import('./AdminAudit'))
+const AdminCodeHealth      = lazy(() => import('./AdminCodeHealth'))
+const AdminSessions        = lazy(() => import('./AdminSessions'))
+const AdminPrompts         = lazy(() => import('./AdminPrompts'))
+const AdminInteractions    = lazy(() => import('./AdminInteractions'))
+const Observatory          = lazy(() => import('../observatory/Observatory'))
+
+function RouteFallback() {
+  return (
+    <div className="flex items-center justify-center h-full text-ink-400">
+      <Spinner size={20} className="text-volt" />
+    </div>
+  )
+}
 
 export default function Admin() {
   const { isAuthenticated, logout } = useAdminStore()
@@ -69,22 +85,24 @@ export default function Admin() {
         </div>
 
         <main className="flex-1 overflow-auto">
-          <Routes>
-            <Route path="/" element={<Navigate to="/admin/observatory/health" replace />} />
-            <Route path="observatory/*" element={<Observatory />} />
-            <Route path="dashboard" element={<AdminDashboard />} />
-            <Route path="vault" element={<AdminVault />} />
-            <Route path="scrolls" element={<AdminScrolls />} />
-            <Route path="license" element={<AdminLicense />} />
-            <Route path="teams" element={<TeamsGate><AdminTeams /></TeamsGate>} />
-            <Route path="skills" element={<TeamsGate><AdminSkills /></TeamsGate>} />
-            <Route path="scrolls-private" element={<TeamsGate><AdminScrollsPrivate /></TeamsGate>} />
-            <Route path="audit" element={<TeamsGate><AdminAudit /></TeamsGate>} />
-            <Route path="code-health" element={<AdminCodeHealth />} />
-            <Route path="interactions" element={<AdminInteractions />} />
-            <Route path="sessions" element={<AdminSessions />} />
-            <Route path="prompts" element={<AdminPrompts />} />
-          </Routes>
+          <Suspense fallback={<RouteFallback />}>
+            <Routes>
+              <Route path="/" element={<Navigate to="/admin/observatory/health" replace />} />
+              <Route path="observatory/*" element={<Observatory />} />
+              <Route path="dashboard" element={<AdminDashboard />} />
+              <Route path="vault" element={<AdminVault />} />
+              <Route path="scrolls" element={<AdminScrolls />} />
+              <Route path="license" element={<AdminLicense />} />
+              <Route path="teams" element={<TeamsGate><AdminTeams /></TeamsGate>} />
+              <Route path="skills" element={<TeamsGate><AdminSkills /></TeamsGate>} />
+              <Route path="scrolls-private" element={<TeamsGate><AdminScrollsPrivate /></TeamsGate>} />
+              <Route path="audit" element={<TeamsGate><AdminAudit /></TeamsGate>} />
+              <Route path="code-health" element={<AdminCodeHealth />} />
+              <Route path="interactions" element={<AdminInteractions />} />
+              <Route path="sessions" element={<AdminSessions />} />
+              <Route path="prompts" element={<AdminPrompts />} />
+            </Routes>
+          </Suspense>
         </main>
       </div>
     </div>

@@ -1,13 +1,27 @@
+import { lazy, Suspense } from 'react'
 import { NavLink, Routes, Route, Navigate } from 'react-router'
-import { Activity, Coins, Clock, Settings, Shield, GitMerge, FolderTree, Download } from 'lucide-react'
-import SystemHealth from './SystemHealth'
-import TokenAnalytics from './TokenAnalytics'
-import ActivityTimeline from './ActivityTimeline'
-import ConfigEditor from './ConfigEditor'
-import SentinelRulesEditor from './SentinelRulesEditor'
-import ConflictsPanel from './ConflictsPanel'
-import ProjectsPanel from './ProjectsPanel'
-import ExportPanel from './ExportPanel'
+import { Activity, Coins, Clock, Settings, Shield, GitMerge, FolderTree, Download, Terminal } from 'lucide-react'
+import { Spinner } from '@/components/ui'
+
+// Phase 7 — code-split every Observatory sub-panel so the bundle stays
+// small. The catalog page (eager) only needs the nav strip.
+const SystemHealth         = lazy(() => import('./SystemHealth'))
+const TokenAnalytics       = lazy(() => import('./TokenAnalytics'))
+const ActivityTimeline     = lazy(() => import('./ActivityTimeline'))
+const ConfigEditor         = lazy(() => import('./ConfigEditor'))
+const SentinelRulesEditor  = lazy(() => import('./SentinelRulesEditor'))
+const ConflictsPanel       = lazy(() => import('./ConflictsPanel'))
+const ProjectsPanel        = lazy(() => import('./ProjectsPanel'))
+const ExportPanel          = lazy(() => import('./ExportPanel'))
+const CommandsPanel        = lazy(() => import('./CommandsPanel'))
+
+function PanelFallback() {
+  return (
+    <div className="flex items-center justify-center py-16 text-ink-400">
+      <Spinner size={20} className="text-volt" />
+    </div>
+  )
+}
 
 // Base path is hard-coded to match the parent route in Admin.tsx
 // (`<Route path="observatory/*" element={<Observatory />} />`). Using absolute
@@ -21,6 +35,7 @@ const SUBNAV = [
   { path: 'health', label: 'System Health', icon: Activity },
   { path: 'tokens', label: 'Tokens', icon: Coins },
   { path: 'activity', label: 'Activity', icon: Clock },
+  { path: 'commands', label: 'Commands', icon: Terminal },
   { path: 'conflicts', label: 'Conflicts', icon: GitMerge },
   { path: 'projects', label: 'Projects', icon: FolderTree },
   { path: 'export', label: 'Export', icon: Download },
@@ -54,20 +69,23 @@ export default function Observatory() {
         ))}
       </nav>
       <div className="flex-1 overflow-auto">
-        <Routes>
-          <Route index element={<Navigate to={`${OBSERVATORY_BASE}/health`} replace />} />
-          <Route path="health" element={<SystemHealth />} />
-          <Route path="tokens" element={<TokenAnalytics />} />
-          <Route path="activity" element={<ActivityTimeline />} />
-          <Route path="conflicts" element={<ConflictsPanel />} />
-          <Route path="projects" element={<ProjectsPanel />} />
-          <Route path="export" element={<ExportPanel />} />
-          <Route path="config" element={<ConfigEditor />} />
-          <Route path="sentinel" element={<SentinelRulesEditor />} />
-          {/* Anything else under /admin/observatory falls back to health so a
-             stale bookmark or a fat-fingered URL never lands on a blank screen. */}
-          <Route path="*" element={<Navigate to={`${OBSERVATORY_BASE}/health`} replace />} />
-        </Routes>
+        <Suspense fallback={<PanelFallback />}>
+          <Routes>
+            <Route index element={<Navigate to={`${OBSERVATORY_BASE}/health`} replace />} />
+            <Route path="health" element={<SystemHealth />} />
+            <Route path="tokens" element={<TokenAnalytics />} />
+            <Route path="activity" element={<ActivityTimeline />} />
+            <Route path="commands" element={<CommandsPanel />} />
+            <Route path="conflicts" element={<ConflictsPanel />} />
+            <Route path="projects" element={<ProjectsPanel />} />
+            <Route path="export" element={<ExportPanel />} />
+            <Route path="config" element={<ConfigEditor />} />
+            <Route path="sentinel" element={<SentinelRulesEditor />} />
+            {/* Anything else under /admin/observatory falls back to health so a
+               stale bookmark or a fat-fingered URL never lands on a blank screen. */}
+            <Route path="*" element={<Navigate to={`${OBSERVATORY_BASE}/health`} replace />} />
+          </Routes>
+        </Suspense>
       </div>
     </div>
   )

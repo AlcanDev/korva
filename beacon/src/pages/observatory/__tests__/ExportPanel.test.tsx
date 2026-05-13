@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import ExportPanel from '../ExportPanel'
+import { I18nProvider } from '@/contexts/i18n'
 
 // Fase 6.2 — verifica el contrato del Export panel: el botón queda
 // deshabilitado sin out, el submit dispara POST con la forma correcta,
@@ -58,9 +59,11 @@ beforeEach(() => {
 function renderPanel() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
-    <QueryClientProvider client={qc}>
-      <ExportPanel />
-    </QueryClientProvider>,
+    <I18nProvider>
+      <QueryClientProvider client={qc}>
+        <ExportPanel />
+      </QueryClientProvider>
+    </I18nProvider>,
   )
 }
 
@@ -105,7 +108,9 @@ describe('ExportPanel', () => {
 
     expect(await screen.findByText(/export written/i)).toBeTruthy()
     expect(screen.getByText('/tmp/vault')).toBeTruthy()
-    expect(screen.getByText('7')).toBeTruthy() // file_count
-    expect(screen.getByText('decision:')).toBeTruthy()
+    // 7 files appears as a badge (e.g. "7 files") + as the centre of the donut.
+    expect(screen.getAllByText(/7/).length).toBeGreaterThan(0)
+    // The donut legend lists the type names — exact label, no trailing colon.
+    expect(screen.getAllByText('decision').length).toBeGreaterThan(0)
   })
 })

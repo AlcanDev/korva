@@ -1,28 +1,123 @@
 @import "tailwindcss";
 
-/* ─── Design tokens ─────────────────────────────────────── */
+/* Phase 7 — Beacon design system refresh.
+   Aligns Beacon with the Space palette from korva-ui (the public website)
+   while keeping the existing tokens (--bg, --surface, --accent, …) for
+   backwards compatibility with code that already uses the old variables.
+   New components target the Space palette + brand colours below. */
+
+@theme {
+  /* ── Space palette — deep dark backgrounds (matches korva-ui) ──────────── */
+  --color-space-950: #03060C;
+  --color-space-900: #05080F;
+  --color-space-800: #080D18;
+  --color-space-700: #0C1220;
+  --color-space-600: #111827;
+  --color-space-500: #1C2537;
+
+  /* ── Brand colors ──────────────────────────────────────────────────────── */
+  --color-volt: #00F5A0;          /* signature green — success + emphasis */
+  --color-volt-dim: rgba(0, 245, 160, 0.10);
+  --color-coral: #FF6B35;         /* primary CTA orange */
+  --color-coral-dim: rgba(255, 107, 53, 0.10);
+
+  /* ── Accents (used in charts + status surfaces) ────────────────────────── */
+  --color-cyan-200: #A5F3FC;
+  --color-cyan-300: #67E8F9;
+  --color-cyan-400: #22D3EE;
+  --color-cyan-500: #06B6D4;
+  --color-indigo-300: #A5B4FC;
+  --color-indigo-400: #818CF8;
+  --color-indigo-500: #6366F1;
+  --color-amber-400: #FBBF24;
+  --color-emerald-400: #34D399;
+  --color-purple-400: #C084FC;
+  --color-purple-500: #A855F7;
+  --color-rose-400: #FB7185;
+  --color-rose-500: #F43F5E;
+
+  /* ── Text colors — never let the text disappear into the bg ────────────── */
+  --color-ink-100: #F8FAFC;       /* pure light — headings on dark bg */
+  --color-ink-200: #E2E8F0;       /* body */
+  --color-ink-300: #CBD5E1;       /* secondary body */
+  --color-ink-400: #94A3B8;       /* muted */
+  --color-ink-500: #64748B;       /* dim */
+  --color-ink-600: #475569;       /* extra-dim (labels/captions) */
+
+  /* ── Glass effects ─────────────────────────────────────────────────────── */
+  --color-glass: rgba(255, 255, 255, 0.08);
+  --color-glass-strong: rgba(255, 255, 255, 0.12);
+
+  /* ── Fonts ─────────────────────────────────────────────────────────────── */
+  --font-sans: "Inter Variable", "Inter", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", "Fira Code", monospace;
+  --font-display: "Plus Jakarta Sans", "Inter Variable", system-ui, sans-serif;
+
+  /* ── Shadows + glows ───────────────────────────────────────────────────── */
+  --shadow-glow-cyan: 0 0 40px rgba(34, 211, 238, 0.18);
+  --shadow-glow-volt: 0 0 30px rgba(0, 245, 160, 0.18);
+  --shadow-glow-coral: 0 0 30px rgba(255, 107, 53, 0.18);
+  --shadow-card: 0 1px 0 rgba(255, 255, 255, 0.05), 0 4px 24px rgba(0, 0, 0, 0.4);
+  --shadow-card-hover: 0 1px 0 rgba(255, 255, 255, 0.08), 0 8px 40px rgba(0, 0, 0, 0.6);
+
+  /* ── Animations ────────────────────────────────────────────────────────── */
+  --animate-fade-up: fadeUp 0.55s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  --animate-fade-in: fadeIn 0.4s ease-out forwards;
+  --animate-slide-up: slideUp 0.45s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  --animate-scale-in: scaleIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  --animate-glow-pulse: glowPulse 3s ease-in-out infinite;
+  --animate-shimmer: shimmer 2.5s linear infinite;
+
+  @keyframes fadeUp {
+    0% { opacity: 0; transform: translateY(20px); }
+    100% { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes fadeIn {
+    0% { opacity: 0; }
+    100% { opacity: 1; }
+  }
+  @keyframes slideUp {
+    0% { opacity: 0; transform: translateY(12px); }
+    100% { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes scaleIn {
+    0% { opacity: 0; transform: scale(0.96); }
+    100% { opacity: 1; transform: scale(1); }
+  }
+  @keyframes glowPulse {
+    0%, 100% { opacity: 0.5; }
+    50% { opacity: 1; }
+  }
+  @keyframes shimmer {
+    0% { background-position: -200% center; }
+    100% { background-position: 200% center; }
+  }
+}
+
+/* ─── Legacy tokens (kept for the existing Admin layout / Observatory /
+       AdminLogin screens that still reference --surface, --accent, …) ───── */
 :root {
   color-scheme: dark;
 
-  --bg:          #060608;
+  --bg:          #050810;  /* aligned to space-900 */
   --surface:     #0D1117;
   --surface-2:   #161B22;
   --border:      #21262D;
   --border-soft: #161B22;
-  --text:        #E6EDF3;
-  --text-muted:  #8B949E;
-  --text-dim:    #484F58;
-  --accent:      #22C55E;
-  --accent-dim:  rgba(34, 197, 94, 0.08);
-  --accent-glow: rgba(34, 197, 94, 0.18);
+  --text:        #E2E8F0;  /* aligned to ink-200 */
+  --text-muted:  #94A3B8;
+  --text-dim:    #64748B;
+  --accent:      #00F5A0;  /* re-pointed to volt */
+  --accent-dim:  rgba(0, 245, 160, 0.10);
+  --accent-glow: rgba(0, 245, 160, 0.20);
   --red:         #F85149;
-  --blue:        #388BFD;
-  --orange:      #D29922;
-  --purple:      #A371F7;
+  --blue:        #22D3EE;
+  --orange:      #FBBF24;
+  --purple:      #C084FC;
 
-  --font-display: 'Syne', system-ui, sans-serif;
-  --font-body:    'IBM Plex Sans', system-ui, sans-serif;
-  --font-mono:    'JetBrains Mono', 'Fira Code', monospace;
+  --font-display: "Plus Jakarta Sans", "Inter Variable", system-ui, sans-serif;
+  --font-body:    "Inter Variable", "Inter", system-ui, sans-serif;
+  --font-mono:    "JetBrains Mono", "Fira Code", monospace;
 }
 
 /* ─── Base ─────────────────────────────────────────────── */
@@ -35,29 +130,97 @@ body {
   font-family: var(--font-body);
   background: var(--bg);
   color: var(--text);
-  line-height: 1.65;
+  line-height: 1.6;
+  font-feature-settings: "ss01", "cv11";  /* nicer Inter alternates */
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* Headings get the display font + tighter tracking by default. */
+h1, h2, h3, h4 {
+  font-family: var(--font-display);
+  letter-spacing: -0.01em;
 }
 
 /* ─── Scrollbar ─────────────────────────────────────────── */
-::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
 
-/* ─── Animations ────────────────────────────────────────── */
-@keyframes fadeUp {
+/* ─── Utilities: glass cards + brand gradient text ──────── */
+.beacon-glass {
+  background: rgba(8, 13, 24, 0.55);          /* space-800/55 */
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  border: 1px solid var(--color-glass);
+  box-shadow: var(--shadow-card);
+}
+
+.beacon-glass-strong {
+  background: rgba(12, 18, 32, 0.85);          /* space-700/85 */
+  backdrop-filter: blur(18px) saturate(140%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  border: 1px solid var(--color-glass-strong);
+}
+
+.text-gradient-cyan {
+  background: linear-gradient(135deg, #67E8F9 0%, #22D3EE 50%, #06B6D4 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.text-gradient-volt {
+  background: linear-gradient(135deg, #5EEAD4 0%, #00F5A0 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.text-gradient-coral {
+  background: linear-gradient(135deg, #FBBF24 0%, #FF6B35 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.text-gradient-purple {
+  background: linear-gradient(135deg, #C084FC 0%, #A855F7 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Soft, full-page mesh background used by Dashboard + Observatory hero. */
+.beacon-mesh {
+  background-color: var(--bg);
+  background-image:
+    radial-gradient(ellipse 60% 50% at 20% 0%,   rgba(0, 245, 160, 0.06) 0%, transparent 55%),
+    radial-gradient(ellipse 70% 60% at 80% 0%,   rgba(34, 211, 238, 0.06) 0%, transparent 55%),
+    radial-gradient(ellipse 60% 50% at 50% 100%, rgba(192, 132, 252, 0.04) 0%, transparent 55%);
+}
+
+.beacon-grid-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+  background-size: 64px 64px;
+  mask-image: radial-gradient(ellipse 80% 60% at 50% 30%, #000 40%, transparent 100%);
+}
+
+/* ─── Legacy animations (kept; some pages still reference them) ───────── */
+@keyframes legacyFadeUp {
   from { opacity: 0; transform: translateY(28px); }
   to   { opacity: 1; transform: translateY(0); }
 }
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to   { opacity: 1; }
-}
 @keyframes blink {
   0%, 100% { opacity: 1; }
-  50%       { opacity: 0; }
+  50%      { opacity: 0; }
 }
 @keyframes slideRight {
   from { opacity: 0; transform: translateX(-16px); }
@@ -65,11 +228,11 @@ body {
 }
 @keyframes gradientShift {
   0%, 100% { background-position: 0% 50%; }
-  50%       { background-position: 100% 50%; }
+  50%      { background-position: 100% 50%; }
 }
 
-.animate-fade-up     { animation: fadeUp    0.65s cubic-bezier(0.22, 1, 0.36, 1) both; }
-.animate-fade-in     { animation: fadeIn    0.5s ease both; }
+.animate-fade-up     { animation: legacyFadeUp 0.65s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.animate-fade-in     { animation: fadeIn 0.5s ease both; }
 .animate-slide-right { animation: slideRight 0.5s cubic-bezier(0.22, 1, 0.36, 1) both; }
 
 .delay-100 { animation-delay: 0.10s; }
@@ -81,12 +244,12 @@ body {
 .delay-700 { animation-delay: 0.70s; }
 .delay-800 { animation-delay: 0.80s; }
 
-/* ─── Landing backgrounds ───────────────────────────────── */
-.bg-mesh {
+/* ─── Landing backgrounds (legacy alias) ───────────────────────────────── */
+.bg-mesh { /* legacy alias for older pages */
   background-color: var(--bg);
   background-image:
-    radial-gradient(ellipse at 15% 0%,   rgba(34,197,94,0.07) 0%, transparent 55%),
-    radial-gradient(ellipse at 85% 100%, rgba(56,139,253,0.04) 0%, transparent 55%);
+    radial-gradient(ellipse at 15% 0%,   rgba(0, 245, 160, 0.06) 0%, transparent 55%),
+    radial-gradient(ellipse at 85% 100%, rgba(34, 211, 238, 0.05) 0%, transparent 55%);
 }
 
 .grid-overlay {
@@ -94,12 +257,12 @@ body {
   inset: 0;
   pointer-events: none;
   background-image:
-    linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
+    linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
   background-size: 56px 56px;
 }
 
-/* ─── Terminal ──────────────────────────────────────────── */
+/* ─── Terminal (used by CommandsPanel + legacy demos) ──────────────────── */
 .terminal {
   background: #0D1117;
   border: 1px solid var(--border);
@@ -123,7 +286,7 @@ body {
 .terminal-body { padding: 18px 20px; }
 
 .term-prompt  { color: var(--accent); }
-.term-cmd     { color: #E6EDF3; }
+.term-cmd     { color: #E2E8F0; }
 .term-output  { color: var(--text-muted); }
 .term-success { color: var(--accent); }
 .term-info    { color: var(--blue); }
@@ -155,7 +318,7 @@ pre, code { font-family: var(--font-mono); }
   line-height: 1.75;
 }
 
-/* ─── Badges ─────────────────────────────────────────────── */
+/* ─── Badges (legacy, kept for older pages) ─────────────────────────────── */
 .badge {
   display: inline-flex; align-items: center; gap: 6px;
   padding: 3px 12px; border-radius: 9999px;
@@ -164,7 +327,7 @@ pre, code { font-family: var(--font-mono); }
 }
 .badge-green {
   background: var(--accent-dim);
-  border: 1px solid rgba(34,197,94,0.25);
+  border: 1px solid rgba(0, 245, 160, 0.25);
   color: var(--accent);
 }
 .badge-default {
@@ -173,7 +336,7 @@ pre, code { font-family: var(--font-mono); }
   color: var(--text-muted);
 }
 
-/* ─── Feature cards ──────────────────────────────────────── */
+/* ─── Feature cards (legacy) ────────────────────────────────────────────── */
 .feature-card {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -182,12 +345,12 @@ pre, code { font-family: var(--font-mono); }
   transition: border-color 0.2s ease, background 0.2s ease, transform 0.2s ease;
 }
 .feature-card:hover {
-  border-color: rgba(34,197,94,0.3);
+  border-color: rgba(0, 245, 160, 0.3);
   background: #0E1419;
   transform: translateY(-2px);
 }
 
-/* ─── Buttons ────────────────────────────────────────────── */
+/* ─── Buttons (legacy) ──────────────────────────────────────────────────── */
 .btn-primary {
   display: inline-flex; align-items: center; gap: 8px;
   padding: 12px 24px;
@@ -197,7 +360,7 @@ pre, code { font-family: var(--font-mono); }
   text-decoration: none;
   transition: background 0.15s, transform 0.15s;
 }
-.btn-primary:hover { background: #16A34A; transform: translateY(-1px); }
+.btn-primary:hover { background: #14E599; transform: translateY(-1px); }
 
 .btn-secondary {
   display: inline-flex; align-items: center; gap: 8px;
@@ -210,7 +373,7 @@ pre, code { font-family: var(--font-mono); }
 }
 .btn-secondary:hover { border-color: var(--text-muted); transform: translateY(-1px); }
 
-/* ─── Copy command ───────────────────────────────────────── */
+/* ─── Copy command ──────────────────────────────────────── */
 .install-box {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -228,7 +391,7 @@ pre, code { font-family: var(--font-mono); }
   transition: color 0.15s, border-color 0.15s;
 }
 .copy-btn:hover { color: var(--text); border-color: var(--text-dim); }
-.copy-btn.copied { color: var(--accent); border-color: rgba(34,197,94,0.4); }
+.copy-btn.copied { color: var(--accent); border-color: rgba(0, 245, 160, 0.4); }
 
 /* ─── Kingdom diagram ────────────────────────────────────── */
 .kingdom-node {
@@ -238,6 +401,4 @@ pre, code { font-family: var(--font-mono); }
   padding: 20px 24px;
   transition: border-color 0.2s;
 }
-.kingdom-node:hover { border-color: rgba(34,197,94,0.3); }
-
-/* ─── Dashboard layout (unchanged) ──────────────────────── */
+.kingdom-node:hover { border-color: rgba(0, 245, 160, 0.3); }

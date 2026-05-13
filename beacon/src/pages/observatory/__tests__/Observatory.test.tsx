@@ -3,6 +3,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { MemoryRouter, Routes, Route, useLocation } from 'react-router'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import Observatory, { OBSERVATORY_BASE } from '../Observatory'
+import { I18nProvider } from '@/contexts/i18n'
 
 vi.mock('@/stores/admin', () => ({
   useAdminStore: Object.assign(
@@ -109,6 +110,10 @@ const fetchMock = vi.fn(async (input?: RequestInfo | URL | string | null) => {
     projects: [],
     count: 0,
   })
+  if (url.includes('/admin/commands')) return jsonResponse({
+    commands: [],
+    local_only: true,
+  })
   return jsonResponse({})
 })
 vi.stubGlobal('fetch', fetchMock)
@@ -122,14 +127,16 @@ function LocationProbe() {
 function renderAt(initialPath: string) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
-    <QueryClientProvider client={qc}>
-      <MemoryRouter initialEntries={[initialPath]}>
-        <Routes>
-          <Route path="/admin/observatory/*" element={<Observatory />} />
-        </Routes>
-        <LocationProbe />
-      </MemoryRouter>
-    </QueryClientProvider>,
+    <I18nProvider>
+      <QueryClientProvider client={qc}>
+        <MemoryRouter initialEntries={[initialPath]}>
+          <Routes>
+            <Route path="/admin/observatory/*" element={<Observatory />} />
+          </Routes>
+          <LocationProbe />
+        </MemoryRouter>
+      </QueryClientProvider>
+    </I18nProvider>,
   )
 }
 
@@ -142,7 +149,7 @@ describe('Observatory navigation', () => {
     expect(OBSERVATORY_BASE).toBe('/admin/observatory')
   })
 
-  it('renders 8 sub-tabs with absolute hrefs from /admin/observatory/health', () => {
+  it('renders 9 sub-tabs with absolute hrefs from /admin/observatory/health', () => {
     renderAt('/admin/observatory/health')
     const nav = screen.getByRole('navigation', { name: /observatory sections/i })
     const hrefs = Array.from(nav.querySelectorAll('a')).map(
@@ -152,6 +159,7 @@ describe('Observatory navigation', () => {
       '/admin/observatory/health',
       '/admin/observatory/tokens',
       '/admin/observatory/activity',
+      '/admin/observatory/commands',
       '/admin/observatory/conflicts',
       '/admin/observatory/projects',
       '/admin/observatory/export',
@@ -173,6 +181,7 @@ describe('Observatory navigation', () => {
       '/admin/observatory/health',
       '/admin/observatory/tokens',
       '/admin/observatory/activity',
+      '/admin/observatory/commands',
       '/admin/observatory/conflicts',
       '/admin/observatory/projects',
       '/admin/observatory/export',
@@ -227,6 +236,7 @@ describe('Observatory navigation', () => {
     ['health', /System Health/i],
     ['tokens', /Token Analytics/i],
     ['activity', /Activity Timeline/i],
+    ['commands', /Commands/i],
     ['conflicts', /Conflicts/i],
     ['projects', /Projects/i],
     ['export', /Obsidian export/i],
