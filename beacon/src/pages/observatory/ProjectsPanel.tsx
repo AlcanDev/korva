@@ -141,7 +141,13 @@ function ProjectsList({ tx }: { tx: ProjectsLang }) {
 					/>
 					{projects.length === 0 ? (
 						<CardBody>
-							<EmptyState title={tx.emptyTitle} description={tx.emptyDesc} />
+							<EmptyState
+								tone="cyan"
+								icon={<FolderTree size={22} />}
+								title={tx.emptyTitle}
+								description={tx.emptyDesc}
+								hint="vault_save → start tracking"
+							/>
 						</CardBody>
 					) : (
 						<div className="overflow-x-auto">
@@ -215,7 +221,13 @@ function ConsolidateView({ tx }: { tx: ProjectsLang }) {
 			/>
 			<CardBody>
 				{proposals.length === 0 ? (
-					<EmptyState title={tx.consolidateEmpty} description={tx.consolidateEmptyDesc} />
+					<EmptyState
+						tone="volt"
+						icon={<GitMerge size={22} />}
+						title={tx.consolidateEmpty}
+						description={tx.consolidateEmptyDesc}
+						hint="Korva normalizes names automatically"
+					/>
 				) : (
 					<div className="space-y-3">
 						{proposals.map((p) => (
@@ -383,7 +395,13 @@ function PruneView({ tx }: { tx: ProjectsLang }) {
 				</div>
 				{prune.error && <ErrorBanner message={String(prune.error)} />}
 				{data && empty.length === 0 && (
-					<EmptyState title={tx.pruneEmptyTitle} description={tx.pruneEmptyDesc} />
+					<EmptyState
+						tone="volt"
+						icon={<Check size={22} />}
+						title={tx.pruneEmptyTitle}
+						description={tx.pruneEmptyDesc}
+						hint="Nothing to clean — you're tidy"
+					/>
 				)}
 				{data && empty.length > 0 && (
 					<div className="overflow-x-auto rounded-lg border border-white/8">
