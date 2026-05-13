@@ -1,11 +1,13 @@
 import { NavLink, Routes, Route, Navigate } from 'react-router'
-import { Activity, Coins, Clock, Settings, Shield, GitMerge } from 'lucide-react'
+import { Activity, Coins, Clock, Settings, Shield, GitMerge, FolderTree, Download } from 'lucide-react'
 import SystemHealth from './SystemHealth'
 import TokenAnalytics from './TokenAnalytics'
 import ActivityTimeline from './ActivityTimeline'
 import ConfigEditor from './ConfigEditor'
 import SentinelRulesEditor from './SentinelRulesEditor'
 import ConflictsPanel from './ConflictsPanel'
+import ProjectsPanel from './ProjectsPanel'
+import ExportPanel from './ExportPanel'
 
 // Base path is hard-coded to match the parent route in Admin.tsx
 // (`<Route path="observatory/*" element={<Observatory />} />`). Using absolute
@@ -20,6 +22,8 @@ const SUBNAV = [
   { path: 'tokens', label: 'Tokens', icon: Coins },
   { path: 'activity', label: 'Activity', icon: Clock },
   { path: 'conflicts', label: 'Conflicts', icon: GitMerge },
+  { path: 'projects', label: 'Projects', icon: FolderTree },
+  { path: 'export', label: 'Export', icon: Download },
   { path: 'config', label: 'Configuration', icon: Settings },
   { path: 'sentinel', label: 'Sentinel Rules', icon: Shield },
 ] as const
@@ -56,6 +60,8 @@ export default function Observatory() {
           <Route path="tokens" element={<TokenAnalytics />} />
           <Route path="activity" element={<ActivityTimeline />} />
           <Route path="conflicts" element={<ConflictsPanel />} />
+          <Route path="projects" element={<ProjectsPanel />} />
+          <Route path="export" element={<ExportPanel />} />
           <Route path="config" element={<ConfigEditor />} />
           <Route path="sentinel" element={<SentinelRulesEditor />} />
           {/* Anything else under /admin/observatory falls back to health so a

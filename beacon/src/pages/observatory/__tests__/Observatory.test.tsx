@@ -101,6 +101,14 @@ const fetchMock = vi.fn(async (input?: RequestInfo | URL | string | null) => {
     count: 0,
     status: 'pending',
   })
+  if (url.includes('/admin/projects/suggestions')) return jsonResponse({
+    proposals: [],
+    count: 0,
+  })
+  if (url.includes('/admin/projects')) return jsonResponse({
+    projects: [],
+    count: 0,
+  })
   return jsonResponse({})
 })
 vi.stubGlobal('fetch', fetchMock)
@@ -134,7 +142,7 @@ describe('Observatory navigation', () => {
     expect(OBSERVATORY_BASE).toBe('/admin/observatory')
   })
 
-  it('renders 6 sub-tabs with absolute hrefs from /admin/observatory/health', () => {
+  it('renders 8 sub-tabs with absolute hrefs from /admin/observatory/health', () => {
     renderAt('/admin/observatory/health')
     const nav = screen.getByRole('navigation', { name: /observatory sections/i })
     const hrefs = Array.from(nav.querySelectorAll('a')).map(
@@ -145,6 +153,8 @@ describe('Observatory navigation', () => {
       '/admin/observatory/tokens',
       '/admin/observatory/activity',
       '/admin/observatory/conflicts',
+      '/admin/observatory/projects',
+      '/admin/observatory/export',
       '/admin/observatory/config',
       '/admin/observatory/sentinel',
     ])
@@ -164,6 +174,8 @@ describe('Observatory navigation', () => {
       '/admin/observatory/tokens',
       '/admin/observatory/activity',
       '/admin/observatory/conflicts',
+      '/admin/observatory/projects',
+      '/admin/observatory/export',
       '/admin/observatory/config',
       '/admin/observatory/sentinel',
     ])
@@ -216,6 +228,8 @@ describe('Observatory navigation', () => {
     ['tokens', /Token Analytics/i],
     ['activity', /Activity Timeline/i],
     ['conflicts', /Conflicts/i],
+    ['projects', /Projects/i],
+    ['export', /Obsidian export/i],
     ['config', /Configuration/i],
     ['sentinel', /Sentinel Rules/i],
   ])('mounts the %s page heading at /admin/observatory/%s', async (slug, heading) => {
