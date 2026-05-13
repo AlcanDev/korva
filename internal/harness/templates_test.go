@@ -451,6 +451,94 @@ func TestGenerate_NonSDD_SeedFeatureIsPlain(t *testing.T) {
 	}
 }
 
+func TestGenerate_SDD_AddsSpecAuthorForMultiFileEditors(t *testing.T) {
+	// claude, cursor, windsurf each get a spec_author rule file when SDD
+	// is on. continue + copilot don't (single-file editors).
+	cases := map[Editor]string{
+		EditorClaude:   ".claude/agents/spec_author.md",
+		EditorCursor:   ".cursor/rules/korva-harness-sdd-spec-author.mdc",
+		EditorWindsurf: ".windsurf/rules/korva-harness-sdd-spec-author.md",
+	}
+	for editor, path := range cases {
+		editor, path := editor, path
+		t.Run(string(editor), func(t *testing.T) {
+			dir := t.TempDir()
+			if _, err := Generate(InitOptions{
+				Root: dir, Project: "x", Stack: StackGeneric,
+				Editors: []Editor{editor}, SDD: true,
+			}); err != nil {
+				t.Fatalf("generate: %v", err)
+			}
+			if _, err := os.Stat(filepath.Join(dir, filepath.FromSlash(path))); err != nil {
+				t.Errorf("missing spec_author rule for %s at %s: %v", editor, path, err)
+			}
+		})
+	}
+}
+
+func TestGenerate_SDD_NoSpecAuthorForSingleFileEditors(t *testing.T) {
+	// continue / copilot's rule files already encode the harness flow.
+	// No SDD-specific extra file — the SDD steps are universal CLI/MCP
+	// verbs the agent uses regardless of editor.
+	for _, e := range []Editor{EditorContinue, EditorCopilot} {
+		e := e
+		t.Run(string(e), func(t *testing.T) {
+			dir := t.TempDir()
+			if _, err := Generate(InitOptions{
+				Root: dir, Project: "x", Stack: StackGeneric,
+				Editors: []Editor{e}, SDD: true,
+			}); err != nil {
+				t.Fatalf("generate: %v", err)
+			}
+			// No spec_author-named file should exist anywhere under dir.
+			// Walk errors aren't expected on a freshly-generated harness,
+			// but propagate them anyway so the assertion never silently
+			// passes after a permission issue.
+			extra := false
+			if err := filepath.Walk(dir, func(p string, info os.FileInfo, err error) error {
+				if err != nil {
+					return err
+				}
+				if !info.IsDir() && strings.Contains(filepath.Base(p), "spec-author") {
+					extra = true
+				}
+				return nil
+			}); err != nil {
+				t.Fatalf("walk: %v", err)
+			}
+			if extra {
+				t.Errorf("editor %s should not get a spec_author file", e)
+			}
+		})
+	}
+}
+
+func TestGenerate_NonSDD_NoSpecAuthorForAnyEditor(t *testing.T) {
+	for _, e := range AllEditors {
+		e := e
+		t.Run(string(e), func(t *testing.T) {
+			dir := t.TempDir()
+			if _, err := Generate(InitOptions{
+				Root: dir, Project: "x", Stack: StackGeneric,
+				Editors: []Editor{e},
+			}); err != nil {
+				t.Fatalf("generate: %v", err)
+			}
+			candidates := []string{
+				".claude/agents/spec_author.md",
+				".cursor/rules/korva-harness-sdd-spec-author.mdc",
+				".windsurf/rules/korva-harness-sdd-spec-author.md",
+			}
+			for _, c := range candidates {
+				full := filepath.Join(dir, filepath.FromSlash(c))
+				if _, err := os.Stat(full); err == nil {
+					t.Errorf("non-SDD harness should not contain %s", c)
+				}
+			}
+		})
+	}
+}
+
 func TestGenerate_SDD_TemplatesRenderProjectVar(t *testing.T) {
 	dir := t.TempDir()
 	if _, err := Generate(InitOptions{

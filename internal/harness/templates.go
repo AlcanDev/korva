@@ -171,6 +171,19 @@ func Generate(opts InitOptions) ([]string, error) {
 		if err := walkAndWrite("templates/editors/"+string(e), opts, &written); err != nil {
 			return nil, err
 		}
+		// SDD adds an extra spec_author rule file for editors with a
+		// multi-file convention (claude, cursor, windsurf). Single-file
+		// editors (continue, copilot) get no separate file — their one
+		// rules document already covers the harness flow; the SDD steps
+		// are universal CLI/MCP verbs an agent uses regardless.
+		if opts.SDD {
+			sddEditorDir := "templates/editors-sdd/" + string(e)
+			if _, err := templateFS.ReadDir(sddEditorDir); err == nil {
+				if err := walkAndWrite(sddEditorDir, opts, &written); err != nil {
+					return nil, err
+				}
+			}
+		}
 	}
 
 	// 5. SDD spec templates — only when --sdd is set. They live under

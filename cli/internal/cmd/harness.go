@@ -45,6 +45,7 @@ type harnessInitFlags struct {
 	Description string
 	Stack       string
 	Editors     string // CSV or "auto" / "none"
+	SDD         bool
 	Overwrite   bool
 }
 
@@ -90,6 +91,7 @@ func runHarnessInit(_ *cobra.Command, _ []string) error {
 		Description: harnessInitOpts.Description,
 		Stack:       stack,
 		Editors:     editors,
+		SDD:         harnessInitOpts.SDD,
 		Overwrite:   harnessInitOpts.Overwrite,
 	})
 	if err != nil {
@@ -104,12 +106,19 @@ func runHarnessInit(_ *cobra.Command, _ []string) error {
 		}
 		editorLabel = strings.Join(parts, ", ")
 	}
-	printSuccess(fmt.Sprintf("Harness initialized for %q (stack: %s, editors: %s)", project, stack, editorLabel))
+	mode := "standard"
+	if harnessInitOpts.SDD {
+		mode = "SDD"
+	}
+	printSuccess(fmt.Sprintf("Harness initialized for %q (stack: %s, editors: %s, mode: %s)", project, stack, editorLabel, mode))
 	for _, f := range written {
 		fmt.Printf("    + %s\n", f)
 	}
 	if len(written) == 0 {
 		printInfo("No new files written — harness already present (use --overwrite to force).")
+	}
+	if harnessInitOpts.SDD {
+		printInfo("SDD mode: draft `specs/<feature>/{requirements,design,tasks}.md` then run `korva harness ready <id>` before implementing.")
 	}
 	printInfo("Next: review feature_list.json and run ./init.sh")
 	return nil
@@ -175,10 +184,12 @@ var harnessStatusCmd = &cobra.Command{
 // is deliberately small so `init.sh` (or any other script) can pipe it
 // into jq without parsing prose.
 type statusPayload struct {
-	Project    string         `json:"project"`
-	Counts     harness.Counts `json:"counts"`
-	InProgress *featureWire   `json:"in_progress,omitempty"`
-	NextID     int            `json:"next_pending_id,omitempty"`
+	Project         string         `json:"project"`
+	SDD             bool           `json:"sdd,omitempty"`
+	Counts          harness.Counts `json:"counts"`
+	InProgress      *featureWire   `json:"in_progress,omitempty"`
+	NextID          int            `json:"next_pending_id,omitempty"`
+	NextSpecReadyID int            `json:"next_spec_ready_id,omitempty"`
 }
 
 type featureWire struct {
@@ -202,6 +213,10 @@ func runHarnessStatus(_ *cobra.Command, _ []string) error {
 	if next := fl.NextPending(); next != nil {
 		payload.NextID = next.ID
 	}
+	if ready := fl.NextSpecReady(); ready != nil {
+		payload.NextSpecReadyID = ready.ID
+	}
+	payload.SDD = fl.Rules.RequireApprovedSpecToImplement
 
 	if harnessStatusJSON {
 		enc := json.NewEncoder(os.Stdout)
@@ -214,8 +229,16 @@ func runHarnessStatus(_ *cobra.Command, _ []string) error {
 	if fl.Description != "" {
 		fmt.Printf("            %s\n", fl.Description)
 	}
+	if payload.SDD {
+		fmt.Println("Mode:       SDD")
+	}
 	fmt.Println()
 	fmt.Printf("  pending:     %d\n", c.Pending)
+	// spec_ready only renders when the harness is SDD-mode OR the count
+	// is non-zero (defensive: a hand-edited file may carry the status).
+	if payload.SDD || c.SpecReady > 0 {
+		fmt.Printf("  spec_ready:  %d\n", c.SpecReady)
+	}
 	fmt.Printf("  in_progress: %d\n", c.InProgress)
 	fmt.Printf("  done:        %d\n", c.Done)
 	fmt.Printf("  blocked:     %d\n", c.Blocked)
@@ -227,9 +250,13 @@ func runHarnessStatus(_ *cobra.Command, _ []string) error {
 	} else {
 		fmt.Println("In progress: (none)")
 	}
+	if payload.NextSpecReadyID > 0 {
+		fmt.Printf("Awaiting approval: #%d  (run 'korva harness start %d' to begin implementation)\n",
+			payload.NextSpecReadyID, payload.NextSpecReadyID)
+	}
 	if payload.NextID > 0 {
 		fmt.Printf("Next pending: #%d  (run 'korva harness next' to see acceptance criteria)\n", payload.NextID)
-	} else {
+	} else if payload.NextSpecReadyID == 0 {
 		fmt.Println("Next pending: (backlog clear)")
 	}
 	return nil
@@ -371,6 +398,7 @@ type harnessAddFlags struct {
 	Title       string
 	Description string
 	Acceptance  []string
+	SDD         bool
 }
 
 var harnessAddOpts harnessAddFlags
@@ -406,12 +434,112 @@ func runHarnessAdd(_ *cobra.Command, _ []string) error {
 		Description: harnessAddOpts.Description,
 		Acceptance:  harnessAddOpts.Acceptance,
 		Status:      harness.StatusPending,
+		SDD:         harnessAddOpts.SDD,
 		UpdatedAt:   time.Now().UTC().Format(time.RFC3339),
 	})
 	if err := harness.SaveFeatureList(".", fl); err != nil {
 		return err
 	}
-	printSuccess(fmt.Sprintf("Feature #%d (%s) added to backlog", nextID, harnessAddOpts.Name))
+	mode := ""
+	if harnessAddOpts.SDD {
+		mode = " (SDD-gated — draft specs/<name>/* and run `korva harness ready` before implementing)"
+	}
+	printSuccess(fmt.Sprintf("Feature #%d (%s) added to backlog%s", nextID, harnessAddOpts.Name, mode))
+	return nil
+}
+
+// --- spec ------------------------------------------------------------------
+
+var harnessSpecOverwrite bool
+
+var harnessSpecCmd = &cobra.Command{
+	Use:   "spec <id>",
+	Short: "Materialize specs/<feature>/{requirements,design,tasks}.md for an SDD feature",
+	Args:  cobra.ExactArgs(1),
+	RunE:  runHarnessSpec,
+}
+
+func runHarnessSpec(_ *cobra.Command, args []string) error {
+	id, err := strconv.Atoi(args[0])
+	if err != nil {
+		return fmt.Errorf("id must be an integer, got %q", args[0])
+	}
+	fl, err := harness.LoadFeatureList(".")
+	if err != nil {
+		return err
+	}
+	f := fl.FindByID(id)
+	if f == nil {
+		return fmt.Errorf("feature %d not found", id)
+	}
+	if !f.SDD {
+		return fmt.Errorf("feature #%d (%s) is not SDD-flagged — add it with --sdd or set sdd:true in feature_list.json", id, f.Name)
+	}
+	res, err := harness.MaterializeSpec(".", f, harnessSpecOverwrite)
+	if err != nil {
+		return err
+	}
+	if len(res.Written) > 0 {
+		printSuccess(fmt.Sprintf("Spec materialized at %s", res.Dir))
+		for _, name := range res.Written {
+			fmt.Printf("    + %s\n", name)
+		}
+	}
+	for _, name := range res.Skipped {
+		printInfo(fmt.Sprintf("Kept existing %s/%s (use --overwrite to replace)", res.Dir, name))
+	}
+	if len(res.Written) == 0 && len(res.Skipped) == len(harness.SpecFiles) {
+		printInfo("All three spec files already exist; nothing to do.")
+	}
+	printInfo(fmt.Sprintf("When ready: korva harness ready %d", id))
+	return nil
+}
+
+// --- ready -----------------------------------------------------------------
+// `korva harness ready <id>` is the SDD spec_author → human handoff. It
+// transitions pending → spec_ready *only* when the three spec files
+// already exist on disk — preventing accidental approvals of an empty
+// scaffold.
+
+var harnessReadyCmd = &cobra.Command{
+	Use:   "ready <id>",
+	Short: "Mark a SDD feature's spec as ready for human review (pending → spec_ready)",
+	Args:  cobra.ExactArgs(1),
+	RunE:  runHarnessReady,
+}
+
+func runHarnessReady(cmd *cobra.Command, args []string) error {
+	id, err := strconv.Atoi(args[0])
+	if err != nil {
+		return fmt.Errorf("id must be an integer, got %q", args[0])
+	}
+	fl, err := harness.LoadFeatureList(".")
+	if err != nil {
+		return err
+	}
+	f := fl.FindByID(id)
+	if f == nil {
+		return fmt.Errorf("feature %d not found", id)
+	}
+	if !f.SDD {
+		return fmt.Errorf("feature #%d (%s) is not SDD-flagged — the ready step only applies to SDD features", id, f.Name)
+	}
+	if !harness.SpecComplete(".", f.Name) {
+		return fmt.Errorf("spec files missing — run `korva harness spec %d` to scaffold them, then draft them before marking ready", id)
+	}
+	owner, _ := cmd.Flags().GetString("agent")
+	if owner == "" {
+		owner = defaultAgentName()
+	}
+	now := time.Now().UTC().Format(time.RFC3339)
+	if err := fl.SetStatus(id, harness.StatusSpecReady, owner, now); err != nil {
+		return err
+	}
+	if err := harness.SaveFeatureList(".", fl); err != nil {
+		return err
+	}
+	printSuccess(fmt.Sprintf("Feature #%d (%s) → spec_ready", id, f.Name))
+	printInfo("Awaiting human approval. Reviewer runs `korva harness start " + args[0] + "` to begin implementation.")
 	return nil
 }
 
@@ -424,6 +552,8 @@ func statusMarker(s harness.FeatureStatus) string {
 		return "✓"
 	case harness.StatusInProgress:
 		return "►"
+	case harness.StatusSpecReady:
+		return "✎"
 	case harness.StatusBlocked:
 		return "✗"
 	default:
@@ -484,10 +614,13 @@ func init() {
 	harnessInitCmd.Flags().StringVarP(&harnessInitOpts.Stack, "stack", "s", "", "stack preset: "+joinStacks()+" (auto-detect when empty)")
 	harnessInitCmd.Flags().StringVar(&harnessInitOpts.Editors, "editors", "auto",
 		"editor rule files to install: comma-separated list ("+joinEditors()+"), 'auto' to detect, or 'none'")
+	harnessInitCmd.Flags().BoolVar(&harnessInitOpts.SDD, "sdd", false,
+		"enable Spec-Driven Development mode: features must be drafted as specs/<name>/* and approved before implementation")
 	harnessInitCmd.Flags().BoolVarP(&harnessInitOpts.Overwrite, "overwrite", "f", false, "replace existing harness files")
 
-	// shared transition flag
-	for _, c := range []*cobra.Command{harnessStartCmd, harnessDoneCmd, harnessBlockCmd, harnessReopenCmd} {
+	// shared transition flag — the ready command joins the start/done/block/reopen
+	// family because it also records OwnerAgent + UpdatedAt.
+	for _, c := range []*cobra.Command{harnessStartCmd, harnessDoneCmd, harnessBlockCmd, harnessReopenCmd, harnessReadyCmd} {
 		c.Flags().String("agent", "", "agent name to record as owner (defaults to $KORVA_AGENT or 'cli')")
 	}
 
@@ -500,6 +633,10 @@ func init() {
 	harnessAddCmd.Flags().StringVar(&harnessAddOpts.Title, "title", "", "human-readable title (defaults to name)")
 	harnessAddCmd.Flags().StringVar(&harnessAddOpts.Description, "description", "", "longer description")
 	harnessAddCmd.Flags().StringSliceVar(&harnessAddOpts.Acceptance, "accept", nil, "acceptance criterion (repeatable)")
+	harnessAddCmd.Flags().BoolVar(&harnessAddOpts.SDD, "sdd", false, "mark as SDD-gated (requires spec drafting + ready approval before implementation)")
+
+	// spec flags
+	harnessSpecCmd.Flags().BoolVarP(&harnessSpecOverwrite, "overwrite", "f", false, "replace existing spec files (operator content is lost)")
 
 	harnessCmd.AddCommand(harnessInitCmd)
 	harnessCmd.AddCommand(harnessStatusCmd)
@@ -510,4 +647,6 @@ func init() {
 	harnessCmd.AddCommand(harnessBlockCmd)
 	harnessCmd.AddCommand(harnessReopenCmd)
 	harnessCmd.AddCommand(harnessAddCmd)
+	harnessCmd.AddCommand(harnessSpecCmd)
+	harnessCmd.AddCommand(harnessReadyCmd)
 }

@@ -254,6 +254,252 @@ func TestRunHarnessList_RendersMarkers(t *testing.T) {
 	}
 }
 
+// ───────────────────────── Phase 13.2 — SDD CLI tests ─────────────────────────
+
+// initSDDHarnessForTest is the SDD counterpart of initHarnessForTest:
+// fresh tmp dir, materialize an SDD harness, chdir in.
+func initSDDHarnessForTest(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	if _, err := harness.Generate(harness.InitOptions{
+		Root:    dir,
+		Project: "sdd-demo",
+		Stack:   harness.StackGeneric,
+		SDD:     true,
+	}); err != nil {
+		t.Fatalf("generate: %v", err)
+	}
+	t.Chdir(dir)
+	return dir
+}
+
+func TestRunHarnessInit_SDDFlagSetsRule(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	harnessInitOpts = harnessInitFlags{
+		Root: ".", Project: "sdd-init", Stack: "generic", Editors: "none", SDD: true,
+	}
+	t.Cleanup(func() { harnessInitOpts = harnessInitFlags{} })
+
+	out := captureStdout(t, func() error { return runHarnessInit(nil, nil) })
+
+	if !strings.Contains(out, "mode: SDD") {
+		t.Errorf("output should announce SDD mode: %s", out)
+	}
+	fl, err := harness.LoadFeatureList(dir)
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if !fl.Rules.RequireApprovedSpecToImplement {
+		t.Error("--sdd should set RequireApprovedSpecToImplement")
+	}
+	if !fl.Features[0].SDD {
+		t.Error("seed feature should be sdd:true")
+	}
+}
+
+func TestRunHarnessAdd_SDDFlagPersists(t *testing.T) {
+	_ = initSDDHarnessForTest(t)
+	harnessAddOpts = harnessAddFlags{
+		Name: "auth_layer", Title: "Auth", Acceptance: []string{"works"}, SDD: true,
+	}
+	t.Cleanup(func() { harnessAddOpts = harnessAddFlags{} })
+
+	out := captureStdout(t, func() error { return runHarnessAdd(nil, nil) })
+
+	if !strings.Contains(out, "SDD-gated") {
+		t.Errorf("output should announce SDD gating: %s", out)
+	}
+	fl, _ := harness.LoadFeatureList(".")
+	if len(fl.Features) != 2 {
+		t.Fatalf("features = %d, want 2", len(fl.Features))
+	}
+	added := fl.Features[1]
+	if !added.SDD {
+		t.Error("added feature should be sdd:true")
+	}
+}
+
+func TestRunHarnessSpec_CreatesAllFiles(t *testing.T) {
+	dir := initSDDHarnessForTest(t)
+
+	out := captureStdout(t, func() error { return runHarnessSpec(nil, []string{"1"}) })
+
+	if !strings.Contains(out, "Spec materialized") {
+		t.Errorf("expected success line: %s", out)
+	}
+	for _, f := range harness.SpecFiles {
+		if _, err := os.Stat(filepath.Join(dir, "specs", "harness_smoke", f)); err != nil {
+			t.Errorf("spec file %s not created: %v", f, err)
+		}
+	}
+}
+
+func TestRunHarnessSpec_RejectsNonSDDFeature(t *testing.T) {
+	// Standard (non-SDD) harness → harness spec should refuse.
+	dir := t.TempDir()
+	if _, err := harness.Generate(harness.InitOptions{
+		Root: dir, Project: "plain", Stack: harness.StackGeneric,
+	}); err != nil {
+		t.Fatalf("generate: %v", err)
+	}
+	t.Chdir(dir)
+
+	err := runHarnessSpec(nil, []string{"1"})
+	if err == nil || !strings.Contains(err.Error(), "not SDD-flagged") {
+		t.Errorf("expected non-SDD rejection, got %v", err)
+	}
+}
+
+func TestRunHarnessSpec_RejectsBadID(t *testing.T) {
+	_ = initSDDHarnessForTest(t)
+	if err := runHarnessSpec(nil, []string{"not-a-number"}); err == nil {
+		t.Error("expected parse error for non-numeric id")
+	}
+	if err := runHarnessSpec(nil, []string{"999"}); err == nil {
+		t.Error("expected not-found error for unknown id")
+	}
+}
+
+func TestRunHarnessSpec_IdempotentByDefault(t *testing.T) {
+	dir := initSDDHarnessForTest(t)
+	_ = captureStdout(t, func() error { return runHarnessSpec(nil, []string{"1"}) })
+
+	// Overwrite requirements.md with operator content.
+	reqPath := filepath.Join(dir, "specs", "harness_smoke", "requirements.md")
+	if err := os.WriteFile(reqPath, []byte("OPERATOR"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	out := captureStdout(t, func() error { return runHarnessSpec(nil, []string{"1"}) })
+	if !strings.Contains(out, "Kept existing") {
+		t.Errorf("second call should report kept files: %s", out)
+	}
+	body, _ := os.ReadFile(reqPath)
+	if string(body) != "OPERATOR" {
+		t.Errorf("operator content was overwritten: %s", body)
+	}
+}
+
+func TestRunHarnessReady_RejectsWithoutSpecFiles(t *testing.T) {
+	_ = initSDDHarnessForTest(t)
+
+	err := runHarnessReady(harnessReadyCmd, []string{"1"})
+	if err == nil || !strings.Contains(err.Error(), "spec files missing") {
+		t.Errorf("expected spec-missing error, got %v", err)
+	}
+}
+
+func TestRunHarnessReady_HappyPath(t *testing.T) {
+	_ = initSDDHarnessForTest(t)
+	// Scaffold + transition.
+	_ = captureStdout(t, func() error { return runHarnessSpec(nil, []string{"1"}) })
+
+	out := captureStdout(t, func() error { return runHarnessReady(harnessReadyCmd, []string{"1"}) })
+	if !strings.Contains(out, "spec_ready") {
+		t.Errorf("expected spec_ready transition: %s", out)
+	}
+
+	fl, _ := harness.LoadFeatureList(".")
+	if fl.Features[0].Status != harness.StatusSpecReady {
+		t.Errorf("status = %s, want spec_ready", fl.Features[0].Status)
+	}
+	if fl.Features[0].OwnerAgent == "" {
+		t.Error("OwnerAgent should be recorded")
+	}
+}
+
+func TestRunHarnessReady_RejectsNonSDDFeature(t *testing.T) {
+	dir := t.TempDir()
+	if _, err := harness.Generate(harness.InitOptions{
+		Root: dir, Project: "plain", Stack: harness.StackGeneric,
+	}); err != nil {
+		t.Fatalf("generate: %v", err)
+	}
+	t.Chdir(dir)
+
+	err := runHarnessReady(harnessReadyCmd, []string{"1"})
+	if err == nil || !strings.Contains(err.Error(), "not SDD-flagged") {
+		t.Errorf("expected non-SDD rejection, got %v", err)
+	}
+}
+
+func TestRunHarnessStatus_SDDOutputShowsSpecReadyRow(t *testing.T) {
+	_ = initSDDHarnessForTest(t)
+	_ = captureStdout(t, func() error { return runHarnessSpec(nil, []string{"1"}) })
+	_ = captureStdout(t, func() error { return runHarnessReady(harnessReadyCmd, []string{"1"}) })
+
+	out := captureStdout(t, func() error { return runHarnessStatus(nil, nil) })
+
+	if !strings.Contains(out, "Mode:       SDD") {
+		t.Errorf("SDD harness status should mention Mode: SDD: %s", out)
+	}
+	if !strings.Contains(out, "spec_ready:  1") {
+		t.Errorf("spec_ready row missing: %s", out)
+	}
+	if !strings.Contains(out, "Awaiting approval: #1") {
+		t.Errorf("should hint at the awaiting approval row: %s", out)
+	}
+}
+
+func TestRunHarnessStatus_StandardOutputOmitsSpecReadyRow(t *testing.T) {
+	_ = initHarnessForTest(t)
+	out := captureStdout(t, func() error { return runHarnessStatus(nil, nil) })
+
+	if strings.Contains(out, "spec_ready") {
+		t.Errorf("standard harness status should NOT mention spec_ready: %s", out)
+	}
+	if strings.Contains(out, "Mode:") {
+		t.Errorf("standard harness should not advertise a mode line: %s", out)
+	}
+}
+
+func TestRunHarnessStatus_SDD_JSONIncludesNextSpecReadyID(t *testing.T) {
+	_ = initSDDHarnessForTest(t)
+	_ = captureStdout(t, func() error { return runHarnessSpec(nil, []string{"1"}) })
+	_ = captureStdout(t, func() error { return runHarnessReady(harnessReadyCmd, []string{"1"}) })
+
+	harnessStatusJSON = true
+	t.Cleanup(func() { harnessStatusJSON = false })
+
+	out := captureStdout(t, func() error { return runHarnessStatus(nil, nil) })
+
+	var payload statusPayload
+	if err := json.Unmarshal([]byte(out), &payload); err != nil {
+		t.Fatalf("unmarshal: %v\nraw: %s", err, out)
+	}
+	if !payload.SDD {
+		t.Error("payload.sdd should be true")
+	}
+	if payload.NextSpecReadyID != 1 {
+		t.Errorf("next_spec_ready_id = %d, want 1", payload.NextSpecReadyID)
+	}
+	if payload.Counts.SpecReady != 1 {
+		t.Errorf("counts.spec_ready = %d, want 1", payload.Counts.SpecReady)
+	}
+}
+
+func TestTransition_StartRespectsSDDGate(t *testing.T) {
+	// In SDD mode, `harness start <id>` against a pending feature should
+	// surface the friendly "run harness ready first" error.
+	_ = initSDDHarnessForTest(t)
+
+	start := transitionRunner(harness.StatusInProgress)
+	err := start(harnessStartCmd, []string{"1"})
+	if err == nil {
+		t.Fatal("expected SDD gate error")
+	}
+	if !strings.Contains(err.Error(), "harness ready") && !strings.Contains(err.Error(), "spec_ready") {
+		t.Errorf("error should hint at the missing step: %v", err)
+	}
+}
+
+func TestStatusMarker_SpecReady(t *testing.T) {
+	if got := statusMarker(harness.StatusSpecReady); got != "✎" {
+		t.Errorf("statusMarker(spec_ready) = %q, want ✎", got)
+	}
+}
+
 func TestDetectStack(t *testing.T) {
 	tests := []struct {
 		name string

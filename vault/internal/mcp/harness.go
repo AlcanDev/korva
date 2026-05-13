@@ -75,6 +75,7 @@ func (s *Server) toolHarnessInit(args map[string]any) (any, error) {
 		Description: stringArg(args, "description"),
 		Stack:       stack,
 		Editors:     editors,
+		SDD:         boolArg(args, "sdd"),
 		Overwrite:   boolArg(args, "overwrite"),
 	})
 	if err != nil {
@@ -89,6 +90,7 @@ func (s *Server) toolHarnessInit(args map[string]any) (any, error) {
 		"project":       project,
 		"stack":         string(stack),
 		"editors":       editorNames,
+		"sdd":           boolArg(args, "sdd"),
 		"files_written": written,
 	}, nil
 }
@@ -290,6 +292,7 @@ func (s *Server) toolHarnessAdd(args map[string]any) (any, error) {
 		Description: stringArg(args, "description"),
 		Acceptance:  acceptance,
 		Status:      harness.StatusPending,
+		SDD:         boolArg(args, "sdd"),
 		UpdatedAt:   time.Now().UTC().Format(time.RFC3339),
 	}
 	fl.Features = append(fl.Features, feature)
@@ -299,6 +302,90 @@ func (s *Server) toolHarnessAdd(args map[string]any) (any, error) {
 	return map[string]any{
 		"root":    root,
 		"feature": featureToMap(feature),
+	}, nil
+}
+
+// ── vault_harness_spec ───────────────────────────────────────────────────────
+//
+// Materializes specs/<feature.Name>/{requirements,design,tasks}.md from
+// the EARS templates. Refuses to operate on non-SDD features so the
+// operator can't accidentally pollute a plain harness with spec
+// scaffolding.
+
+func (s *Server) toolHarnessSpec(args map[string]any) (any, error) {
+	root := resolveHarnessRoot(args)
+	id, err := readIDArg(args)
+	if err != nil {
+		return nil, err
+	}
+	fl, err := harness.LoadFeatureList(root)
+	if err != nil {
+		return nil, err
+	}
+	f := fl.FindByID(id)
+	if f == nil {
+		return nil, fmt.Errorf("feature %d not found", id)
+	}
+	if !f.SDD {
+		return nil, fmt.Errorf("feature %d (%s) is not SDD-flagged", id, f.Name)
+	}
+	res, err := harness.MaterializeSpec(root, f, boolArg(args, "overwrite"))
+	if err != nil {
+		return nil, err
+	}
+	return map[string]any{
+		"root":     root,
+		"id":       id,
+		"name":     f.Name,
+		"dir":      res.Dir,
+		"written":  res.Written,
+		"skipped":  res.Skipped,
+		"complete": harness.SpecComplete(root, f.Name),
+	}, nil
+}
+
+// ── vault_harness_ready ──────────────────────────────────────────────────────
+//
+// pending → spec_ready handoff: the spec_author subagent calls this
+// when the three spec files are drafted and ready for human review.
+// Refuses when the files aren't there (so the agent can't pretend a
+// spec was written without writing it).
+
+func (s *Server) toolHarnessReady(args map[string]any) (any, error) {
+	root := resolveHarnessRoot(args)
+	id, err := readIDArg(args)
+	if err != nil {
+		return nil, err
+	}
+	fl, err := harness.LoadFeatureList(root)
+	if err != nil {
+		return nil, err
+	}
+	f := fl.FindByID(id)
+	if f == nil {
+		return nil, fmt.Errorf("feature %d not found", id)
+	}
+	if !f.SDD {
+		return nil, fmt.Errorf("feature %d (%s) is not SDD-flagged", id, f.Name)
+	}
+	if !harness.SpecComplete(root, f.Name) {
+		return nil, fmt.Errorf("spec files missing for %s — call vault_harness_spec first, then draft them", f.Name)
+	}
+	owner := s.agentName(args)
+	now := time.Now().UTC().Format(time.RFC3339)
+	if err := fl.SetStatus(id, harness.StatusSpecReady, owner, now); err != nil {
+		return nil, err
+	}
+	if err := harness.SaveFeatureList(root, fl); err != nil {
+		return nil, err
+	}
+	return map[string]any{
+		"root":    root,
+		"id":      id,
+		"name":    f.Name,
+		"status":  string(harness.StatusSpecReady),
+		"owner":   owner,
+		"updated": now,
 	}, nil
 }
 
@@ -319,6 +406,9 @@ func featureToMap(f harness.Feature) map[string]any {
 	}
 	if len(f.Acceptance) > 0 {
 		out["acceptance"] = f.Acceptance
+	}
+	if f.SDD {
+		out["sdd"] = true
 	}
 	if f.OwnerAgent != "" {
 		out["owner_agent"] = f.OwnerAgent
