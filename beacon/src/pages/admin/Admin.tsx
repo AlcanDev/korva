@@ -9,8 +9,9 @@ import { useAdminStore } from '@/stores/admin'
 import { useLicenseStatus, isPaidTier } from '@/api/license'
 import { useSystemStatus } from '@/api/observatory'
 import { useI18n, type EditorKey, EDITOR_INTEGRATION } from '@/contexts/i18n'
-import { Spinner, useCommandPalette } from '@/components/ui'
-import { Search } from 'lucide-react'
+import { Spinner, useCommandPalette, useRegisterCommand } from '@/components/ui'
+import { Search, Sparkles } from 'lucide-react'
+import { OnboardingTour, useAutoTour, resetTour } from '@/components/OnboardingTour'
 
 // Login is loaded eagerly so an unauthenticated user sees the form instantly.
 import AdminLogin from './AdminLogin'
@@ -45,6 +46,20 @@ export default function Admin() {
   const { isAuthenticated, logout } = useAdminStore()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const { open: openPalette } = useCommandPalette()
+  const tour = useAutoTour()
+
+  // ⌘K → "Open welcome tour" lets curious operators replay the intro.
+  useRegisterCommand({
+    id: 'open-tour',
+    section: 'Help',
+    label: 'Open welcome tour',
+    icon: <Sparkles size={14} />,
+    keywords: ['onboarding', 'intro', 'help'],
+    run: () => {
+      resetTour()
+      tour.openTour()
+    },
+  })
 
   if (!isAuthenticated) {
     return <AdminLogin />
@@ -52,6 +67,7 @@ export default function Admin() {
 
   return (
     <div className="flex h-screen overflow-hidden bg-[#0d1117]">
+      <OnboardingTour open={tour.open} onClose={tour.closeTour} />
       {/* Mobile overlay */}
       {sidebarOpen && (
         <div
