@@ -128,6 +128,17 @@ func adminRunCommand() http.HandlerFunc {
 			exitCode = -1
 		}
 
+		// Publish to SSE so the activity feed reflects what just ran.
+		PublishEvent(Event{
+			Kind:  EventCommandRun,
+			Title: cmd.Slug,
+			Meta: map[string]any{
+				"argv":        strings.Join(cmd.Argv, " "),
+				"exit_code":   exitCode,
+				"duration_ms": duration.Milliseconds(),
+				"timed_out":   timedOut,
+			},
+		})
 		writeJSON(w, http.StatusOK, commandRunResponse{
 			Slug:       cmd.Slug,
 			Argv:       strings.Join(cmd.Argv, " "),

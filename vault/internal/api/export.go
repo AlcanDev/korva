@@ -40,6 +40,15 @@ func adminExportObsidian(s *store.Store) http.HandlerFunc {
 			writeError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
+		PublishEvent(Event{
+			Kind:    EventExportWritten,
+			Project: req.Project,
+			Title:   res.OutDir,
+			Meta: map[string]any{
+				"file_count":    res.FileCount,
+				"project_count": res.ProjectCount,
+			},
+		})
 		writeJSON(w, http.StatusOK, res)
 	}
 }

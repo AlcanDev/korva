@@ -1,6 +1,6 @@
 import { lazy, Suspense } from 'react'
 import { NavLink, Routes, Route, Navigate } from 'react-router'
-import { Activity, Coins, Clock, Settings, Shield, GitMerge, FolderTree, Download, Terminal } from 'lucide-react'
+import { Activity, Coins, Clock, Settings, Shield, GitMerge, FolderTree, Download, Terminal, Zap } from 'lucide-react'
 import { Spinner } from '@/components/ui'
 
 // Phase 7 — code-split every Observatory sub-panel so the bundle stays
@@ -14,6 +14,7 @@ const ConflictsPanel       = lazy(() => import('./ConflictsPanel'))
 const ProjectsPanel        = lazy(() => import('./ProjectsPanel'))
 const ExportPanel          = lazy(() => import('./ExportPanel'))
 const CommandsPanel        = lazy(() => import('./CommandsPanel'))
+const LiveActivityPanel    = lazy(() => import('./LiveActivityPanel'))
 
 function PanelFallback() {
   return (
@@ -33,6 +34,7 @@ export const OBSERVATORY_BASE = '/admin/observatory'
 
 const SUBNAV = [
   { path: 'health', label: 'System Health', icon: Activity },
+  { path: 'live', label: 'Live', icon: Zap },
   { path: 'tokens', label: 'Tokens', icon: Coins },
   { path: 'activity', label: 'Activity', icon: Clock },
   { path: 'commands', label: 'Commands', icon: Terminal },
@@ -73,6 +75,7 @@ export default function Observatory() {
           <Routes>
             <Route index element={<Navigate to={`${OBSERVATORY_BASE}/health`} replace />} />
             <Route path="health" element={<SystemHealth />} />
+            <Route path="live" element={<LiveActivityPanel />} />
             <Route path="tokens" element={<TokenAnalytics />} />
             <Route path="activity" element={<ActivityTimeline />} />
             <Route path="commands" element={<CommandsPanel />} />

@@ -149,7 +149,7 @@ describe('Observatory navigation', () => {
     expect(OBSERVATORY_BASE).toBe('/admin/observatory')
   })
 
-  it('renders 9 sub-tabs with absolute hrefs from /admin/observatory/health', () => {
+  it('renders 10 sub-tabs with absolute hrefs from /admin/observatory/health', () => {
     renderAt('/admin/observatory/health')
     const nav = screen.getByRole('navigation', { name: /observatory sections/i })
     const hrefs = Array.from(nav.querySelectorAll('a')).map(
@@ -157,6 +157,7 @@ describe('Observatory navigation', () => {
     )
     expect(hrefs).toEqual([
       '/admin/observatory/health',
+      '/admin/observatory/live',
       '/admin/observatory/tokens',
       '/admin/observatory/activity',
       '/admin/observatory/commands',
@@ -174,11 +175,9 @@ describe('Observatory navigation', () => {
     const hrefs = Array.from(nav.querySelectorAll('a')).map(
       (a) => (a as HTMLAnchorElement).getAttribute('href'),
     )
-    // Bug repro: previously, hrefs from /admin/observatory/tokens were
-    // /admin/observatory/tokens/health, /admin/observatory/tokens/tokens, …
-    // The fix uses absolute paths so this is invariant.
     expect(hrefs).toEqual([
       '/admin/observatory/health',
+      '/admin/observatory/live',
       '/admin/observatory/tokens',
       '/admin/observatory/activity',
       '/admin/observatory/commands',
@@ -234,6 +233,7 @@ describe('Observatory navigation', () => {
 
   it.each([
     ['health', /System Health/i],
+    ['live', /Live activity/i],
     ['tokens', /Token Analytics/i],
     ['activity', /Activity Timeline/i],
     ['commands', /Commands/i],
