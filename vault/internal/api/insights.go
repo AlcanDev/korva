@@ -99,10 +99,10 @@ func adminPatternInsights(s *store.Store) http.HandlerFunc {
 func computePatternSuggestions(obs []store.Observation, minCount int) []PatternSuggestion {
 	// phraseStats[phrase] = {set of obs IDs, set of titles, already-pattern flag, project}
 	type stat struct {
-		obsIDs        map[string]struct{}
-		obsTitles     map[string]string // id → title
+		obsIDs         map[string]struct{}
+		obsTitles      map[string]string // id → title
 		alreadyPattern bool
-		project       string
+		project        string
 	}
 	stats := make(map[string]*stat)
 

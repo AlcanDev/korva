@@ -19,16 +19,16 @@ import (
 // PlaygroundTool is a wire-friendly subset of Tool — we drop the InputSchema
 // type and inline it so callers don't have to depend on the protocol types.
 type PlaygroundTool struct {
-	Name        string                  `json:"name"`
-	Description string                  `json:"description"`
-	InputSchema PlaygroundToolSchema    `json:"input_schema"`
+	Name        string               `json:"name"`
+	Description string               `json:"description"`
+	InputSchema PlaygroundToolSchema `json:"input_schema"`
 }
 
 // PlaygroundToolSchema mirrors Schema/Property but with JSON-friendly types.
 type PlaygroundToolSchema struct {
-	Type       string                          `json:"type"`
-	Properties map[string]PlaygroundToolProp   `json:"properties"`
-	Required   []string                        `json:"required,omitempty"`
+	Type       string                        `json:"type"`
+	Properties map[string]PlaygroundToolProp `json:"properties"`
+	Required   []string                      `json:"required,omitempty"`
 }
 
 // PlaygroundToolProp matches Property.
@@ -44,11 +44,12 @@ func PlaygroundTools() []PlaygroundTool {
 	src := toolsForProfile(ProfileReadonly)
 	out := make([]PlaygroundTool, 0, len(src))
 	for _, t := range src {
+		// Property and PlaygroundToolProp are structurally identical, so a
+		// direct type conversion is both correct and what staticcheck S1016
+		// recommends. The named type still carries the public wire contract.
 		props := map[string]PlaygroundToolProp{}
 		for k, p := range t.InputSchema.Properties {
-			props[k] = PlaygroundToolProp{
-				Type: p.Type, Description: p.Description, Enum: p.Enum,
-			}
+			props[k] = PlaygroundToolProp(p)
 		}
 		out = append(out, PlaygroundTool{
 			Name:        t.Name,

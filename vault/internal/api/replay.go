@@ -17,7 +17,7 @@ import (
 // interaction logged. Drives the dashboard's step-by-step replay UI.
 //
 // We sort everything by timestamp so the UI can render a clean vertical
-// timeline; per-row kind tells the renderer which icon/colour to use.
+// timeline; per-row kind tells the renderer which icon/color to use.
 
 // ReplayEntryKind classifies the timeline row.
 type ReplayEntryKind string
@@ -31,19 +31,19 @@ const (
 
 // ReplayEntry is one row in the timeline.
 type ReplayEntry struct {
-	Kind        ReplayEntryKind `json:"kind"`
-	At          time.Time       `json:"at"`
-	Title       string          `json:"title"`
-	Project     string          `json:"project,omitempty"`
-	Author      string          `json:"author,omitempty"`
-	ObsType     string          `json:"obs_type,omitempty"`
-	Model       string          `json:"model,omitempty"`
-	Tokens      int64           `json:"tokens,omitempty"`
-	DurationMs  int64           `json:"duration_ms,omitempty"`
-	ID          string          `json:"id,omitempty"`
-	ExcerptIn   string          `json:"excerpt_in,omitempty"`
-	ExcerptOut  string          `json:"excerpt_out,omitempty"`
-	Body        string          `json:"body,omitempty"`
+	Kind       ReplayEntryKind `json:"kind"`
+	At         time.Time       `json:"at"`
+	Title      string          `json:"title"`
+	Project    string          `json:"project,omitempty"`
+	Author     string          `json:"author,omitempty"`
+	ObsType    string          `json:"obs_type,omitempty"`
+	Model      string          `json:"model,omitempty"`
+	Tokens     int64           `json:"tokens,omitempty"`
+	DurationMs int64           `json:"duration_ms,omitempty"`
+	ID         string          `json:"id,omitempty"`
+	ExcerptIn  string          `json:"excerpt_in,omitempty"`
+	ExcerptOut string          `json:"excerpt_out,omitempty"`
+	Body       string          `json:"body,omitempty"`
 }
 
 // ReplayResponse is the wire shape of /admin/sessions/{id}/replay.
