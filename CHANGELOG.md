@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.16.0](https://github.com/AlcanDev/korva/compare/v1.15.0...v1.16.0) (2026-05-13)
+
+
+### 🚀 Features
+
+* **phase-7:** Beacon refresh — Space design system, charts, one-click commands, i18n, 79% bundle cut ([#38](https://github.com/AlcanDev/korva/issues/38)) ([a0c0aa7](https://github.com/AlcanDev/korva/commit/a0c0aa755b83a74408fc0c7c032c7490897b0da0))
+
 ## [1.15.0](https://github.com/AlcanDev/korva/compare/v1.14.0...v1.15.0) (2026-05-13)
 
 
