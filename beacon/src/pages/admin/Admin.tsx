@@ -7,6 +7,7 @@ import {
 import { KorvaLogo } from '@/components/KorvaLogo'
 import { useAdminStore } from '@/stores/admin'
 import { useLicenseStatus, isPaidTier } from '@/api/license'
+import { useSystemStatus } from '@/api/observatory'
 import { useI18n, type EditorKey, EDITOR_INTEGRATION } from '@/contexts/i18n'
 import AdminLogin from './AdminLogin'
 import AdminDashboard from './AdminDashboard'
@@ -136,8 +137,13 @@ const EDITOR_LABELS: Record<EditorKey, string> = Object.fromEntries(
 
 function AdminSidebar({ onLogout, onNavigate }: { onLogout: () => void; onNavigate: () => void }) {
   const { data: lic } = useLicenseStatus()
+  const { data: status } = useSystemStatus()
   const { t, lang, setLang, editor, setEditor } = useI18n()
   const isTeams = isPaidTier(lic?.tier)
+  // Vault version comes from /admin/system-status (vault.version is the
+  // binary's version.String()). We fall back to "—" if the call hasn't
+  // resolved yet so the sidebar never shows a stale hardcoded value.
+  const vaultVersion = status?.vault?.version?.trim() || '—'
 
   const communityItems = [
     { to: 'observatory/health', icon: Telescope,       label: 'Observatory',       subtitle: 'health · tokens · config' },
@@ -218,7 +224,9 @@ function AdminSidebar({ onLogout, onNavigate }: { onLogout: () => void; onNaviga
         }`}>
           {isTeams ? t.nav.tierTeams : t.nav.tierCommunity}
         </span>
-        <span className="text-[9px] text-[#30363d] font-mono">v1.0.0</span>
+        <span className="text-[9px] text-[#30363d] font-mono" title={`Korva Vault ${vaultVersion}`}>
+          {formatVersionLabel(vaultVersion)}
+        </span>
       </div>
 
       {/* Editor preference */}
@@ -305,4 +313,18 @@ function LockedSidebarLink({ to, icon: Icon, label, subtitle, onClick }: {
       <Lock size={11} className="flex-shrink-0 opacity-60" />
     </NavLink>
   )
+}
+
+// formatVersionLabel renders the vault version exactly once so the sidebar
+// shows "v1.9.0" for semver releases (whether or not the backend already
+// prefixed the "v") and "dev" for unbuilt-from-tag local binaries. Anything
+// else is shown verbatim — we'd rather surface unexpected strings than hide
+// them under a misleading prefix.
+//
+// Exported so the Vitest spec can pin the public contract.
+export function formatVersionLabel(version: string): string {
+  if (!version || version === '—') return '—'
+  const stripped = version.replace(/^v/i, '').trim()
+  if (/^\d/.test(stripped)) return `v${stripped}`
+  return stripped
 }
