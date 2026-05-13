@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.20.0](https://github.com/AlcanDev/korva/compare/v1.19.0...v1.20.0) (2026-05-13)
+
+
+### 🚀 Features
+
+* **phase-11:** Harness Engineering — bootstrap any repo for autonomous agents ([#46](https://github.com/AlcanDev/korva/issues/46)) ([d5c3025](https://github.com/AlcanDev/korva/commit/d5c3025cced2d8f38e46baeceddb8e1928d1d839))
+
 ## [1.19.0](https://github.com/AlcanDev/korva/compare/v1.18.0...v1.19.0) (2026-05-13)
 
 
