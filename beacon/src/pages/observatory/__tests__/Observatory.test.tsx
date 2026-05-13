@@ -138,6 +138,10 @@ const fetchMock = vi.fn(async (input?: RequestInfo | URL | string | null) => {
     since: '2026-05-12T00:00:00Z',
     since_unix: 1736640000,
   })
+  if (url.includes('/admin/cost/anomalies')) return jsonResponse({
+    window_days: 30,
+    anomalies: [],
+  })
   return jsonResponse({})
 })
 vi.stubGlobal('fetch', fetchMock)

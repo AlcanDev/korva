@@ -1,6 +1,14 @@
 import { useMemo, useState } from "react";
-import { DollarSign, TrendingDown, Coins, Sparkles, Cpu } from "lucide-react";
-import { useCostSummary } from "@/api/cost";
+import {
+	DollarSign,
+	TrendingDown,
+	Coins,
+	Sparkles,
+	Cpu,
+	AlertTriangle,
+	AlertCircle,
+} from "lucide-react";
+import { useCostSummary, useCostAnomalies, type Anomaly } from "@/api/cost";
 import {
 	Badge,
 	Card,
@@ -47,6 +55,7 @@ export default function CostPanel() {
 	const tx = t.cost;
 	const [days, setDays] = useState<WindowDays>("30");
 	const { data, isLoading, error } = useCostSummary(Number(days));
+	const anomalies = useCostAnomalies(Number(days));
 
 	const dailySeries = useMemo(() => {
 		if (!data?.daily?.length) return null;
@@ -156,6 +165,11 @@ export default function CostPanel() {
 						/>
 					</div>
 
+					{/* Phase 9.2 — Anomaly alerts (only renders when something fired) */}
+					{anomalies.data && anomalies.data.anomalies.length > 0 && (
+						<AnomaliesSection anomalies={anomalies.data.anomalies} />
+					)}
+
 					{/* Daily curve */}
 					<Card>
 						<CardHeader
@@ -236,5 +250,71 @@ export default function CostPanel() {
 				</>
 			) : null}
 		</div>
+	);
+}
+
+// AnomaliesSection renders the warning band when the detector returned
+// any anomaly for the active window. Sorted by severity (danger first)
+// then descending z-score.
+function AnomaliesSection({ anomalies }: { anomalies: Anomaly[] }) {
+	const sorted = [...anomalies].sort((a, b) => {
+		if (a.severity !== b.severity) {
+			return a.severity === "danger" ? -1 : 1;
+		}
+		return b.z_score - a.z_score;
+	});
+	return (
+		<Card variant="elevated" tone="amber">
+			<CardHeader
+				title="Anomalies detected"
+				subtitle="Days or projects whose token usage exceeded the historical baseline by 2+ standard deviations."
+				icon={<AlertTriangle size={14} className="text-amber-400" />}
+				actions={<Badge tone="warning" mono>{sorted.length}</Badge>}
+			/>
+			<CardBody className="!p-0">
+				<ul className="divide-y divide-white/5">
+					{sorted.map((a, i) => (
+						<AnomalyRow key={`${a.kind}-${a.subject}-${i}`} a={a} />
+					))}
+				</ul>
+			</CardBody>
+		</Card>
+	);
+}
+
+function AnomalyRow({ a }: { a: Anomaly }) {
+	const isDanger = a.severity === "danger";
+	return (
+		<li className="flex items-start gap-3 px-4 py-3 hover:bg-white/3 transition-colors">
+			<span
+				className={`shrink-0 mt-0.5 ${isDanger ? "text-[#F85149]" : "text-amber-400"}`}
+				aria-hidden
+			>
+				<AlertCircle size={14} />
+			</span>
+			<div className="flex-1 min-w-0">
+				<div className="flex items-center gap-2 flex-wrap text-xs">
+					<Badge tone={isDanger ? "danger" : "warning"} mono>
+						{a.kind === "daily_spike" ? "Daily spike" : "Project spike"}
+					</Badge>
+					<span className="text-ink-100 font-mono">{a.subject}</span>
+					{a.z_score > 0 && (
+						<span className="text-ink-400 text-[11px]">
+							z-score{" "}
+							<span className={isDanger ? "text-[#F85149]" : "text-amber-400"}>
+								{a.z_score.toFixed(2)}
+							</span>
+						</span>
+					)}
+					<span className="text-ink-500 text-[11px]">
+						{Intl.NumberFormat().format(a.tokens)} tokens · baseline ≈{" "}
+						{Intl.NumberFormat().format(Math.round(a.baseline_avg))}
+					</span>
+				</div>
+				<p className="text-xs text-ink-300 mt-1 leading-relaxed">
+					{a.suggestion}
+				</p>
+			</div>
+		</li>
 	);
 }

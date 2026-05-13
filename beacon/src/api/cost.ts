@@ -44,3 +44,30 @@ export function useCostSummary(days = 30) {
 		refetchInterval: 60_000,
 	});
 }
+
+// Phase 9.2 — anomaly detector hook.
+
+export interface Anomaly {
+	kind: "daily_spike" | "project_spike";
+	subject: string;
+	tokens: number;
+	baseline_avg: number;
+	baseline_std: number;
+	z_score: number;
+	severity: "warning" | "danger";
+	suggestion: string;
+}
+
+export interface AnomaliesResponse {
+	window_days: number;
+	anomalies: Anomaly[];
+}
+
+export function useCostAnomalies(days = 30) {
+	return useQuery({
+		queryKey: ["cost", "anomalies", days],
+		queryFn: () =>
+			adminFetch<AnomaliesResponse>(`/admin/cost/anomalies?days=${days}`),
+		refetchInterval: 60_000,
+	});
+}
