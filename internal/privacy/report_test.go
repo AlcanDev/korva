@@ -110,7 +110,7 @@ func TestFilterReport_CleanTextNoCounters(t *testing.T) {
 func TestFilter_LegacyAPIStillWorks(t *testing.T) {
 	// Sanity: existing callers using Filter() see the same redacted output
 	// they always did. We delegate to FilterReport so this test is what
-	// guarantees we didn't change observable behaviour.
+	// guarantees we didn't change observable behavior.
 	got := Filter("password=foo", nil)
 	if got != "password=[REDACTED]" {
 		t.Errorf("legacy Filter() output drifted: %q", got)

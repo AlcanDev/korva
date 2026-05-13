@@ -66,23 +66,12 @@ func TestAdminCostAnomalies_NoSignalReturnsEmpty(t *testing.T) {
 	}
 }
 
-// detectDailySpikes unit test on a synthetic series — avoids the DB.
+// TestDetectDailySpikes_ZScoreThreshold pins the threshold math: a baseline
+// around 10 with a 60-token spike must produce z >= zThresholdWarn. The
+// per-day store.DailyTokenCount path is covered by the endpoint tests above;
+// here we only verify the underlying meanAndStd + z arithmetic.
 func TestDetectDailySpikes_ZScoreThreshold(t *testing.T) {
-	// Baseline of ~10 tokens/day, then a 60-token spike — z-score should
-	// be well above 2.
-	rows := []struct{ date string }{
-		{"d1"}, {"d2"}, {"d3"}, {"d4"}, {"d5"}, {"d6"}, {"d7"},
-	}
 	values := []float64{10, 12, 9, 11, 13, 10, 60}
-	// Build the daily-count slice the detector expects.
-	dailyRows := make([]struct {
-		date string
-	}, len(rows))
-	for i, r := range rows {
-		dailyRows[i] = r
-	}
-	// Use the real signature; we'd need store.DailyTokenCount here. Skip
-	// since this is a pure-math check — we just verify meanAndStd + z math.
 	avg, std := meanAndStd(values)
 	if std <= 0 {
 		t.Fatal("std should be > 0")
