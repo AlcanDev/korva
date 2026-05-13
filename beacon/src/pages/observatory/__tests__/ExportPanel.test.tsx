@@ -105,7 +105,9 @@ describe('ExportPanel', () => {
 
     expect(await screen.findByText(/export written/i)).toBeTruthy()
     expect(screen.getByText('/tmp/vault')).toBeTruthy()
-    expect(screen.getByText('7')).toBeTruthy() // file_count
-    expect(screen.getByText('decision:')).toBeTruthy()
+    // 7 files appears as a badge (e.g. "7 files") + as the centre of the donut.
+    expect(screen.getAllByText(/7/).length).toBeGreaterThan(0)
+    // The donut legend lists the type names — exact label, no trailing colon.
+    expect(screen.getAllByText('decision').length).toBeGreaterThan(0)
   })
 })

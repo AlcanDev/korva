@@ -97,43 +97,48 @@ function renderPanel() {
 describe('ProjectsPanel', () => {
   it('renders the inventory tab with project counts', async () => {
     renderPanel()
-    expect(await screen.findByText('korva')).toBeTruthy()
-    expect(screen.getByText('vault-mcp')).toBeTruthy()
+    // After the Phase 7 refresh the project name appears in both the table
+    // row AND the "top projects" bar chart, so we just assert presence.
+    const matches = await screen.findAllByText('korva')
+    expect(matches.length).toBeGreaterThan(0)
+    expect(screen.getAllByText('vault-mcp').length).toBeGreaterThan(0)
+    // The CardHeader title carries the project count.
     expect(screen.getByText('2 project(s) tracked')).toBeTruthy()
   })
 
   it('shows merge proposals on the Consolidate tab', async () => {
     renderPanel()
-    fireEvent.click(screen.getByRole('button', { name: /consolidate/i }))
+    // Tabs are accessible buttons with role=tab in the new design system.
+    fireEvent.click(screen.getByRole('tab', { name: /consolidate/i }))
     expect(await screen.findByText(/1 merge candidate/i)).toBeTruthy()
-    // The proposal has Korva as a source under the korva canonical.
     expect(screen.getByText('Korva')).toBeTruthy()
   })
 
   it('prune defaults to dry-run and requires confirmation before applying', async () => {
     renderPanel()
-    fireEvent.click(screen.getByRole('button', { name: /prune empty/i }))
+    fireEvent.click(screen.getByRole('tab', { name: /prune empty/i }))
 
-    // First click runs dry-run.
+    // First click runs dry-run (button stays as <button> in the refresh).
     fireEvent.click(screen.getByRole('button', { name: /dry-run scan/i }))
     expect(await screen.findByText('abandoned')).toBeTruthy()
 
-    // "Apply…" button is shown; clicking it doesn't fire — it asks for confirmation.
+    // "Apply…" button shows; clicking it asks for confirmation rather than
+    // firing the mutation.
     fireEvent.click(screen.getByRole('button', { name: /^apply…$/i }))
     expect(
       screen.getByText(/This deletes 1 project's sessions/i),
     ).toBeTruthy()
 
-    const applyCalls = fetchMock.mock.calls.filter(call => {
+    const applyCallsBefore = fetchMock.mock.calls.filter(call => {
       const url = String(call[0])
       const init = call[1] as RequestInit | undefined
       if (init?.method !== 'POST' || !url.includes('/admin/projects/prune')) return false
       const body = init.body ? JSON.parse(String(init.body)) : {}
       return body.apply === true
     })
-    expect(applyCalls.length).toBe(0)
+    expect(applyCallsBefore.length).toBe(0)
 
-    // The "Confirm apply" button finally fires the apply=true mutation.
+    // "Confirm apply" fires the apply=true mutation.
     fireEvent.click(screen.getByRole('button', { name: /confirm apply/i }))
     await waitFor(() => {
       const applyCallsAfter = fetchMock.mock.calls.filter(call => {

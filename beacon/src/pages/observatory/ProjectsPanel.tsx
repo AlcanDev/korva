@@ -1,3 +1,4 @@
+import { useMemo, useState } from "react";
 import {
 	type ConsolidationProposal,
 	useConsolidateProjects,
@@ -13,54 +14,64 @@ import {
 	RefreshCw,
 	Trash2,
 } from "lucide-react";
-import { useState } from "react";
+import {
+	Badge,
+	Button,
+	Card,
+	CardBody,
+	CardHeader,
+	EmptyState,
+	ErrorBanner,
+	MetricCard,
+	PageHero,
+	Skeleton,
+	Tabs,
+} from "@/components/ui";
+import { BarChart } from "@/components/charts";
 
-// Fase 6.1 — UI sobre `/admin/projects*`. Tres acciones del operador:
+// Phase 7 — Refresh visual del Projects panel.
 //
-//   1. Listar todos los proyectos con sus contadores
-//   2. Sugerir consolidaciones (proyectos con nombres-variante que
-//      normalizan a la misma forma canónica)
-//   3. Podar proyectos vacíos (sesiones sin observaciones asociadas)
-//
-// Cada mutación invalida la lista vía TanStack Query, así el panel se
-// refresca sin recargas manuales.
+// Tres flujos del operador, ahora sobre el design-system Space:
+//   1. Inventory  — métricas + bar chart "top proyectos" + tabla con tooltips
+//   2. Consolidate — propuestas en cards con doble columna; el botón Merge
+//                    siempre lleva la acción al canónico actualizado
+//   3. Prune       — dry-run primero, confirmación de doble paso antes de
+//                    aplicar (sin botón rojo accidental)
 
 type Tab = "list" | "suggestions" | "prune";
 
 export default function ProjectsPanel() {
 	const [tab, setTab] = useState<Tab>("list");
+
+	const tabs = [
+		{ value: "list" as const, label: "Inventory" },
+		{ value: "suggestions" as const, label: "Consolidate" },
+		{ value: "prune" as const, label: "Prune empty" },
+	];
+
 	return (
-		<div className="p-6 max-w-7xl mx-auto space-y-4">
-			<header>
-				<h1 className="text-xl font-semibold text-[#e6edf3] flex items-center gap-2">
-					<FolderTree size={18} /> Projects
-				</h1>
-				<p className="text-xs text-[#8b949e] mt-1">
-					Inspect, consolidate, and prune the projects tracked by the vault.
-					Variant names like <code className="font-mono">alpha</code> /{" "}
-					<code className="font-mono">Alpha</code> and orphan sessions from
-					abandoned MCP runs are exactly what these tools clean up.
-				</p>
-			</header>
+		<div className="p-6 max-w-7xl mx-auto space-y-5 animate-fade-up">
+			<PageHero
+				eyebrow="Project hygiene"
+				icon={<FolderTree size={22} />}
+				title="Projects"
+				subtitle={
+					<>
+						Inspect, consolidate, and prune the projects your vault tracks.
+						Variant names like <code className="font-mono">alpha</code>/
+						<code className="font-mono">Alpha</code> and orphan sessions from
+						abandoned MCP runs are exactly what these tools clean up.
+					</>
+				}
+			/>
 
-			<nav className="flex border-b border-[#21262d]">
-				<TabButton active={tab === "list"} onClick={() => setTab("list")}>
-					Inventory
-				</TabButton>
-				<TabButton
-					active={tab === "suggestions"}
-					onClick={() => setTab("suggestions")}
-				>
-					Consolidate
-				</TabButton>
-				<TabButton active={tab === "prune"} onClick={() => setTab("prune")}>
-					Prune empty
-				</TabButton>
-			</nav>
+			<Tabs<Tab> value={tab} onChange={setTab} tabs={tabs} />
 
-			{tab === "list" && <ProjectsList />}
-			{tab === "suggestions" && <ConsolidateView />}
-			{tab === "prune" && <PruneView />}
+			<div className="space-y-4">
+				{tab === "list" && <ProjectsList />}
+				{tab === "suggestions" && <ConsolidateView />}
+				{tab === "prune" && <PruneView />}
+			</div>
 		</div>
 	);
 }
@@ -69,62 +80,117 @@ export default function ProjectsPanel() {
 
 function ProjectsList() {
 	const { data, isLoading, error, refetch, isFetching } = useProjects();
-	if (isLoading) return <p className="text-xs text-[#8b949e]">Loading…</p>;
-	if (error)
-		return <p className="text-xs text-[#f85149]">Error: {String(error)}</p>;
+
+	const aggregates = useMemo(() => {
+		const projects = data?.projects ?? [];
+		const totalObs = projects.reduce((acc, p) => acc + p.observation_count, 0);
+		const totalSess = projects.reduce((acc, p) => acc + p.session_count, 0);
+		const topRows = projects.map((p) => ({ label: p.name, value: p.observation_count }));
+		return { totalObs, totalSess, topRows };
+	}, [data]);
+
+	if (isLoading)
+		return (
+			<div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+				<Skeleton height={92} />
+				<Skeleton height={92} />
+				<Skeleton height={92} />
+			</div>
+		);
+	if (error) return <ErrorBanner message={String(error)} />;
+
 	const projects = data?.projects ?? [];
 	return (
 		<>
-			<div className="flex items-center justify-between">
-				<p className="text-[10px] text-[#484f58]">
-					{data?.count ?? 0} project(s) tracked
-				</p>
-				<button
-					type="button"
-					onClick={() => refetch()}
-					disabled={isFetching}
-					className="inline-flex items-center gap-1.5 px-2 py-1 rounded text-[10px] text-[#8b949e] hover:text-[#e6edf3] disabled:opacity-40"
-				>
-					<RefreshCw size={11} className={isFetching ? "animate-spin" : ""} />{" "}
-					Refresh
-				</button>
-			</div>
-			{projects.length === 0 ? (
-				<EmptyState
-					title="No projects yet"
-					subtitle="The vault hasn't recorded any observations or sessions."
+			{/* Metric strip */}
+			<div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+				<MetricCard
+					label="Projects"
+					value={data?.count ?? 0}
+					tone="cyan"
+					hint="distinct names in the vault"
 				/>
-			) : (
-				<div className="rounded-lg border border-[#30363d] overflow-hidden">
-					<table className="w-full text-xs">
-						<thead className="bg-[#161b22] text-[10px] uppercase tracking-wider text-[#8b949e]">
-							<tr>
-								<th className="text-left py-2 px-3">Project</th>
-								<th className="text-right py-2 px-3">Observations</th>
-								<th className="text-right py-2 px-3">Sessions</th>
-							</tr>
-						</thead>
-						<tbody className="bg-[#0d1117]">
-							{projects.map((p) => (
-								<tr
-									key={p.name}
-									className="border-t border-[#21262d] hover:bg-[#161b22]"
-								>
-									<td className="py-2 px-3 text-[#e6edf3] font-mono">
-										{p.name}
-									</td>
-									<td className="py-2 px-3 text-right text-[#c9d1d9] font-mono">
-										{p.observation_count}
-									</td>
-									<td className="py-2 px-3 text-right text-[#c9d1d9] font-mono">
-										{p.session_count}
-									</td>
-								</tr>
-							))}
-						</tbody>
-					</table>
-				</div>
-			)}
+				<MetricCard
+					label="Observations"
+					value={aggregates.totalObs.toLocaleString()}
+					tone="volt"
+					hint="across all projects"
+				/>
+				<MetricCard
+					label="Sessions"
+					value={aggregates.totalSess.toLocaleString()}
+					tone="purple"
+					hint="across all projects"
+				/>
+			</div>
+
+			<div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-4 mt-4">
+				{/* Table */}
+				<Card>
+					<CardHeader
+						title={`${data?.count ?? 0} project(s) tracked`}
+						actions={
+							<Button
+								size="sm"
+								variant="ghost"
+								leftIcon={<RefreshCw size={11} className={isFetching ? "animate-spin" : ""} />}
+								onClick={() => refetch()}
+								disabled={isFetching}
+							>
+								Refresh
+							</Button>
+						}
+					/>
+					{projects.length === 0 ? (
+						<CardBody>
+							<EmptyState
+								title="No projects yet"
+								description="The vault hasn't recorded any observations or sessions."
+							/>
+						</CardBody>
+					) : (
+						<div className="overflow-x-auto">
+							<table className="w-full text-sm">
+								<thead className="text-[10px] uppercase tracking-wider text-ink-400 bg-white/3">
+									<tr>
+										<th className="text-left py-2 px-4 font-medium">Project</th>
+										<th className="text-right py-2 px-4 font-medium">Observations</th>
+										<th className="text-right py-2 px-4 font-medium">Sessions</th>
+									</tr>
+								</thead>
+								<tbody>
+									{projects.map((p) => (
+										<tr
+											key={p.name}
+											className="border-t border-white/5 hover:bg-white/3 transition-colors"
+										>
+											<td className="py-2.5 px-4 text-ink-100 font-mono">{p.name}</td>
+											<td className="py-2.5 px-4 text-right text-ink-300 font-mono">
+												{p.observation_count.toLocaleString()}
+											</td>
+											<td className="py-2.5 px-4 text-right text-ink-300 font-mono">
+												{p.session_count.toLocaleString()}
+											</td>
+										</tr>
+									))}
+								</tbody>
+							</table>
+						</div>
+					)}
+				</Card>
+
+				{/* Top-projects bar chart */}
+				<Card>
+					<CardHeader title="Top projects" subtitle="by observation count" />
+					<CardBody>
+						<BarChart
+							data={aggregates.topRows}
+							maxRows={8}
+							emptyMessage="Save observations to populate this chart."
+						/>
+					</CardBody>
+				</Card>
+			</div>
 		</>
 	);
 }
@@ -132,63 +198,68 @@ function ProjectsList() {
 // ── Consolidate ──────────────────────────────────────────────────────────────
 
 function ConsolidateView() {
-	const { data, isLoading, error, refetch, isFetching } =
-		useProjectSuggestions();
+	const { data, isLoading, error, refetch, isFetching } = useProjectSuggestions();
 	const consolidate = useConsolidateProjects();
 
-	if (isLoading) return <p className="text-xs text-[#8b949e]">Loading…</p>;
-	if (error)
-		return <p className="text-xs text-[#f85149]">Error: {String(error)}</p>;
+	if (isLoading) return <Skeleton height={120} />;
+	if (error) return <ErrorBanner message={String(error)} />;
 
 	const proposals = data?.proposals ?? [];
 	return (
-		<>
-			<div className="flex items-center justify-between">
-				<p className="text-[10px] text-[#484f58]">
-					{data?.count ?? 0} merge candidate(s)
-				</p>
-				<button
-					type="button"
-					onClick={() => refetch()}
-					disabled={isFetching}
-					className="inline-flex items-center gap-1.5 px-2 py-1 rounded text-[10px] text-[#8b949e] hover:text-[#e6edf3] disabled:opacity-40"
-				>
-					<RefreshCw size={11} className={isFetching ? "animate-spin" : ""} />{" "}
-					Re-scan
-				</button>
-			</div>
-			{proposals.length === 0 ? (
-				<EmptyState
-					title="No variants found"
-					subtitle="Every project has a unique normalized name."
-				/>
-			) : (
-				<div className="space-y-3">
-					{proposals.map((p) => (
-						<ProposalCard
-							key={p.canonical}
-							proposal={p}
-							onMerge={(canonical, sources) =>
-								consolidate.mutate({ canonical, sources })
-							}
-							pending={consolidate.isPending}
-						/>
-					))}
-					{consolidate.isSuccess && (
-						<p className="text-xs text-[#2ea043] flex items-center gap-1.5">
-							<Check size={12} /> Merged{" "}
-							{consolidate.data?.observations_updated ?? 0} observation(s) into{" "}
-							<code className="font-mono">{consolidate.data?.canonical}</code>
-						</p>
-					)}
-					{consolidate.error && (
-						<p className="text-xs text-[#f85149]">
-							{String(consolidate.error)}
-						</p>
-					)}
-				</div>
-			)}
-		</>
+		<Card>
+			<CardHeader
+				title={`${data?.count ?? 0} merge candidate(s)`}
+				subtitle="Variant names that normalize to the same canonical form."
+				actions={
+					<Button
+						size="sm"
+						variant="ghost"
+						leftIcon={<RefreshCw size={11} className={isFetching ? "animate-spin" : ""} />}
+						onClick={() => refetch()}
+						disabled={isFetching}
+					>
+						Re-scan
+					</Button>
+				}
+			/>
+			<CardBody>
+				{proposals.length === 0 ? (
+					<EmptyState
+						title="No variants found"
+						description="Every project has a unique normalized name."
+					/>
+				) : (
+					<div className="space-y-3">
+						{proposals.map((p) => (
+							<ProposalCard
+								key={p.canonical}
+								proposal={p}
+								onMerge={(canonical, sources) =>
+									consolidate.mutate({ canonical, sources })
+								}
+								pending={consolidate.isPending}
+							/>
+						))}
+						{consolidate.isSuccess && (
+							<div className="rounded-lg border border-volt/30 bg-volt-dim px-3 py-2 text-xs flex items-center gap-2">
+								<Check size={12} className="text-volt" />
+								<span className="text-ink-200">
+									Merged{" "}
+									<span className="font-mono text-volt">
+										{consolidate.data?.observations_updated ?? 0}
+									</span>{" "}
+									observation(s) into{" "}
+									<code className="font-mono text-volt">
+										{consolidate.data?.canonical}
+									</code>
+								</span>
+							</div>
+						)}
+						{consolidate.error && <ErrorBanner message={String(consolidate.error)} />}
+					</div>
+				)}
+			</CardBody>
+		</Card>
 	);
 }
 
@@ -201,28 +272,24 @@ function ProposalCard({
 	onMerge: (canonical: string, sources: string[]) => void;
 	pending: boolean;
 }) {
-	// El backend ya pone la variante con más observaciones como canonical
-	// (sugerencia heurística). Permitimos al operador anularla con un select.
 	const [canonical, setCanonical] = useState(proposal.canonical);
-	const sources = proposal.variants
-		.map((v) => v.name)
-		.filter((name) => name !== canonical);
-
+	const sources = proposal.variants.map((v) => v.name).filter((n) => n !== canonical);
+	const selectId = `canonical-${proposal.canonical}`;
 	return (
-		<div className="rounded-lg border border-[#30363d] bg-[#0d1117] p-4 space-y-3">
+		<div className="rounded-lg border border-white/8 bg-space-800/50 p-4">
 			<div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-3 items-end">
 				<div>
 					<label
-						htmlFor={`canonical-${proposal.canonical}`}
-						className="block text-[10px] uppercase tracking-wider text-[#8b949e] mb-1"
+						htmlFor={selectId}
+						className="block text-[10px] uppercase tracking-wider text-ink-400 mb-1"
 					>
 						Canonical name
 					</label>
 					<select
-						id={`canonical-${proposal.canonical}`}
+						id={selectId}
 						value={canonical}
 						onChange={(e) => setCanonical(e.target.value)}
-						className="w-full bg-[#161b22] border border-[#30363d] rounded px-2 py-1 text-sm text-[#e6edf3]"
+						className="w-full bg-space-900 border border-white/10 rounded-md px-3 py-1.5 text-sm text-ink-100 focus:border-volt focus:outline-none"
 					>
 						{proposal.variants.map((v) => (
 							<option key={v.name} value={v.name}>
@@ -231,32 +298,30 @@ function ProposalCard({
 						))}
 					</select>
 				</div>
-				<button
-					type="button"
+				<Button
+					variant="volt"
 					onClick={() => onMerge(canonical, sources)}
 					disabled={pending || sources.length === 0}
-					className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs bg-[#238636] text-white hover:bg-[#2ea043] disabled:opacity-40 whitespace-nowrap"
+					loading={pending}
+					leftIcon={<GitMerge size={12} />}
 				>
-					<GitMerge size={12} /> {pending ? "Merging…" : "Merge into canonical"}
-				</button>
+					Merge into canonical
+				</Button>
 			</div>
-			<div>
-				<p className="text-[10px] uppercase tracking-wider text-[#8b949e] mb-1">
+			<div className="mt-3">
+				<p className="text-[10px] uppercase tracking-wider text-ink-400 mb-1.5">
 					Sources (will be folded into canonical)
 				</p>
 				<div className="flex flex-wrap gap-1.5">
 					{sources.length === 0 ? (
-						<span className="text-[10px] text-[#484f58]">
+						<span className="text-[11px] text-ink-500 italic">
 							(no other variants — change canonical to merge)
 						</span>
 					) : (
 						sources.map((s) => (
-							<code
-								key={s}
-								className="font-mono text-[10px] bg-[#21262d] border border-[#30363d] rounded px-1.5 py-0.5 text-[#c9d1d9]"
-							>
+							<Badge key={s} tone="cyan" mono>
 								{s}
-							</code>
+							</Badge>
 						))
 					)}
 				</div>
@@ -283,137 +348,95 @@ function PruneView() {
 	const empty = data?.empty ?? [];
 
 	return (
-		<>
-			<p className="text-[10px] text-[#484f58]">
-				Empty projects own sessions but zero observations. Prune drops the
-				orphan sessions; observations are never touched.
-			</p>
-			<div className="flex items-center gap-2 flex-wrap">
-				<button
-					type="button"
-					onClick={runDryRun}
-					disabled={prune.isPending}
-					className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs bg-[#21262d] border border-[#30363d] text-[#e6edf3] hover:bg-[#30363d] disabled:opacity-40"
-				>
-					<RefreshCw
-						size={12}
-						className={prune.isPending && !confirmApply ? "animate-spin" : ""}
-					/>{" "}
-					{prune.isPending && !confirmApply ? "Scanning…" : "Dry-run scan"}
-				</button>
-				{data && empty.length > 0 && !data.dry_run && (
-					<span className="text-xs text-[#2ea043] inline-flex items-center gap-1.5">
-						<Check size={12} /> Removed {data.sessions_removed} session(s)
-					</span>
-				)}
-				{data &&
-					empty.length > 0 &&
-					data.dry_run &&
-					(!confirmApply ? (
-						<button
-							type="button"
-							onClick={() => setConfirmApply(true)}
-							className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs bg-[#21262d] border border-[#f8514940] text-[#f85149] hover:bg-[#f8514920]"
-						>
-							<Trash2 size={12} /> Apply…
-						</button>
-					) : (
-						<>
-							<span className="text-xs text-[#d29922] inline-flex items-center gap-1.5">
-								<AlertCircle size={12} /> This deletes {empty.length} project's
-								sessions. Sure?
-							</span>
-							<button
-								type="button"
-								onClick={runApply}
-								disabled={prune.isPending}
-								className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs bg-[#da3633] text-white hover:bg-[#f85149] disabled:opacity-40"
+		<Card>
+			<CardHeader
+				title="Prune empty projects"
+				subtitle={
+					<>
+						Empty projects own sessions but zero observations. Pruning drops the
+						orphan sessions; observations are never touched.
+					</>
+				}
+			/>
+			<CardBody className="space-y-3">
+				<div className="flex items-center gap-2 flex-wrap">
+					<Button
+						variant="secondary"
+						leftIcon={<RefreshCw size={12} className={prune.isPending && !confirmApply ? "animate-spin" : ""} />}
+						onClick={runDryRun}
+						disabled={prune.isPending}
+					>
+						{prune.isPending && !confirmApply ? "Scanning…" : "Dry-run scan"}
+					</Button>
+					{data && empty.length > 0 && !data.dry_run && (
+						<Badge tone="success" leftIcon={<Check size={11} />}>
+							Removed {data.sessions_removed} session(s)
+						</Badge>
+					)}
+					{data && empty.length > 0 && data.dry_run && (
+						!confirmApply ? (
+							<Button
+								variant="danger"
+								leftIcon={<Trash2 size={12} />}
+								onClick={() => setConfirmApply(true)}
 							>
-								<Trash2 size={12} />{" "}
-								{prune.isPending && confirmApply ? "Pruning…" : "Confirm apply"}
-							</button>
-							<button
-								type="button"
-								onClick={() => setConfirmApply(false)}
-								className="px-3 py-1.5 rounded-md text-xs text-[#8b949e] hover:text-[#e6edf3]"
-							>
-								Cancel
-							</button>
-						</>
-					))}
-			</div>
-			{prune.error && (
-				<p className="text-xs text-[#f85149]">{String(prune.error)}</p>
-			)}
-			{data && empty.length === 0 && (
-				<EmptyState
-					title="No empty projects"
-					subtitle="Every project with sessions also has at least one observation."
-				/>
-			)}
-			{data && empty.length > 0 && (
-				<div className="rounded-lg border border-[#30363d] overflow-hidden">
-					<table className="w-full text-xs">
-						<thead className="bg-[#161b22] text-[10px] uppercase tracking-wider text-[#8b949e]">
-							<tr>
-								<th className="text-left py-2 px-3">Project</th>
-								<th className="text-right py-2 px-3">Sessions</th>
-								<th className="text-right py-2 px-3">Prompts</th>
-							</tr>
-						</thead>
-						<tbody className="bg-[#0d1117]">
-							{empty.map((e) => (
-								<tr key={e.project} className="border-t border-[#21262d]">
-									<td className="py-2 px-3 text-[#e6edf3] font-mono">
-										{e.project}
-									</td>
-									<td className="py-2 px-3 text-right text-[#c9d1d9] font-mono">
-										{e.session_count}
-									</td>
-									<td className="py-2 px-3 text-right text-[#c9d1d9] font-mono">
-										{e.prompt_count}
-									</td>
-								</tr>
-							))}
-						</tbody>
-					</table>
+								Apply…
+							</Button>
+						) : (
+							<>
+								<Badge tone="warning" leftIcon={<AlertCircle size={11} />}>
+									This deletes {empty.length} project's sessions. Sure?
+								</Badge>
+								<Button
+									variant="danger"
+									leftIcon={<Trash2 size={12} />}
+									loading={prune.isPending}
+									onClick={runApply}
+								>
+									Confirm apply
+								</Button>
+								<Button variant="ghost" onClick={() => setConfirmApply(false)}>
+									Cancel
+								</Button>
+							</>
+						)
+					)}
 				</div>
-			)}
-		</>
+				{prune.error && <ErrorBanner message={String(prune.error)} />}
+				{data && empty.length === 0 && (
+					<EmptyState
+						title="No empty projects"
+						description="Every project with sessions also has at least one observation."
+					/>
+				)}
+				{data && empty.length > 0 && (
+					<div className="overflow-x-auto rounded-lg border border-white/8">
+						<table className="w-full text-sm">
+							<thead className="text-[10px] uppercase tracking-wider text-ink-400 bg-white/3">
+								<tr>
+									<th className="text-left py-2 px-4 font-medium">Project</th>
+									<th className="text-right py-2 px-4 font-medium">Sessions</th>
+									<th className="text-right py-2 px-4 font-medium">Prompts</th>
+								</tr>
+							</thead>
+							<tbody>
+								{empty.map((e) => (
+									<tr key={e.project} className="border-t border-white/5">
+										<td className="py-2.5 px-4 text-ink-100 font-mono">{e.project}</td>
+										<td className="py-2.5 px-4 text-right text-ink-300 font-mono">
+											{e.session_count}
+										</td>
+										<td className="py-2.5 px-4 text-right text-ink-300 font-mono">
+											{e.prompt_count}
+										</td>
+									</tr>
+								))}
+							</tbody>
+						</table>
+					</div>
+				)}
+			</CardBody>
+		</Card>
 	);
 }
 
-// ── Reusable bits ────────────────────────────────────────────────────────────
-
-function TabButton({
-	active,
-	onClick,
-	children,
-}: {
-	active: boolean;
-	onClick: () => void;
-	children: React.ReactNode;
-}) {
-	return (
-		<button
-			type="button"
-			onClick={onClick}
-			className={`px-4 py-2 text-xs uppercase tracking-wider transition-colors ${
-				active
-					? "text-[#e6edf3] border-b-2 border-[#388bfd]"
-					: "text-[#8b949e] hover:text-[#e6edf3]"
-			}`}
-		>
-			{children}
-		</button>
-	);
-}
-
-function EmptyState({ title, subtitle }: { title: string; subtitle: string }) {
-	return (
-		<div className="rounded-lg border border-[#30363d] bg-[#161b22] p-6 text-center">
-			<p className="text-sm text-[#8b949e]">{title}</p>
-			<p className="text-xs text-[#484f58] mt-1">{subtitle}</p>
-		</div>
-	);
-}
