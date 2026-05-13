@@ -67,7 +67,7 @@ The user's entry point. Cobra-based with these top-level commands:
 | Command | What it does |
 |---------|--------------|
 | `init` | Bootstrap `~/.korva/` and start the vault |
-| `setup <editor>` | Wire one editor for the current project |
+| `setup` | Wire one or more AI editors (`--vscode`, `--cursor`, `--claude`, `--gemini-cli`, `--opencode`, `--codex`) |
 | `status` | Show running services, license, last sync |
 | `doctor` | Health-check + diagnose common problems |
 | `sync` | Force a Hive sync now |
@@ -82,6 +82,9 @@ The user's entry point. Cobra-based with these top-level commands:
 | `update` | Self-update binary |
 | `obs` | Observability / logs / metrics |
 | `skills` | Smart Skill Loader (Teams+) |
+| `conflicts` | List/inspect/judge auto-detected observation conflicts |
+| `projects` | Inspect, consolidate, prune project namespaces |
+| `export` | Render the vault to Obsidian-flavored markdown |
 
 Most commands are thin wrappers over the vault HTTP API. `korva` is to `korva-vault` what `kubectl` is to a Kubernetes API server.
 
@@ -164,6 +167,12 @@ Phase state is persisted in the vault, so a partial workflow survives context re
 ### Hive — optional cross-team sync
 
 When enabled, an outbox-pattern worker picks up local observations, runs them through the privacy filter, and pushes content-addressed chunks to a Hive server. Other teammates pull the same chunks back.
+
+The worker exposes a `WorkerStatus` shape with a stable enum of phases
+(`idle`, `pushing`, `pulling`, `backoff`, `error`, `healthy`, `disabled`) and a
+parallel `ReasonCode` (`transport_failed`, `auth_required`, `policy_forbidden`,
+`server_unsupported`, `internal_error`, `sync_paused`) so dashboards can
+dispatch on stable labels without parsing free-form error strings.
 
 → See [`cloud-sync`](../lore/curated/cloud-sync/SCROLL.md) for the protocol details.
 

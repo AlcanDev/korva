@@ -278,6 +278,9 @@ func Router(ctx context.Context, s *store.Store, cfg RouterConfig) http.Handler 
 	mux.Handle("POST /admin/projects/consolidate", adminMW(withBodyLimit(withCORS(adminConsolidateProjects(s)))))
 	mux.Handle("POST /admin/projects/prune", adminMW(withBodyLimit(withCORS(adminPruneProjects(s)))))
 
+	// Observatory — Export surface (Phase 5)
+	mux.Handle("POST /admin/export/obsidian", adminMW(withBodyLimit(withCORS(adminExportObsidian(s)))))
+
 	// Observatory — Deferred-apply queue (cloud sync resilience)
 	mux.Handle("GET /admin/cloud/deferred", adminMW(withCORS(adminListDeferred(s))))
 	mux.Handle("POST /admin/cloud/deferred/{sync_id}/retry", adminMW(withBodyLimit(withCORS(adminRetryDeferred(s)))))
