@@ -58,20 +58,20 @@ type commandRunRequest struct {
 // commandRunResponse is what we ship back.
 type commandRunResponse struct {
 	Slug       string `json:"slug"`
-	Argv       string `json:"argv"`        // joined for display (operator-readable)
+	Argv       string `json:"argv"` // joined for display (operator-readable)
 	ExitCode   int    `json:"exit_code"`
 	Stdout     string `json:"stdout"`
 	Stderr     string `json:"stderr"`
 	DurationMS int64  `json:"duration_ms"`
 	TimedOut   bool   `json:"timed_out"`
-	Truncated  bool   `json:"truncated"`   // true if output exceeded the cap
+	Truncated  bool   `json:"truncated"` // true if output exceeded the cap
 }
 
 // commandListResponse exposes the whitelist so the UI can build buttons
 // without duplicating the list on the frontend.
 type commandListResponse struct {
-	Commands []commandListEntry `json:"commands"`
-	LocalOnly bool              `json:"local_only"` // true when this vault accepts the run endpoint
+	Commands  []commandListEntry `json:"commands"`
+	LocalOnly bool               `json:"local_only"` // true when this vault accepts the run endpoint
 }
 
 type commandListEntry struct {
