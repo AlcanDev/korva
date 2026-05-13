@@ -365,3 +365,107 @@ func TestGenerate_FeatureListSurvivesValidate(t *testing.T) {
 		t.Errorf("LoadFeatureList rejected the seed: %v", err)
 	}
 }
+
+// ───────────────────────── Phase 13.1 — SDD mode ─────────────────────────
+
+func TestGenerate_SDD_MaterializesSpecTemplate(t *testing.T) {
+	dir := t.TempDir()
+	written, err := Generate(InitOptions{
+		Root: dir, Project: "x", Stack: StackGeneric, SDD: true,
+	})
+	if err != nil {
+		t.Fatalf("generate: %v", err)
+	}
+
+	for _, p := range []string{
+		"specs/SPEC-TEMPLATE/requirements.md",
+		"specs/SPEC-TEMPLATE/design.md",
+		"specs/SPEC-TEMPLATE/tasks.md",
+	} {
+		full := filepath.Join(dir, filepath.FromSlash(p))
+		if _, err := os.Stat(full); err != nil {
+			t.Errorf("missing SDD template %s: %v", p, err)
+		}
+		if !slices.Contains(written, p) {
+			t.Errorf("Generate did not report %s in written list", p)
+		}
+	}
+}
+
+func TestGenerate_NonSDD_SkipsSpecTemplate(t *testing.T) {
+	dir := t.TempDir()
+	if _, err := Generate(InitOptions{
+		Root: dir, Project: "x", Stack: StackGeneric, // SDD: false
+	}); err != nil {
+		t.Fatalf("generate: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "specs")); !os.IsNotExist(err) {
+		t.Errorf("specs/ should not exist when SDD is off, err=%v", err)
+	}
+}
+
+func TestGenerate_SDD_SeedFeatureIsSDDFlagged(t *testing.T) {
+	dir := t.TempDir()
+	if _, err := Generate(InitOptions{
+		Root: dir, Project: "x", Stack: StackGeneric, SDD: true,
+	}); err != nil {
+		t.Fatalf("generate: %v", err)
+	}
+	fl, err := LoadFeatureList(dir)
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if !fl.Rules.RequireApprovedSpecToImplement {
+		t.Error("SDD harness must seed RequireApprovedSpecToImplement=true")
+	}
+	if len(fl.Features) != 1 || !fl.Features[0].SDD {
+		t.Errorf("seed feature should be sdd=true, got %+v", fl.Features)
+	}
+	// SDD seed gets an extra acceptance bullet about the spec files.
+	want := "specs/harness_smoke"
+	found := false
+	for _, a := range fl.Features[0].Acceptance {
+		if strings.Contains(a, want) {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("SDD seed acceptance should mention %s, got %v", want, fl.Features[0].Acceptance)
+	}
+}
+
+func TestGenerate_NonSDD_SeedFeatureIsPlain(t *testing.T) {
+	dir := t.TempDir()
+	if _, err := Generate(InitOptions{
+		Root: dir, Project: "x", Stack: StackGeneric,
+	}); err != nil {
+		t.Fatalf("generate: %v", err)
+	}
+	fl, _ := LoadFeatureList(dir)
+	if fl.Rules.RequireApprovedSpecToImplement {
+		t.Error("default harness must not enable SDD rule")
+	}
+	if fl.Features[0].SDD {
+		t.Error("default seed feature must not be sdd=true")
+	}
+}
+
+func TestGenerate_SDD_TemplatesRenderProjectVar(t *testing.T) {
+	dir := t.TempDir()
+	if _, err := Generate(InitOptions{
+		Root: dir, Project: "korva-demo", Stack: StackGeneric, SDD: true,
+	}); err != nil {
+		t.Fatalf("generate: %v", err)
+	}
+	// Spec templates intentionally don't use {{.Project}} — they're per-
+	// feature scaffolding the operator copies — but the rest of the SDD
+	// harness (AGENTS.md, etc.) does. Verify the universal layer.
+	data, err := os.ReadFile(filepath.Join(dir, "AGENTS.md"))
+	if err != nil {
+		t.Fatalf("read AGENTS.md: %v", err)
+	}
+	if !strings.Contains(string(data), "korva-demo") {
+		t.Errorf("AGENTS.md missing project name with SDD on: %s", string(data))
+	}
+}

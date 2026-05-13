@@ -1,0 +1,55 @@
+# Requirements — `<feature-name>`
+
+> EARS-style requirements. Copy this file to `specs/<feature-name>/requirements.md`
+> and replace every `<placeholder>`. Every requirement must be testable.
+
+## Context
+
+> 1-3 sentences: why this feature exists, what problem it solves, and the
+> shape of the change at 10,000 ft. Cite the row in `feature_list.json`
+> (id + acceptance) the requirements derive from.
+
+## R1 — `<short-name>`
+
+WHEN `<event / trigger>` THE SYSTEM SHALL `<observable outcome>`.
+
+**Acceptance signal:** `<how a test detects this is true>`
+
+## R2 — `<short-name>`
+
+WHILE `<state>` IS TRUE THE SYSTEM SHALL `<continuous behaviour>`.
+
+## R3 — `<short-name>`
+
+WHERE `<configuration / capability is present>` THE SYSTEM SHALL `<conditional behaviour>`.
+
+## R4 — `<short-name>` (unwanted)
+
+IF `<failure / illegal input>` THEN THE SYSTEM SHALL `<error response>`.
+
+> **EARS legend:**
+> - `WHEN ... SHALL ...` — event-driven
+> - `WHILE ... SHALL ...` — state-driven
+> - `WHERE ... SHALL ...` — optional/feature-gated
+> - `IF ... THEN ... SHALL ...` — unwanted behaviour / failure modes
+> - Plain `THE SYSTEM SHALL ...` — ubiquitous invariants
+
+## Traceability
+
+> Map each acceptance criterion from `feature_list.json` to the R-id(s)
+> that cover it. The reviewer agent uses this table to refuse a `done`
+> transition when a criterion has no covering requirement.
+
+| feature_list.json acceptance | Covered by |
+|---|---|
+| `<acceptance bullet 1>` | R1 |
+| `<acceptance bullet 2>` | R2, R4 |
+
+## Out of scope
+
+> Bullet list of things explicitly NOT covered. Future-you will thank
+> present-you for writing these down — most spec drift comes from
+> creeping scope.
+
+- `<thing 1>`
+- `<thing 2>`

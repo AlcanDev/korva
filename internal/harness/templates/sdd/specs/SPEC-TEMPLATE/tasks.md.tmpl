@@ -1,0 +1,29 @@
+# Tasks — `<feature-name>`
+
+> Ordered checklist that implements `design.md` and proves
+> `requirements.md`. Mark `[x]` only when the task is genuinely done —
+> the reviewer refuses to close a feature with unticked boxes.
+>
+> Every implementation task that produces verifiable behaviour must have
+> at least one corresponding test task. Every test task references the
+> R-ids it covers, so the traceability is local and grep-friendly.
+
+## Implementation
+
+- [ ] T1 — `<implementation step>` *(Covers: R1)*
+- [ ] T2 — `<implementation step>` *(Covers: R2)*
+- [ ] T3 — `<implementation step>` *(Covers: R3, R4)*
+
+## Tests
+
+- [ ] T4 — `<test name>` — happy path for `<concern>` *(Covers: R1)*
+- [ ] T5 — `<test name>` — error path for `<failure>` *(Covers: R4)*
+- [ ] T6 — `<test name>` — `<edge case>` *(Covers: R2, R3)*
+
+## Closure
+
+- [ ] `./init.sh` exits `0`
+- [ ] Every R-id in `requirements.md` is covered by at least one ticked test task above
+- [ ] `progress/impl_<feature-name>.md` carries the implementer's notes
+- [ ] `progress/review_<feature-name>.md` carries the reviewer's verdict (APPROVE)
+- [ ] Feature transitioned to `done` via `korva harness done <id>`
