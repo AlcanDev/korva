@@ -30,9 +30,9 @@ import (
 // here so the operator can audit and bump them via a code change rather
 // than wondering why "the numbers seem off".
 type modelPrice struct {
-	Family       string  // human label
-	InputPer1M   float64 // USD per 1M input tokens
-	OutputPer1M  float64 // USD per 1M output tokens
+	Family         string  // human label
+	InputPer1M     float64 // USD per 1M input tokens
+	OutputPer1M    float64 // USD per 1M output tokens
 	CacheReadPer1M float64 // USD per 1M cached input tokens (read)
 }
 
@@ -41,16 +41,16 @@ type modelPrice struct {
 // the bare "claude-sonnet" alias. Anything we don't recognise falls back to
 // `defaultPrice`, which is mid-tier Sonnet — better than zero ROI numbers.
 var pricingTable = map[string]modelPrice{
-	"claude-opus-4":            {Family: "Anthropic Claude Opus", InputPer1M: 15.0, OutputPer1M: 75.0, CacheReadPer1M: 1.5},
-	"claude-3-opus":            {Family: "Anthropic Claude 3 Opus", InputPer1M: 15.0, OutputPer1M: 75.0, CacheReadPer1M: 1.5},
-	"claude-sonnet-4":          {Family: "Anthropic Claude Sonnet 4", InputPer1M: 3.0, OutputPer1M: 15.0, CacheReadPer1M: 0.3},
-	"claude-3-5-sonnet":        {Family: "Anthropic Claude 3.5 Sonnet", InputPer1M: 3.0, OutputPer1M: 15.0, CacheReadPer1M: 0.3},
-	"claude-3-haiku":           {Family: "Anthropic Claude 3 Haiku", InputPer1M: 0.25, OutputPer1M: 1.25, CacheReadPer1M: 0.03},
-	"gpt-4o":                   {Family: "OpenAI GPT-4o", InputPer1M: 2.5, OutputPer1M: 10.0, CacheReadPer1M: 1.25},
-	"gpt-4o-mini":              {Family: "OpenAI GPT-4o mini", InputPer1M: 0.15, OutputPer1M: 0.6, CacheReadPer1M: 0.075},
-	"gpt-4.1":                  {Family: "OpenAI GPT-4.1", InputPer1M: 5.0, OutputPer1M: 15.0, CacheReadPer1M: 1.25},
-	"gemini-2.0-flash":         {Family: "Google Gemini 2.0 Flash", InputPer1M: 0.10, OutputPer1M: 0.40, CacheReadPer1M: 0.025},
-	"gemini-1.5-pro":           {Family: "Google Gemini 1.5 Pro", InputPer1M: 1.25, OutputPer1M: 5.0, CacheReadPer1M: 0.3125},
+	"claude-opus-4":     {Family: "Anthropic Claude Opus", InputPer1M: 15.0, OutputPer1M: 75.0, CacheReadPer1M: 1.5},
+	"claude-3-opus":     {Family: "Anthropic Claude 3 Opus", InputPer1M: 15.0, OutputPer1M: 75.0, CacheReadPer1M: 1.5},
+	"claude-sonnet-4":   {Family: "Anthropic Claude Sonnet 4", InputPer1M: 3.0, OutputPer1M: 15.0, CacheReadPer1M: 0.3},
+	"claude-3-5-sonnet": {Family: "Anthropic Claude 3.5 Sonnet", InputPer1M: 3.0, OutputPer1M: 15.0, CacheReadPer1M: 0.3},
+	"claude-3-haiku":    {Family: "Anthropic Claude 3 Haiku", InputPer1M: 0.25, OutputPer1M: 1.25, CacheReadPer1M: 0.03},
+	"gpt-4o":            {Family: "OpenAI GPT-4o", InputPer1M: 2.5, OutputPer1M: 10.0, CacheReadPer1M: 1.25},
+	"gpt-4o-mini":       {Family: "OpenAI GPT-4o mini", InputPer1M: 0.15, OutputPer1M: 0.6, CacheReadPer1M: 0.075},
+	"gpt-4.1":           {Family: "OpenAI GPT-4.1", InputPer1M: 5.0, OutputPer1M: 15.0, CacheReadPer1M: 1.25},
+	"gemini-2.0-flash":  {Family: "Google Gemini 2.0 Flash", InputPer1M: 0.10, OutputPer1M: 0.40, CacheReadPer1M: 0.025},
+	"gemini-1.5-pro":    {Family: "Google Gemini 1.5 Pro", InputPer1M: 1.25, OutputPer1M: 5.0, CacheReadPer1M: 0.3125},
 }
 
 // defaultPrice is what we charge against an unrecognised model id. Picked to
@@ -112,22 +112,22 @@ type DailyCost struct {
 
 // CostSummaryResponse is the wire shape of /admin/cost/summary.
 type CostSummaryResponse struct {
-	WindowDays      int            `json:"window_days"`
-	From            time.Time      `json:"from"`
-	To              time.Time      `json:"to"`
-	TotalUSD        float64        `json:"total_usd"`
-	TotalTokens     int64          `json:"total_tokens"`
-	InputTokens     int64          `json:"input_tokens"`
-	OutputTokens    int64          `json:"output_tokens"`
-	CacheRead       int64          `json:"cache_read"`
-	CacheHitPct     float64        `json:"cache_hit_pct"`
-	SavingsUSD      float64        `json:"savings_usd"`       // approx: cost we'd have paid if all cache hits were full input
-	ReductionPct    float64        `json:"reduction_pct"`     // reuse from GetTokenStats (vs naive baseline)
-	BaselineDir     string         `json:"baseline_dir,omitempty"`
-	ByModel         []CostBucket   `json:"by_model"`
-	ByProject       []CostBucket   `json:"by_project"`
-	Daily           []DailyCost    `json:"daily"`
-	InteractionsCnt int64          `json:"interactions_count"`
+	WindowDays      int          `json:"window_days"`
+	From            time.Time    `json:"from"`
+	To              time.Time    `json:"to"`
+	TotalUSD        float64      `json:"total_usd"`
+	TotalTokens     int64        `json:"total_tokens"`
+	InputTokens     int64        `json:"input_tokens"`
+	OutputTokens    int64        `json:"output_tokens"`
+	CacheRead       int64        `json:"cache_read"`
+	CacheHitPct     float64      `json:"cache_hit_pct"`
+	SavingsUSD      float64      `json:"savings_usd"`   // approx: cost we'd have paid if all cache hits were full input
+	ReductionPct    float64      `json:"reduction_pct"` // reuse from GetTokenStats (vs naive baseline)
+	BaselineDir     string       `json:"baseline_dir,omitempty"`
+	ByModel         []CostBucket `json:"by_model"`
+	ByProject       []CostBucket `json:"by_project"`
+	Daily           []DailyCost  `json:"daily"`
+	InteractionsCnt int64        `json:"interactions_count"`
 }
 
 func adminCostSummary(s *store.Store) http.HandlerFunc {

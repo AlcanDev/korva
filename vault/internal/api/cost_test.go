@@ -11,9 +11,9 @@ import (
 
 func TestLookupPrice_KnownAndUnknownIDs(t *testing.T) {
 	tests := []struct {
-		id          string
-		wantInput   float64
-		wantFamily  string
+		id         string
+		wantInput  float64
+		wantFamily string
 	}{
 		{"claude-3-5-sonnet-20240620", 3.0, "Anthropic Claude 3.5 Sonnet"},
 		{"claude-opus-4-20251022", 15.0, "Anthropic Claude Opus"},
@@ -112,11 +112,11 @@ func TestAdminCostSummary_ClampsDaysParam(t *testing.T) {
 		in   string
 		want int
 	}{
-		{"", 30},     // default
-		{"7", 7},     // explicit
+		{"", 30},      // default
+		{"7", 7},      // explicit
 		{"1000", 365}, // clamped to max
-		{"abc", 30},  // unparsable → default
-		{"-5", 30},   // non-positive → default
+		{"abc", 30},   // unparsable → default
+		{"-5", 30},    // non-positive → default
 	}
 	for _, tc := range tests {
 		t.Run(tc.in, func(t *testing.T) {
