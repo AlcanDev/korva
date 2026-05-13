@@ -142,6 +142,12 @@ const fetchMock = vi.fn(async (input?: RequestInfo | URL | string | null) => {
     window_days: 30,
     anomalies: [],
   })
+  if (url.includes('/admin/graph')) return jsonResponse({
+    project: 'test',
+    nodes: [],
+    edges: [],
+    truncated: false,
+  })
   return jsonResponse({})
 })
 vi.stubGlobal('fetch', fetchMock)
@@ -177,7 +183,7 @@ describe('Observatory navigation', () => {
     expect(OBSERVATORY_BASE).toBe('/admin/observatory')
   })
 
-  it('renders 12 sub-tabs with absolute hrefs from /admin/observatory/health', () => {
+  it('renders 13 sub-tabs with absolute hrefs from /admin/observatory/health', () => {
     renderAt('/admin/observatory/health')
     const nav = screen.getByRole('navigation', { name: /observatory sections/i })
     const hrefs = Array.from(nav.querySelectorAll('a')).map(
@@ -188,6 +194,7 @@ describe('Observatory navigation', () => {
       '/admin/observatory/live',
       '/admin/observatory/cost',
       '/admin/observatory/privacy',
+      '/admin/observatory/graph',
       '/admin/observatory/tokens',
       '/admin/observatory/activity',
       '/admin/observatory/commands',
@@ -210,6 +217,7 @@ describe('Observatory navigation', () => {
       '/admin/observatory/live',
       '/admin/observatory/cost',
       '/admin/observatory/privacy',
+      '/admin/observatory/graph',
       '/admin/observatory/tokens',
       '/admin/observatory/activity',
       '/admin/observatory/commands',
@@ -268,6 +276,7 @@ describe('Observatory navigation', () => {
     ['live', /Live activity/i],
     ['cost', /Cost & ROI/i],
     ['privacy', /Privacy meter/i],
+    ['graph', /Knowledge graph/i],
     ['tokens', /Token Analytics/i],
     ['activity', /Activity Timeline/i],
     ['commands', /Commands/i],

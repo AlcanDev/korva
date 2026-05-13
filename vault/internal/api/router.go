@@ -307,6 +307,9 @@ func Router(ctx context.Context, s *store.Store, cfg RouterConfig) http.Handler 
 	// Observatory — Anomaly detection (Phase 9.2)
 	mux.Handle("GET /admin/cost/anomalies", adminMW(withCORS(adminCostAnomalies(s))))
 
+	// Observatory — Knowledge Graph (Phase 9.3)
+	mux.Handle("GET /admin/graph", adminMW(withCORS(adminGraph(s))))
+
 	// Observatory — Deferred-apply queue (cloud sync resilience)
 	mux.Handle("GET /admin/cloud/deferred", adminMW(withCORS(adminListDeferred(s))))
 	mux.Handle("POST /admin/cloud/deferred/{sync_id}/retry", adminMW(withBodyLimit(withCORS(adminRetryDeferred(s)))))
