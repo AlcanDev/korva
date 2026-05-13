@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.21.0](https://github.com/AlcanDev/korva/compare/v1.20.0...v1.21.0) (2026-05-13)
+
+
+### 🚀 Features
+
+* **phase-11.7:** Harness multi-editor — Cursor, Windsurf, Continue, Copilot ([#48](https://github.com/AlcanDev/korva/issues/48)) ([c6d72ec](https://github.com/AlcanDev/korva/commit/c6d72ec8356607a696d265279e3c82c80e130b0d))
+
 ## [1.20.0](https://github.com/AlcanDev/korva/compare/v1.19.0...v1.20.0) (2026-05-13)
 
 
