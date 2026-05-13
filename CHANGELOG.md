@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.17.0](https://github.com/AlcanDev/korva/compare/v1.16.0...v1.17.0) (2026-05-13)
+
+
+### 🚀 Features
+
+* **phase-8:** enterprise refresh — toasts, ⌘K, mobile, SSE, Cost/ROI, Dashboard hero, empty states, i18n ([#40](https://github.com/AlcanDev/korva/issues/40)) ([160e9c2](https://github.com/AlcanDev/korva/commit/160e9c287dce6062483160cf635b0fb8f67cf52b))
+
 ## [1.16.0](https://github.com/AlcanDev/korva/compare/v1.15.0...v1.16.0) (2026-05-13)
 
 
