@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.15.0](https://github.com/AlcanDev/korva/compare/v1.14.0...v1.15.0) (2026-05-13)
+
+
+### 🚀 Features
+
+* **phase-6:** Beacon panels for projects + export + real version ([#36](https://github.com/AlcanDev/korva/issues/36)) ([fce801d](https://github.com/AlcanDev/korva/commit/fce801dc7b891e046043f06bc8d80e7d1458bd7e))
+
 ## [1.14.0](https://github.com/AlcanDev/korva/compare/v1.13.0...v1.14.0) (2026-05-13)
 
 
