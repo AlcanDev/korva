@@ -280,3 +280,112 @@ func TestDetectStack(t *testing.T) {
 		})
 	}
 }
+
+func TestParseEditorsFlag_AutoUsesDetect(t *testing.T) {
+	dir := t.TempDir()
+	// Drop a Cursor marker so auto-detect picks it up.
+	if err := os.WriteFile(filepath.Join(dir, ".cursorrules"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	got, err := parseEditorsFlag("auto", dir)
+	if err != nil {
+		t.Fatalf("parseEditorsFlag: %v", err)
+	}
+	if len(got) != 1 || got[0] != harness.EditorCursor {
+		t.Errorf("auto detect = %v, want [cursor]", got)
+	}
+}
+
+func TestParseEditorsFlag_EmptySameAsAuto(t *testing.T) {
+	dir := t.TempDir()
+	got, err := parseEditorsFlag("", dir)
+	if err != nil {
+		t.Fatalf("parseEditorsFlag: %v", err)
+	}
+	// Empty dir → fallback to claude.
+	if len(got) != 1 || got[0] != harness.EditorClaude {
+		t.Errorf("empty flag = %v, want [claude]", got)
+	}
+}
+
+func TestParseEditorsFlag_None(t *testing.T) {
+	got, err := parseEditorsFlag("none", t.TempDir())
+	if err != nil {
+		t.Fatalf("parseEditorsFlag: %v", err)
+	}
+	if got != nil {
+		t.Errorf("'none' should produce nil slice, got %v", got)
+	}
+}
+
+func TestParseEditorsFlag_CSV(t *testing.T) {
+	got, err := parseEditorsFlag("claude,cursor,continue", t.TempDir())
+	if err != nil {
+		t.Fatalf("parseEditorsFlag: %v", err)
+	}
+	want := []harness.Editor{harness.EditorClaude, harness.EditorCursor, harness.EditorContinue}
+	if len(got) != len(want) {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+	for i := range got {
+		if got[i] != want[i] {
+			t.Errorf("[%d] = %q, want %q", i, got[i], want[i])
+		}
+	}
+}
+
+func TestParseEditorsFlag_Dedupes(t *testing.T) {
+	got, err := parseEditorsFlag("cursor, cursor ,claude,cursor", t.TempDir())
+	if err != nil {
+		t.Fatalf("parseEditorsFlag: %v", err)
+	}
+	if len(got) != 2 {
+		t.Errorf("expected dedupe to 2 entries, got %v", got)
+	}
+}
+
+func TestParseEditorsFlag_RejectsUnknown(t *testing.T) {
+	_, err := parseEditorsFlag("emacs", t.TempDir())
+	if err == nil || !strings.Contains(err.Error(), "emacs") {
+		t.Errorf("expected unknown-editor error, got %v", err)
+	}
+}
+
+func TestRunHarnessInit_EditorsAutoDetectsCursor(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	// Seed a Cursor marker.
+	if err := os.WriteFile(filepath.Join(dir, ".cursorrules"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	harnessInitOpts = harnessInitFlags{
+		Root: ".", Project: "p", Stack: "generic", Editors: "auto",
+	}
+	t.Cleanup(func() { harnessInitOpts = harnessInitFlags{} })
+
+	_ = captureStdout(t, func() error { return runHarnessInit(nil, nil) })
+
+	if _, err := os.Stat(filepath.Join(dir, ".cursor", "rules", "korva-harness.mdc")); err != nil {
+		t.Errorf("auto-detect should have installed cursor rule: %v", err)
+	}
+}
+
+func TestRunHarnessInit_EditorsNoneSkipsAll(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	harnessInitOpts = harnessInitFlags{
+		Root: ".", Project: "p", Stack: "generic", Editors: "none",
+	}
+	t.Cleanup(func() { harnessInitOpts = harnessInitFlags{} })
+
+	_ = captureStdout(t, func() error { return runHarnessInit(nil, nil) })
+
+	// Universal layer still landed.
+	if _, err := os.Stat(filepath.Join(dir, "AGENTS.md")); err != nil {
+		t.Errorf("AGENTS.md missing: %v", err)
+	}
+	// Editor-specific files did not.
+	if _, err := os.Stat(filepath.Join(dir, ".claude", "agents", "leader.md")); !os.IsNotExist(err) {
+		t.Errorf("'none' should have skipped claude agents: %v", err)
+	}
+}

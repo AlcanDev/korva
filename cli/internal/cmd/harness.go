@@ -40,12 +40,12 @@ autonomously and verifiably.
 // --- init ------------------------------------------------------------------
 
 type harnessInitFlags struct {
-	Root          string
-	Project       string
-	Description   string
-	Stack         string
-	WithSubagents bool
-	Overwrite     bool
+	Root        string
+	Project     string
+	Description string
+	Stack       string
+	Editors     string // CSV or "auto" / "none"
+	Overwrite   bool
 }
 
 var harnessInitOpts harnessInitFlags
@@ -79,19 +79,32 @@ func runHarnessInit(_ *cobra.Command, _ []string) error {
 		return fmt.Errorf("unknown stack %q — pick one of: %s", stack, joinStacks())
 	}
 
+	editors, err := parseEditorsFlag(harnessInitOpts.Editors, abs)
+	if err != nil {
+		return err
+	}
+
 	written, err := harness.Generate(harness.InitOptions{
-		Root:          abs,
-		Project:       project,
-		Description:   harnessInitOpts.Description,
-		Stack:         stack,
-		WithSubagents: harnessInitOpts.WithSubagents,
-		Overwrite:     harnessInitOpts.Overwrite,
+		Root:        abs,
+		Project:     project,
+		Description: harnessInitOpts.Description,
+		Stack:       stack,
+		Editors:     editors,
+		Overwrite:   harnessInitOpts.Overwrite,
 	})
 	if err != nil {
 		return err
 	}
 
-	printSuccess(fmt.Sprintf("Harness initialized for %q (stack: %s)", project, stack))
+	editorLabel := "none"
+	if len(editors) > 0 {
+		parts := make([]string, len(editors))
+		for i, e := range editors {
+			parts[i] = string(e)
+		}
+		editorLabel = strings.Join(parts, ", ")
+	}
+	printSuccess(fmt.Sprintf("Harness initialized for %q (stack: %s, editors: %s)", project, stack, editorLabel))
 	for _, f := range written {
 		fmt.Printf("    + %s\n", f)
 	}
@@ -100,6 +113,52 @@ func runHarnessInit(_ *cobra.Command, _ []string) error {
 	}
 	printInfo("Next: review feature_list.json and run ./init.sh")
 	return nil
+}
+
+// parseEditorsFlag interprets the --editors string. The accepted values are:
+//
+//	""        → auto-detect from `root` (DetectEditors), the default
+//	"auto"    → same as empty: auto-detect
+//	"none"    → install no editor rule files; only the universal layer
+//	"a,b,c"   → install exactly the listed editors
+//
+// Returns an error if the user passes an editor name that isn't in
+// harness.AllEditors, so typos surface before any files are written.
+func parseEditorsFlag(raw string, root string) ([]harness.Editor, error) {
+	raw = strings.TrimSpace(raw)
+	switch strings.ToLower(raw) {
+	case "", "auto":
+		return harness.DetectEditors(root), nil
+	case "none":
+		return nil, nil
+	}
+	parts := strings.Split(raw, ",")
+	out := make([]harness.Editor, 0, len(parts))
+	seen := make(map[harness.Editor]bool, len(parts))
+	for _, p := range parts {
+		name := harness.Editor(strings.ToLower(strings.TrimSpace(p)))
+		if name == "" {
+			continue
+		}
+		if !harness.IsKnownEditor(name) {
+			return nil, fmt.Errorf("unknown editor %q — pick from: %s, or use 'auto'/'none'", name, joinEditors())
+		}
+		if seen[name] {
+			continue
+		}
+		seen[name] = true
+		out = append(out, name)
+	}
+	return out, nil
+}
+
+// joinEditors stringifies harness.AllEditors for help text + error messages.
+func joinEditors() string {
+	parts := make([]string, 0, len(harness.AllEditors))
+	for _, e := range harness.AllEditors {
+		parts = append(parts, string(e))
+	}
+	return strings.Join(parts, ", ")
 }
 
 // --- status ----------------------------------------------------------------
@@ -423,7 +482,8 @@ func init() {
 	harnessInitCmd.Flags().StringVarP(&harnessInitOpts.Project, "project", "p", "", "project name (defaults to directory basename)")
 	harnessInitCmd.Flags().StringVarP(&harnessInitOpts.Description, "description", "d", "", "short blurb for AGENTS.md and feature_list.json")
 	harnessInitCmd.Flags().StringVarP(&harnessInitOpts.Stack, "stack", "s", "", "stack preset: "+joinStacks()+" (auto-detect when empty)")
-	harnessInitCmd.Flags().BoolVar(&harnessInitOpts.WithSubagents, "with-subagents", true, "also install .claude/agents/{leader,implementer,reviewer}.md")
+	harnessInitCmd.Flags().StringVar(&harnessInitOpts.Editors, "editors", "auto",
+		"editor rule files to install: comma-separated list ("+joinEditors()+"), 'auto' to detect, or 'none'")
 	harnessInitCmd.Flags().BoolVarP(&harnessInitOpts.Overwrite, "overwrite", "f", false, "replace existing harness files")
 
 	// shared transition flag

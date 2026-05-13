@@ -1,0 +1,53 @@
+# Copilot Instructions — {{.Project}}
+
+> This repo follows the Korva Harness Engineering contract. Copilot
+> Chat reads these instructions automatically; the rules below are
+> non-negotiable.
+
+## Before any change
+
+1. Run `./init.sh`. Every line must be `[OK]`. If anything is `[FAIL]`,
+   stop and surface it — do not proceed.
+2. Read `progress/current.md`. A session may already be in flight;
+   continue it rather than starting fresh.
+3. Open `feature_list.json` and locate the `in_progress` row. If none,
+   pick the lowest-id `pending` row via `korva harness next`.
+
+## Hard rules
+
+- **One feature at a time.** The state machine enforces it; don't
+  work around the constraint.
+- **`done` requires green tests.** `./init.sh` must end `[OK]` after
+  your changes before marking anything `done`.
+- **Document while you work** in `progress/current.md`, not at the
+  end.
+- **Read `docs/*`** (architecture, conventions, verification) before
+  inventing patterns.
+
+## State machine commands
+
+```
+korva harness next            # next pending feature
+korva harness start <id>      # pending → in_progress
+korva harness done <id>       # in_progress → done
+korva harness block <id>      # mark blocked
+korva harness status          # counts + current feature
+```
+
+The same verbs are reachable through MCP as `vault_harness_*` tools
+when the Korva Vault is running.
+
+## Closing a session
+
+1. `./init.sh` exits `0`.
+2. Move the session entry from `progress/current.md` to
+   `progress/history.md`; reset `progress/current.md` to its
+   template.
+3. `korva harness done <id>`.
+
+## When stuck
+
+Write the blocker into `progress/current.md`, run
+`korva harness block <id>`, and stop. Do not invent workarounds, do
+not edit `init.sh` to mask the failure, do not bypass the state
+machine by editing `feature_list.json` by hand.

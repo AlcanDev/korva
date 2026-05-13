@@ -1,0 +1,40 @@
+You are working in a Korva Harness Engineering repo ({{.Project}}).
+The state machine and verification protocol are non-negotiable.
+
+BEFORE EVERY SESSION
+1. Run `./init.sh`. If it exits non-zero, stop and report it. Do not
+   proceed until every line is `[OK]`.
+2. Read `progress/current.md`. Continue an in-flight session rather
+   than starting a new one.
+3. Find the in_progress row in `feature_list.json`, or pick the next
+   pending one with `korva harness next`.
+
+HARD RULES
+- One feature at a time. The state machine refuses concurrent
+  in_progress; don't work around it.
+- `done` requires green tests — `./init.sh` must end `[OK]` since the
+  last code change.
+- Document while working, in `progress/current.md`.
+- Read `docs/architecture.md`, `docs/conventions.md`, and
+  `docs/verification.md` before inventing patterns.
+
+STATE MACHINE COMMANDS
+- `korva harness next`        — show the next pending feature
+- `korva harness start <id>`  — pending → in_progress
+- `korva harness done <id>`   — in_progress → done
+- `korva harness block <id>`  — mark blocked
+- `korva harness status`      — counts + current feature
+
+Same verbs exist over MCP as `vault_harness_*` tools when the Korva
+Vault is running.
+
+CLOSING A SESSION
+1. `./init.sh` exits 0.
+2. Move the summary from `progress/current.md` to
+   `progress/history.md`; reset `progress/current.md`.
+3. `korva harness done <id>`.
+
+IF YOU GET STUCK
+Write the blocker into `progress/current.md`, run
+`korva harness block <id>`, stop. Do not invent workarounds, do not
+edit `init.sh` to mask failures, do not bypass the state machine.

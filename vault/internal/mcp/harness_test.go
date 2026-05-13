@@ -4,6 +4,8 @@ import (
 	"bufio"
 	"bytes"
 	"log"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -50,11 +52,11 @@ func TestToolHarnessInit_WritesFiles(t *testing.T) {
 	dir := t.TempDir()
 
 	res, err := srv.toolHarnessInit(map[string]any{
-		"root":           dir,
-		"project":        "via-mcp",
-		"description":    "from MCP",
-		"stack":          "go",
-		"with_subagents": true,
+		"root":        dir,
+		"project":     "via-mcp",
+		"description": "from MCP",
+		"stack":       "go",
+		"editors":     []any{"claude"},
 	})
 	if err != nil {
 		t.Fatalf("toolHarnessInit: %v", err)
@@ -67,6 +69,10 @@ func TestToolHarnessInit_WritesFiles(t *testing.T) {
 	if len(files) == 0 {
 		t.Errorf("no files reported written")
 	}
+	editors := resp["editors"].([]string)
+	if len(editors) != 1 || editors[0] != "claude" {
+		t.Errorf("editors = %v, want [claude]", editors)
+	}
 
 	// Verify the seed feature_list.json is real.
 	fl, err := harness.LoadFeatureList(dir)
@@ -75,6 +81,107 @@ func TestToolHarnessInit_WritesFiles(t *testing.T) {
 	}
 	if fl.Project != "via-mcp" {
 		t.Errorf("seed project = %q", fl.Project)
+	}
+}
+
+func TestToolHarnessInit_EditorsAutoString(t *testing.T) {
+	srv := newHarnessTestServer(t)
+	dir := t.TempDir()
+	// Plant a Cursor marker so auto picks it up.
+	if err := os.WriteFile(filepath.Join(dir, ".cursorrules"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	res, err := srv.toolHarnessInit(map[string]any{
+		"root":    dir,
+		"project": "p",
+		"editors": "auto",
+	})
+	if err != nil {
+		t.Fatalf("toolHarnessInit: %v", err)
+	}
+	editors := res.(map[string]any)["editors"].([]string)
+	if len(editors) != 1 || editors[0] != "cursor" {
+		t.Errorf("auto editors = %v, want [cursor]", editors)
+	}
+	if _, err := os.Stat(filepath.Join(dir, ".cursor", "rules", "korva-harness.mdc")); err != nil {
+		t.Errorf("cursor rule not materialized: %v", err)
+	}
+}
+
+func TestToolHarnessInit_EditorsNone(t *testing.T) {
+	srv := newHarnessTestServer(t)
+	dir := t.TempDir()
+	res, err := srv.toolHarnessInit(map[string]any{
+		"root":    dir,
+		"project": "p",
+		"editors": "none",
+	})
+	if err != nil {
+		t.Fatalf("toolHarnessInit: %v", err)
+	}
+	editors := res.(map[string]any)["editors"].([]string)
+	if len(editors) != 0 {
+		t.Errorf("'none' should produce empty editors slice, got %v", editors)
+	}
+	if _, err := os.Stat(filepath.Join(dir, ".claude", "agents", "leader.md")); !os.IsNotExist(err) {
+		t.Errorf("claude agent file unexpectedly created: %v", err)
+	}
+}
+
+func TestToolHarnessInit_EditorsCSVString(t *testing.T) {
+	srv := newHarnessTestServer(t)
+	dir := t.TempDir()
+	if _, err := srv.toolHarnessInit(map[string]any{
+		"root":    dir,
+		"project": "p",
+		"editors": "cursor,copilot",
+	}); err != nil {
+		t.Fatalf("toolHarnessInit: %v", err)
+	}
+	for _, p := range []string{
+		".cursor/rules/korva-harness.mdc",
+		".github/copilot-instructions.md",
+	} {
+		if _, err := os.Stat(filepath.Join(dir, filepath.FromSlash(p))); err != nil {
+			t.Errorf("missing %s: %v", p, err)
+		}
+	}
+}
+
+func TestToolHarnessInit_EditorsUnknownErrors(t *testing.T) {
+	srv := newHarnessTestServer(t)
+	dir := t.TempDir()
+	_, err := srv.toolHarnessInit(map[string]any{
+		"root":    dir,
+		"project": "p",
+		"editors": []any{"emacs"},
+	})
+	if err == nil || !strings.Contains(err.Error(), "emacs") {
+		t.Errorf("expected error naming the unknown editor, got %v", err)
+	}
+}
+
+func TestParseEditorsArg_Shapes(t *testing.T) {
+	root := t.TempDir()
+	// Empty / missing arg → auto-detect.
+	if _, err := parseEditorsArg(map[string]any{}, root); err != nil {
+		t.Errorf("missing arg should not error: %v", err)
+	}
+	// Nil value → auto-detect.
+	if _, err := parseEditorsArg(map[string]any{"editors": nil}, root); err != nil {
+		t.Errorf("nil arg should not error: %v", err)
+	}
+	// Array of strings.
+	got, err := parseEditorsArg(map[string]any{"editors": []any{"claude", "cursor"}}, root)
+	if err != nil {
+		t.Fatalf("array: %v", err)
+	}
+	if len(got) != 2 {
+		t.Errorf("array got %v", got)
+	}
+	// Unsupported type.
+	if _, err := parseEditorsArg(map[string]any{"editors": 42}, root); err == nil {
+		t.Error("numeric editors should error")
 	}
 }
 
