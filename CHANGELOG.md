@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.14.0](https://github.com/AlcanDev/korva/compare/v1.13.0...v1.14.0) (2026-05-13)
+
+
+### 🚀 Features
+
+* **phase-5:** Obsidian export + comprehensive E2E smoke + docs ([#34](https://github.com/AlcanDev/korva/issues/34)) ([f547f74](https://github.com/AlcanDev/korva/commit/f547f743c210eea7829397f93140e22e1d73990b))
+
 ## [1.13.0](https://github.com/AlcanDev/korva/compare/v1.12.0...v1.13.0) (2026-05-12)
 
 
