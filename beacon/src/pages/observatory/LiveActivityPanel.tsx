@@ -19,6 +19,7 @@ import {
 	PageHero,
 	StatusDot,
 } from "@/components/ui";
+import { useI18n } from "@/contexts/i18n";
 
 // Phase 8.5 — UI over /admin/events SSE. Shows a live stream of every
 // observation save, command run, conflict, etc. as they happen. The
@@ -50,17 +51,18 @@ const TONE_BY_KIND: Record<EventKind, "success" | "info" | "warning" | "danger" 
 	hive_phase_changed: "info",
 };
 
-const LABEL_BY_KIND: Record<EventKind, string> = {
-	observation_saved: "Observation saved",
-	session_started: "Session started",
-	session_ended: "Session ended",
-	conflict_detected: "Conflict detected",
-	command_run: "Command run",
-	export_written: "Obsidian export",
-	hive_phase_changed: "Hive phase changed",
-};
-
 export default function LiveActivityPanel() {
+	const { t } = useI18n();
+	const tx = t.liveActivity;
+	const labelByKind: Record<EventKind, string> = {
+		observation_saved: tx.labelObservationSaved,
+		session_started: tx.labelSessionStarted,
+		session_ended: tx.labelSessionEnded,
+		conflict_detected: tx.labelConflictDetected,
+		command_run: tx.labelCommandRun,
+		export_written: tx.labelExportWritten,
+		hive_phase_changed: tx.labelHivePhaseChanged,
+	};
 	const { events, connected, error } = useActivityFeed();
 
 	// Aggregate counts per kind for the header summary.
@@ -73,10 +75,10 @@ export default function LiveActivityPanel() {
 	return (
 		<div className="p-4 sm:p-6 max-w-6xl mx-auto space-y-4 sm:space-y-5 animate-fade-up">
 			<PageHero
-				eyebrow="Real-time observability"
+				eyebrow={tx.eyebrow}
 				icon={<Activity size={22} />}
-				title="Live activity"
-				subtitle="Server-Sent Events stream every observation, command, and conflict the moment it happens. Open this on a side monitor during a code review."
+				title={tx.title}
+				subtitle={tx.subtitle}
 				badge={{
 					tone: connected ? "success" : error ? "danger" : "neutral",
 					label: (
@@ -85,7 +87,7 @@ export default function LiveActivityPanel() {
 								state={connected ? "running" : error ? "error" : "idle"}
 								pulse={connected}
 							/>
-							{connected ? "Live" : error ? "Disconnected" : "Connecting…"}
+							{connected ? tx.badgeLive : error ? tx.badgeDisconnected : tx.badgeConnecting}
 						</span>
 					),
 				}}
@@ -95,7 +97,7 @@ export default function LiveActivityPanel() {
 				<div className="flex flex-wrap gap-1.5">
 					{summary.map(([kind, count]) => (
 						<Badge key={kind} tone={TONE_BY_KIND[kind]} mono>
-							{LABEL_BY_KIND[kind]} · {count}
+							{labelByKind[kind]} · {count}
 						</Badge>
 					))}
 				</div>
@@ -103,11 +105,11 @@ export default function LiveActivityPanel() {
 
 			<Card>
 				<CardHeader
-					title="Stream"
+					title={tx.streamTitle}
 					subtitle={
 						events.length === 0
-							? "Waiting for the first event…"
-							: `${events.length} event(s) buffered (most recent first)`
+							? tx.waitingFirst
+							: tx.bufferedCount(events.length)
 					}
 				/>
 				<CardBody className="!p-0">
@@ -116,15 +118,20 @@ export default function LiveActivityPanel() {
 							<EmptyState
 								tone="cyan"
 								icon={<Activity size={22} />}
-								title="No activity yet"
-								description="Save an observation from your editor or run a korva CLI command. Events show up here within milliseconds."
-								hint="vault_save → live stream"
+								title={tx.emptyTitle}
+								description={tx.emptyDesc}
+								hint={tx.emptyHint}
 							/>
 						</div>
 					) : (
 						<ul className="divide-y divide-white/5">
 							{events.map((ev, i) => (
-								<ActivityRow key={`${ev.at}-${i}`} ev={ev} />
+								<ActivityRow
+									key={`${ev.at}-${i}`}
+									ev={ev}
+									label={labelByKind[ev.kind]}
+									byLabel={tx.by}
+								/>
 							))}
 						</ul>
 					)}
@@ -134,7 +141,15 @@ export default function LiveActivityPanel() {
 	);
 }
 
-function ActivityRow({ ev }: { ev: ActivityEvent }) {
+function ActivityRow({
+	ev,
+	label,
+	byLabel,
+}: {
+	ev: ActivityEvent;
+	label: string;
+	byLabel: string;
+}) {
 	const Icon = ICON_BY_KIND[ev.kind] ?? Activity;
 	const tone = TONE_BY_KIND[ev.kind] ?? "info";
 	const meta = ev.meta ?? {};
@@ -148,7 +163,7 @@ function ActivityRow({ ev }: { ev: ActivityEvent }) {
 			</span>
 			<div className="flex-1 min-w-0">
 				<div className="flex items-center gap-2 flex-wrap text-xs">
-					<span className="text-ink-100 font-medium">{LABEL_BY_KIND[ev.kind]}</span>
+					<span className="text-ink-100 font-medium">{label}</span>
 					{ev.project ? (
 						<Badge tone="cyan" mono>
 							{ev.project}
@@ -156,7 +171,7 @@ function ActivityRow({ ev }: { ev: ActivityEvent }) {
 					) : null}
 					{ev.actor ? (
 						<span className="text-ink-400">
-							by <span className="text-ink-200">{ev.actor}</span>
+							{byLabel} <span className="text-ink-200">{ev.actor}</span>
 						</span>
 					) : null}
 				</div>

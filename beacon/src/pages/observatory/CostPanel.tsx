@@ -14,6 +14,7 @@ import {
 	Tabs,
 } from "@/components/ui";
 import { BarChart, CHART_PALETTE, DonutChart, LineChart, Sparkline } from "@/components/charts";
+import { useI18n } from "@/contexts/i18n";
 
 // Phase 8.6 — Cost & ROI dashboard. Designed for the CFO/CTO conversation:
 //
@@ -42,6 +43,8 @@ const TONE_BY_MODEL_FAMILY: Record<string, string> = {
 };
 
 export default function CostPanel() {
+	const { t } = useI18n();
+	const tx = t.cost;
 	const [days, setDays] = useState<WindowDays>("30");
 	const { data, isLoading, error } = useCostSummary(Number(days));
 
@@ -87,10 +90,10 @@ export default function CostPanel() {
 	return (
 		<div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-4 sm:space-y-5 animate-fade-up">
 			<PageHero
-				eyebrow="Cost & ROI"
+				eyebrow={tx.eyebrow}
 				icon={<DollarSign size={22} />}
-				title="Cost & ROI"
-				subtitle="What your AI actually costs — by model, by project, by day. The savings line shows what Korva's caching paid back."
+				title={tx.title}
+				subtitle={tx.subtitle}
 				actions={
 					<Tabs<WindowDays>
 						variant="pill"
@@ -105,7 +108,7 @@ export default function CostPanel() {
 				}
 			/>
 
-			{error ? <ErrorBanner title="Couldn't load cost summary" message={String(error)} /> : null}
+			{error ? <ErrorBanner title={tx.couldNotLoad} message={String(error)} /> : null}
 
 			{isLoading ? (
 				<div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -119,9 +122,9 @@ export default function CostPanel() {
 					{/* Hero metric strip */}
 					<div className="grid grid-cols-2 md:grid-cols-4 gap-3">
 						<MetricCard
-							label="Spent"
+							label={tx.metricSpent}
 							value={`$${data.total_usd.toFixed(2)}`}
-							hint={`last ${data.window_days} days`}
+							hint={tx.metricSpentHint(data.window_days)}
 							tone="volt"
 							icon={<DollarSign size={14} />}
 							sparkline={
@@ -131,23 +134,23 @@ export default function CostPanel() {
 							}
 						/>
 						<MetricCard
-							label="Tokens"
+							label={tx.metricTokens}
 							value={Intl.NumberFormat().format(data.total_tokens)}
-							hint={`${Intl.NumberFormat().format(data.interactions_count)} calls`}
+							hint={tx.metricCalls(data.interactions_count)}
 							tone="cyan"
 							icon={<Coins size={14} />}
 						/>
 						<MetricCard
-							label="Cache hit"
+							label={tx.metricCacheHit}
 							value={`${(data.cache_hit_pct * 100).toFixed(1)}%`}
-							hint={`${Intl.NumberFormat().format(data.cache_read)} read`}
+							hint={tx.metricCacheRead(data.cache_read)}
 							tone="purple"
 							icon={<Sparkles size={14} />}
 						/>
 						<MetricCard
-							label="Savings"
+							label={tx.metricSavings}
 							value={`$${data.savings_usd.toFixed(2)}`}
-							hint="vs. uncached input"
+							hint={tx.metricSavingsHint}
 							tone="coral"
 							icon={<TrendingDown size={14} />}
 						/>
@@ -156,8 +159,8 @@ export default function CostPanel() {
 					{/* Daily curve */}
 					<Card>
 						<CardHeader
-							title="USD spent per day"
-							subtitle="A flat line is healthy; a slope to the right is your AI bill growing."
+							title={tx.dailyTitle}
+							subtitle={tx.dailySubtitle}
 							icon={<DollarSign size={14} />}
 						/>
 						<CardBody>
@@ -172,9 +175,9 @@ export default function CostPanel() {
 								<EmptyState
 									tone="cyan"
 									icon={<DollarSign size={22} />}
-									title="No spend yet"
-									description="Once interactions land in this window the daily cost curve will appear here."
-									hint="Run an AI session to populate"
+									title={tx.dailyEmptyTitle}
+									description={tx.dailyEmptyDesc}
+									hint={tx.dailyEmptyHint}
 								/>
 							)}
 						</CardBody>
@@ -183,7 +186,7 @@ export default function CostPanel() {
 					{/* Distribution by model + by project */}
 					<div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
 						<Card>
-							<CardHeader title="By model" subtitle="Where the dollars go" icon={<Cpu size={14} />} />
+							<CardHeader title={tx.byModelTitle} subtitle={tx.byModelSubtitle} icon={<Cpu size={14} />} />
 							<CardBody>
 								{byModelDonut?.length ? (
 									<DonutChart
@@ -197,7 +200,7 @@ export default function CostPanel() {
 									<EmptyState
 										tone="purple"
 										icon={<Cpu size={22} />}
-										title="No model usage in window"
+										title={tx.byModelEmpty}
 										compact
 									/>
 								)}
@@ -205,20 +208,19 @@ export default function CostPanel() {
 						</Card>
 
 						<Card>
-							<CardHeader title="By project" subtitle="Top spenders" />
+							<CardHeader title={tx.byProjectTitle} subtitle={tx.byProjectSubtitle} />
 							<CardBody>
 								{byProjectBar?.length ? (
 									<BarChart
 										data={byProjectBar}
 										maxRows={8}
 										formatValue={(n) => `$${n.toFixed(2)}`}
-										emptyMessage="No per-project breakdown yet."
 									/>
 								) : (
 									<EmptyState
 										tone="coral"
 										icon={<DollarSign size={22} />}
-										title="No project breakdown"
+										title={tx.byProjectEmpty}
 										compact
 									/>
 								)}
@@ -227,9 +229,9 @@ export default function CostPanel() {
 					</div>
 
 					<p className="text-[11px] text-ink-500 text-center">
-						Prices are best-effort estimates from public pricing pages. Run{" "}
-						<code className="font-mono text-ink-300">korva config show</code> if you need exact
-						invoice-grade figures. <Badge tone="neutral" mono>estimated</Badge>
+						{tx.estimatedDisclaimer}{" "}
+						<code className="font-mono text-ink-300">korva config show</code>{" "}
+						<Badge tone="neutral" mono>{tx.estimatedBadge}</Badge>
 					</p>
 				</>
 			) : null}
