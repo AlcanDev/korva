@@ -24,6 +24,7 @@ import {
 	Skeleton,
 	StatusDot,
 } from "@/components/ui";
+import { useI18n } from "@/contexts/i18n";
 
 // Phase 7 — UI sobre /admin/commands*. Catálogo de comandos seguros
 // (whitelisteados en el backend) que el operador puede correr con 1 click,
@@ -47,6 +48,8 @@ const ICON_BY_SLUG: Record<string, React.ReactNode> = {
 };
 
 export default function CommandsPanel() {
+	const { t } = useI18n();
+	const tx = t.commands;
 	const { data, isLoading, error } = useCommandList();
 	const run = useRunCommand();
 	const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
@@ -61,28 +64,17 @@ export default function CommandsPanel() {
 	return (
 		<div className="p-6 max-w-7xl mx-auto space-y-5 animate-fade-up">
 			<PageHero
-				eyebrow="Operator console"
+				eyebrow={tx.eyebrow}
 				icon={<TerminalIcon size={22} />}
-				title="Commands"
-				subtitle={
-					<>
-						Run curated <code className="font-mono text-ink-300">korva</code> CLI commands
-						without leaving the dashboard. The backend whitelist is the only entry
-						point — no shell access, no arbitrary input.
-					</>
-				}
+				title={tx.title}
+				subtitle={tx.subtitle}
 				badge={{
 					tone: localOnly ? "success" : "danger",
-					label: localOnly ? "Local vault" : "Remote vault — disabled",
+					label: localOnly ? tx.badgeLocal : tx.badgeRemote,
 				}}
 			/>
 
-			{error && (
-				<ErrorBanner
-					title="Couldn't load the command catalogue"
-					message={String(error)}
-				/>
-			)}
+			{error && <ErrorBanner title={tx.couldntLoad} message={String(error)} />}
 
 			{!localOnly && data && (
 				<Card variant="elevated" className="p-5">
@@ -90,15 +82,9 @@ export default function CommandsPanel() {
 						<AlertCircle size={18} className="text-amber-400 shrink-0 mt-0.5" />
 						<div>
 							<p className="text-sm font-medium text-ink-100 mb-1">
-								This vault is not bound to localhost
+								{tx.remoteTitle}
 							</p>
-							<p className="text-xs text-ink-400 leading-relaxed">
-								For safety, the command runner refuses to spawn processes when the
-								dashboard is reached through a non-loopback host. To enable it,
-								access the dashboard via{" "}
-								<code className="font-mono text-ink-300">http://127.0.0.1:7437</code>{" "}
-								(or wherever your vault is bound locally).
-							</p>
+							<p className="text-xs text-ink-400 leading-relaxed">{tx.remoteBody}</p>
 						</div>
 					</div>
 				</Card>
@@ -107,7 +93,7 @@ export default function CommandsPanel() {
 			<div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-5">
 				{/* Catalogue */}
 				<Card variant="default">
-					<CardHeader title="Catalogue" subtitle="Click a command to run it." />
+					<CardHeader title={tx.catalogue} subtitle={tx.catalogueHint} />
 					<CardBody className="!p-2">
 						{isLoading ? (
 							<div className="space-y-2">
@@ -116,7 +102,7 @@ export default function CommandsPanel() {
 								<Skeleton height={42} />
 							</div>
 						) : !data || data.commands.length === 0 ? (
-							<EmptyState title="No commands available" />
+							<EmptyState title={tx.catalogueEmpty} />
 						) : (
 							<ul className="space-y-1">
 								{data.commands.map((cmd) => (
@@ -140,12 +126,12 @@ export default function CommandsPanel() {
 				{/* Output */}
 				<Card variant="default" className="overflow-hidden">
 					<CardHeader
-						title={selected ? `Output — ${selected.slug}` : "Output"}
+						title={selected ? `${tx.output} — ${selected.slug}` : tx.output}
 						subtitle={
 							selected ? (
 								<code className="font-mono text-ink-300">{selected.argv}</code>
 							) : (
-								"Pick a command on the left to see its captured stdout/stderr here."
+								tx.outputHint
 							)
 						}
 						icon={<TerminalIcon size={14} />}
@@ -158,7 +144,7 @@ export default function CommandsPanel() {
 									loading={run.isPending}
 									onClick={() => run.mutate(selected.slug)}
 								>
-									Re-run
+									{tx.rerun}
 								</Button>
 							) : null
 						}
@@ -168,6 +154,7 @@ export default function CommandsPanel() {
 						result={run.data ?? null}
 						error={run.error}
 						hasSelection={Boolean(selected)}
+						tx={tx}
 					/>
 				</Card>
 			</div>
@@ -224,16 +211,20 @@ function CommandRow({
 
 // ── Output panel ───────────────────────────────────────────────────────────
 
+type CommandsLang = ReturnType<typeof useI18n>["t"]["commands"];
+
 function CommandOutput({
 	loading,
 	result,
 	error,
 	hasSelection,
+	tx,
 }: {
 	loading: boolean;
 	result: import("@/api/commands").CommandRunResponse | null;
 	error: unknown;
 	hasSelection: boolean;
+	tx: CommandsLang;
 }) {
 	if (loading) {
 		return (
@@ -248,7 +239,7 @@ function CommandOutput({
 	if (error) {
 		return (
 			<div className="p-5">
-				<ErrorBanner title="Command failed to start" message={String(error)} />
+				<ErrorBanner title={tx.errorTitle} message={String(error)} />
 			</div>
 		);
 	}
@@ -256,7 +247,7 @@ function CommandOutput({
 		return (
 			<div className="p-8 text-center">
 				<p className="text-sm text-ink-400">
-					{hasSelection ? "Press Re-run to execute." : "No output yet."}
+					{hasSelection ? tx.pressRerun : tx.noOutputYet}
 				</p>
 			</div>
 		);
@@ -266,20 +257,20 @@ function CommandOutput({
 		<div className="p-4 space-y-3">
 			<div className="flex items-center gap-2 flex-wrap text-[11px]">
 				<Badge tone={ok ? "success" : result.timed_out ? "warning" : "danger"} mono>
-					{ok ? "exit 0" : result.timed_out ? "TIMED OUT" : `exit ${result.exit_code}`}
+					{ok ? tx.exitOK : result.timed_out ? tx.timedOut : tx.exitNon(result.exit_code)}
 				</Badge>
 				<Badge tone="info" mono>
 					{result.duration_ms}ms
 				</Badge>
 				{result.truncated && (
 					<Badge tone="warning" mono>
-						OUTPUT TRUNCATED
+						{tx.truncated}
 					</Badge>
 				)}
 			</div>
 			<pre className="terminal terminal-body whitespace-pre-wrap break-words text-[12.5px] max-h-[480px] overflow-auto">
 				{result.stdout || (
-					<span className="text-ink-500 italic">(no stdout)</span>
+					<span className="text-ink-500 italic">{tx.noStdout}</span>
 				)}
 				{result.stderr && (
 					<>

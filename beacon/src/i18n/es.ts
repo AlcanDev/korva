@@ -375,4 +375,118 @@ export const es = {
     mcpDef: 'Model Context Protocol — el estándar abierto que permite a los asistentes de IA (Claude Code, Cursor, Windsurf) comunicarse directamente con herramientas externas como el Vault de Korva.',
     hoverHint: '— hover para ver definiciones',
   },
+
+  // Phase 7 — paneles de operador (hygiene de proyectos, export Obsidian, runner de comandos).
+  projects: {
+    title: 'Proyectos',
+    eyebrow: 'Hygiene de proyectos',
+    subtitle:
+      'Inspecciona, consolida y poda los proyectos que el vault rastrea. Nombres variantes y sesiones huérfanas de runs MCP abandonados son exactamente lo que estas herramientas limpian.',
+    tabInventory: 'Inventario',
+    tabConsolidate: 'Consolidar',
+    tabPrune: 'Podar vacíos',
+    metricProjects: 'Proyectos',
+    metricObservations: 'Observaciones',
+    metricSessions: 'Sesiones',
+    metricProjectsHint: 'nombres distintos en el vault',
+    metricObservationsHint: 'en todos los proyectos',
+    metricSessionsHint: 'en todos los proyectos',
+    inventoryCount: (n: number) =>
+      `${n} proyecto${n !== 1 ? 's' : ''} rastreado${n !== 1 ? 's' : ''}`,
+    refresh: 'Actualizar',
+    rescan: 'Re-escanear',
+    emptyTitle: 'Sin proyectos aún',
+    emptyDesc: 'El vault no ha registrado observaciones ni sesiones todavía.',
+    columnProject: 'Proyecto',
+    columnObservations: 'Observaciones',
+    columnSessions: 'Sesiones',
+    columnPrompts: 'Prompts',
+    topProjects: 'Top de proyectos',
+    topProjectsHint: 'por cantidad de observaciones',
+    consolidateCount: (n: number) =>
+      `${n} candidato${n !== 1 ? 's' : ''} para fusionar`,
+    consolidateSubtitle:
+      'Nombres variantes que normalizan a la misma forma canónica.',
+    consolidateEmpty: 'No se encontraron variantes',
+    consolidateEmptyDesc: 'Cada proyecto tiene un nombre normalizado único.',
+    canonicalName: 'Nombre canónico',
+    mergeIntoCanonical: 'Fusionar en canónico',
+    merging: 'Fusionando…',
+    sourcesLabel: 'Fuentes (se incorporarán al canónico)',
+    noOtherVariants: '(no hay otras variantes — cambia el canónico para fusionar)',
+    mergeSuccess: (n: number, name: string) =>
+      `Se fusionaron ${n} observación${n !== 1 ? 'es' : ''} en ${name}`,
+    pruneTitle: 'Podar proyectos vacíos',
+    pruneSubtitle:
+      'Los proyectos vacíos tienen sesiones pero cero observaciones. Podar elimina las sesiones huérfanas; las observaciones nunca se tocan.',
+    pruneDryRun: 'Simulación',
+    pruneScanning: 'Escaneando…',
+    pruneApply: 'Aplicar…',
+    pruneConfirm: 'Confirmar',
+    pruneConfirmWarning: (n: number) =>
+      `Esto borrará las sesiones de ${n} proyecto${n !== 1 ? 's' : ''}. ¿Seguro?`,
+    pruneRemoved: (n: number) =>
+      `Se eliminaron ${n} sesión${n !== 1 ? 'es' : ''}`,
+    pruneEmptyTitle: 'No hay proyectos vacíos',
+    pruneEmptyDesc:
+      'Cada proyecto con sesiones también tiene al menos una observación.',
+    cancel: 'Cancelar',
+  },
+
+  exportPanel: {
+    title: 'Exportar a Obsidian',
+    eyebrow: 'Export de conocimiento',
+    subtitle:
+      'Renderiza el vault como markdown estilo Obsidian. Cada observación se convierte en una nota con frontmatter YAML y [[wikilinks]]. Es seguro re-ejecutar sobre el mismo directorio — las notas se reescriben con el estado vigente.',
+    configTitle: 'Configuración del export',
+    outLabel: 'Directorio de salida',
+    outPlaceholder: '/Users/yo/vaults/korva-vault',
+    outHint:
+      'La ruta es relativa al proceso del vault. Ponla dentro de tu carpeta de vaults de Obsidian para que File → Open vault la detecte al instante.',
+    projectLabel: 'Proyecto (opcional)',
+    projectAll: 'Todos los proyectos',
+    typeLabel: 'Tipo (opcional)',
+    typeAll: 'Todos los tipos',
+    runExport: 'Ejecutar export',
+    exporting: 'Exportando…',
+    outRequired: 'Se requiere un directorio de salida',
+    errorTitle: 'El export falló',
+    resultTitle: 'Export escrito',
+    resultBreakdown: 'Distribución del export',
+    resultCenterLabel: 'Archivos',
+    resultGeneratedAt: 'Generado a las',
+    resultNextStep: 'Siguiente paso',
+    resultNextStepBody:
+      'Abre la carpeta en Obsidian con File → Open vault y empieza a navegar los wikilinks bajo el _index.md de cada proyecto.',
+    badgeFiles: (n: number) => `${n} archivos`,
+    badgeProjects: (n: number) => `${n} proyectos`,
+  },
+
+  commands: {
+    title: 'Comandos',
+    eyebrow: 'Consola del operador',
+    subtitle:
+      'Corre comandos curados de la CLI korva sin salir del dashboard. La whitelist del backend es el único punto de entrada — sin acceso a shell, sin input arbitrario.',
+    badgeLocal: 'Vault local',
+    badgeRemote: 'Vault remoto — deshabilitado',
+    remoteTitle: 'Este vault no está enlazado a localhost',
+    remoteBody:
+      'Por seguridad, el runner de comandos rechaza ejecutar procesos cuando se accede al dashboard a través de un host no-loopback. Accede al dashboard vía http://127.0.0.1:7437 (o donde tengas tu vault local).',
+    catalogue: 'Catálogo',
+    catalogueHint: 'Click en un comando para ejecutarlo.',
+    output: 'Salida',
+    outputHint:
+      'Elige un comando a la izquierda para ver su stdout/stderr capturado aquí.',
+    noStdout: '(sin stdout)',
+    rerun: 'Re-ejecutar',
+    exitOK: 'exit 0',
+    exitNon: (code: number) => `exit ${code}`,
+    timedOut: 'TIMEOUT',
+    truncated: 'SALIDA TRUNCADA',
+    noOutputYet: 'Aún no hay salida.',
+    pressRerun: 'Presiona Re-ejecutar para correr.',
+    errorTitle: 'El comando no pudo iniciar',
+    catalogueEmpty: 'No hay comandos disponibles',
+    couldntLoad: 'No se pudo cargar el catálogo de comandos',
+  },
 } as const

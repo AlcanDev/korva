@@ -12,6 +12,7 @@ import {
 	PageHero,
 } from "@/components/ui";
 import { DonutChart, CHART_PALETTE } from "@/components/charts";
+import { useI18n } from "@/contexts/i18n";
 
 // Phase 7 — Refresh visual del Export panel. Mismo flujo (form → run →
 // resultado) pero usando los primitivos del nuevo design system + un donut
@@ -48,6 +49,8 @@ const TYPE_COLOR: Record<string, string> = {
 };
 
 export default function ExportPanel() {
+	const { t } = useI18n();
+	const tx = t.exportPanel;
 	const [out, setOut] = useState("");
 	const [project, setProject] = useState("");
 	const [obsType, setObsType] = useState("");
@@ -68,43 +71,32 @@ export default function ExportPanel() {
 	return (
 		<div className="p-6 max-w-5xl mx-auto space-y-5 animate-fade-up">
 			<PageHero
-				eyebrow="Knowledge export"
+				eyebrow={tx.eyebrow}
 				icon={<Download size={22} />}
-				title="Obsidian export"
-				subtitle={
-					<>
-						Render the vault as Obsidian-flavored markdown. Each observation becomes
-						a note with YAML frontmatter and{" "}
-						<code className="font-mono text-ink-300">[[wikilinks]]</code>. Re-running
-						over the same directory is safe — notes are rewritten from the live
-						store state.
-					</>
-				}
+				title={tx.title}
+				subtitle={tx.subtitle}
 			/>
 
 			{/* Form */}
 			<Card>
-				<CardHeader title="Export configuration" icon={<Folder size={14} />} />
+				<CardHeader title={tx.configTitle} icon={<Folder size={14} />} />
 				<CardBody className="space-y-4">
 					<div>
 						<label
 							htmlFor="export-out"
 							className="block text-[10px] uppercase tracking-wider text-ink-400 mb-1.5"
 						>
-							Output directory <span className="text-coral">*</span>
+							{tx.outLabel} <span className="text-coral">*</span>
 						</label>
 						<input
 							id="export-out"
 							type="text"
 							value={out}
 							onChange={(e) => setOut(e.target.value)}
-							placeholder="/Users/me/vaults/korva-vault"
+							placeholder={tx.outPlaceholder}
 							className="w-full bg-space-900 border border-white/10 rounded-md px-3 py-2 text-sm text-ink-100 font-mono focus:border-volt focus:outline-none focus:ring-2 focus:ring-volt/20"
 						/>
-						<p className="text-[11px] text-ink-500 mt-1.5 leading-relaxed">
-							Path is resolved relative to the vault process. Place it under your
-							Obsidian vaults folder so File → Open vault picks it up immediately.
-						</p>
+						<p className="text-[11px] text-ink-500 mt-1.5 leading-relaxed">{tx.outHint}</p>
 					</div>
 
 					<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -113,7 +105,7 @@ export default function ExportPanel() {
 								htmlFor="export-project"
 								className="block text-[10px] uppercase tracking-wider text-ink-400 mb-1.5"
 							>
-								Project (optional)
+								{tx.projectLabel}
 							</label>
 							<select
 								id="export-project"
@@ -121,7 +113,7 @@ export default function ExportPanel() {
 								onChange={(e) => setProject(e.target.value)}
 								className="w-full bg-space-900 border border-white/10 rounded-md px-3 py-2 text-sm text-ink-100 focus:border-volt focus:outline-none"
 							>
-								<option value="">All projects</option>
+								<option value="">{tx.projectAll}</option>
 								{(projects.data?.projects ?? []).map((p) => (
 									<option key={p.name} value={p.name}>
 										{p.name} ({p.observation_count})
@@ -134,7 +126,7 @@ export default function ExportPanel() {
 								htmlFor="export-type"
 								className="block text-[10px] uppercase tracking-wider text-ink-400 mb-1.5"
 							>
-								Type (optional)
+								{tx.typeLabel}
 							</label>
 							<select
 								id="export-type"
@@ -142,10 +134,10 @@ export default function ExportPanel() {
 								onChange={(e) => setObsType(e.target.value)}
 								className="w-full bg-space-900 border border-white/10 rounded-md px-3 py-2 text-sm text-ink-100 focus:border-volt focus:outline-none"
 							>
-								<option value="">All types</option>
-								{OBSERVATION_TYPES.map((t) => (
-									<option key={t} value={t}>
-										{t}
+								<option value="">{tx.typeAll}</option>
+								{OBSERVATION_TYPES.map((tType) => (
+									<option key={tType} value={tType}>
+										{tType}
 									</option>
 								))}
 							</select>
@@ -160,11 +152,11 @@ export default function ExportPanel() {
 							loading={exporter.isPending}
 							leftIcon={<Download size={12} />}
 						>
-							{exporter.isPending ? "Exporting…" : "Run export"}
+							{exporter.isPending ? tx.exporting : tx.runExport}
 						</Button>
 						{!ready && (
 							<span className="text-[11px] text-ink-500 inline-flex items-center gap-1.5">
-								<AlertCircle size={11} /> An output directory is required
+								<AlertCircle size={11} /> {tx.outRequired}
 							</span>
 						)}
 					</div>
@@ -172,16 +164,19 @@ export default function ExportPanel() {
 			</Card>
 
 			{exporter.error && (
-				<ErrorBanner title="Export failed" message={String(exporter.error)} />
+				<ErrorBanner title={tx.errorTitle} message={String(exporter.error)} />
 			)}
 
-			{exporter.data && <ExportResultCard result={exporter.data} />}
+			{exporter.data && <ExportResultCard result={exporter.data} tx={tx} />}
 		</div>
 	);
 }
 
+type ExportLang = ReturnType<typeof useI18n>["t"]["exportPanel"];
+
 function ExportResultCard({
 	result,
+	tx,
 }: {
 	result: {
 		out_dir: string;
@@ -191,6 +186,7 @@ function ExportResultCard({
 		by_project?: Record<string, number>;
 		generated_at: string;
 	};
+	tx: ExportLang;
 }) {
 	const donutData = Object.entries(result.by_type)
 		.map(([label, value]) => ({
@@ -204,17 +200,17 @@ function ExportResultCard({
 		<Card tone="volt" variant="glass">
 			<CardHeader
 				icon={<Check size={14} className="text-volt" />}
-				title="Export written"
+				title={tx.resultTitle}
 				subtitle={
 					<span className="font-mono text-ink-300">{result.out_dir}</span>
 				}
 				actions={
 					<>
 						<Badge tone="success" mono>
-							{result.file_count} files
+							{tx.badgeFiles(result.file_count)}
 						</Badge>
 						<Badge tone="cyan" mono>
-							{result.project_count} projects
+							{tx.badgeProjects(result.project_count)}
 						</Badge>
 					</>
 				}
@@ -222,11 +218,11 @@ function ExportResultCard({
 			<CardBody className="grid grid-cols-1 md:grid-cols-[1fr_240px] gap-4 items-start">
 				<div>
 					<p className="text-[10px] uppercase tracking-wider text-ink-400 mb-2">
-						Output breakdown
+						{tx.resultBreakdown}
 					</p>
 					<DonutChart
 						data={donutData}
-						centerLabel="Files"
+						centerLabel={tx.resultCenterLabel}
 						centerValue={result.file_count}
 						stroke={18}
 						size={140}
@@ -235,7 +231,7 @@ function ExportResultCard({
 				<div className="text-xs space-y-3">
 					<div>
 						<p className="text-[10px] uppercase tracking-wider text-ink-400 mb-1">
-							Generated at
+							{tx.resultGeneratedAt}
 						</p>
 						<p className="font-mono text-ink-200">
 							{new Date(result.generated_at)
@@ -246,14 +242,9 @@ function ExportResultCard({
 					</div>
 					<div>
 						<p className="text-[10px] uppercase tracking-wider text-ink-400 mb-1.5">
-							Next step
+							{tx.resultNextStep}
 						</p>
-						<p className="text-ink-300 leading-relaxed">
-							Open the folder in Obsidian via{" "}
-							<span className="text-ink-100">File → Open vault</span> and start
-							browsing the wikilinks under each project's{" "}
-							<code className="font-mono">_index.md</code>.
-						</p>
+						<p className="text-ink-300 leading-relaxed">{tx.resultNextStepBody}</p>
 					</div>
 					<div className="flex items-center gap-1.5 flex-wrap pt-1">
 						{donutData.slice(0, 6).map((d) => (

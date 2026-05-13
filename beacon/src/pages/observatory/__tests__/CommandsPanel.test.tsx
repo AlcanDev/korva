@@ -2,6 +2,7 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import CommandsPanel from "../CommandsPanel";
+import { I18nProvider } from "@/contexts/i18n";
 
 // Phase 7.4 — verifica el contrato del panel: lista whitelist, click ejecuta,
 // muestra exit code + duración, y respeta el flag local_only del backend.
@@ -53,9 +54,11 @@ let fetchMock: ReturnType<typeof vi.fn>;
 function renderPanel() {
 	const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 	return render(
-		<QueryClientProvider client={qc}>
-			<CommandsPanel />
-		</QueryClientProvider>,
+		<I18nProvider>
+			<QueryClientProvider client={qc}>
+				<CommandsPanel />
+			</QueryClientProvider>
+		</I18nProvider>,
 	);
 }
 

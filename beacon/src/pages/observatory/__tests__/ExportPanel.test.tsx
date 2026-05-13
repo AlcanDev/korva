@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import ExportPanel from '../ExportPanel'
+import { I18nProvider } from '@/contexts/i18n'
 
 // Fase 6.2 — verifica el contrato del Export panel: el botón queda
 // deshabilitado sin out, el submit dispara POST con la forma correcta,
@@ -58,9 +59,11 @@ beforeEach(() => {
 function renderPanel() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
-    <QueryClientProvider client={qc}>
-      <ExportPanel />
-    </QueryClientProvider>,
+    <I18nProvider>
+      <QueryClientProvider client={qc}>
+        <ExportPanel />
+      </QueryClientProvider>
+    </I18nProvider>,
   )
 }
 

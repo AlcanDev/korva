@@ -3,6 +3,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { MemoryRouter, Routes, Route, useLocation } from 'react-router'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import Observatory, { OBSERVATORY_BASE } from '../Observatory'
+import { I18nProvider } from '@/contexts/i18n'
 
 vi.mock('@/stores/admin', () => ({
   useAdminStore: Object.assign(
@@ -126,14 +127,16 @@ function LocationProbe() {
 function renderAt(initialPath: string) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
-    <QueryClientProvider client={qc}>
-      <MemoryRouter initialEntries={[initialPath]}>
-        <Routes>
-          <Route path="/admin/observatory/*" element={<Observatory />} />
-        </Routes>
-        <LocationProbe />
-      </MemoryRouter>
-    </QueryClientProvider>,
+    <I18nProvider>
+      <QueryClientProvider client={qc}>
+        <MemoryRouter initialEntries={[initialPath]}>
+          <Routes>
+            <Route path="/admin/observatory/*" element={<Observatory />} />
+          </Routes>
+          <LocationProbe />
+        </MemoryRouter>
+      </QueryClientProvider>
+    </I18nProvider>,
   )
 }
 

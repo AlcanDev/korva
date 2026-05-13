@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import ProjectsPanel from '../ProjectsPanel'
+import { I18nProvider } from '@/contexts/i18n'
 
 // Fase 6.1 — verifica el contrato del Projects panel: lista, sugerencias y
 // el flujo de prune con doble confirmación. Mockea fetch + adminStore así
@@ -88,9 +89,11 @@ beforeEach(() => {
 function renderPanel() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
-    <QueryClientProvider client={qc}>
-      <ProjectsPanel />
-    </QueryClientProvider>,
+    <I18nProvider>
+      <QueryClientProvider client={qc}>
+        <ProjectsPanel />
+      </QueryClientProvider>
+    </I18nProvider>,
   )
 }
 
