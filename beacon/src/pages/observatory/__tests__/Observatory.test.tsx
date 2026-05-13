@@ -109,6 +109,10 @@ const fetchMock = vi.fn(async (input?: RequestInfo | URL | string | null) => {
     projects: [],
     count: 0,
   })
+  if (url.includes('/admin/commands')) return jsonResponse({
+    commands: [],
+    local_only: true,
+  })
   return jsonResponse({})
 })
 vi.stubGlobal('fetch', fetchMock)
@@ -142,7 +146,7 @@ describe('Observatory navigation', () => {
     expect(OBSERVATORY_BASE).toBe('/admin/observatory')
   })
 
-  it('renders 8 sub-tabs with absolute hrefs from /admin/observatory/health', () => {
+  it('renders 9 sub-tabs with absolute hrefs from /admin/observatory/health', () => {
     renderAt('/admin/observatory/health')
     const nav = screen.getByRole('navigation', { name: /observatory sections/i })
     const hrefs = Array.from(nav.querySelectorAll('a')).map(
@@ -152,6 +156,7 @@ describe('Observatory navigation', () => {
       '/admin/observatory/health',
       '/admin/observatory/tokens',
       '/admin/observatory/activity',
+      '/admin/observatory/commands',
       '/admin/observatory/conflicts',
       '/admin/observatory/projects',
       '/admin/observatory/export',
@@ -173,6 +178,7 @@ describe('Observatory navigation', () => {
       '/admin/observatory/health',
       '/admin/observatory/tokens',
       '/admin/observatory/activity',
+      '/admin/observatory/commands',
       '/admin/observatory/conflicts',
       '/admin/observatory/projects',
       '/admin/observatory/export',
@@ -227,6 +233,7 @@ describe('Observatory navigation', () => {
     ['health', /System Health/i],
     ['tokens', /Token Analytics/i],
     ['activity', /Activity Timeline/i],
+    ['commands', /Commands/i],
     ['conflicts', /Conflicts/i],
     ['projects', /Projects/i],
     ['export', /Obsidian export/i],
