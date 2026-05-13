@@ -82,7 +82,7 @@ type RouterConfig struct {
 }
 
 // EventBus is the package-level event bus used to fan out activity to the
-// SSE endpoint. Initialised lazily by Router so tests can reuse it without
+// SSE endpoint. Initialized lazily by Router so tests can reuse it without
 // spinning up the full router.
 var eventBus = NewEventBus()
 

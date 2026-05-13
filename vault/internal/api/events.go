@@ -53,7 +53,7 @@ type Event struct {
 }
 
 // EventBus dispatches events to N subscribers. Designed for low rates
-// (humans producing observations); not optimised for millions/sec.
+// (humans producing observations); not optimized for millions/sec.
 type EventBus struct {
 	mu     sync.RWMutex
 	subs   map[chan Event]struct{}

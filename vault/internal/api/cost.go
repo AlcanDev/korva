@@ -38,7 +38,7 @@ type modelPrice struct {
 
 // pricingTable maps lowercased model identifiers (or their prefix) to prices.
 // We match by longest-prefix so we catch both "claude-3-5-sonnet-20240620" and
-// the bare "claude-sonnet" alias. Anything we don't recognise falls back to
+// the bare "claude-sonnet" alias. Anything we don't recognize falls back to
 // `defaultPrice`, which is mid-tier Sonnet — better than zero ROI numbers.
 var pricingTable = map[string]modelPrice{
 	"claude-opus-4":     {Family: "Anthropic Claude Opus", InputPer1M: 15.0, OutputPer1M: 75.0, CacheReadPer1M: 1.5},
@@ -53,7 +53,7 @@ var pricingTable = map[string]modelPrice{
 	"gemini-1.5-pro":    {Family: "Google Gemini 1.5 Pro", InputPer1M: 1.25, OutputPer1M: 5.0, CacheReadPer1M: 0.3125},
 }
 
-// defaultPrice is what we charge against an unrecognised model id. Picked to
+// defaultPrice is what we charge against an unrecognized model id. Picked to
 // be neither the cheapest nor the most expensive so the ROI estimate stays
 // believable even when a brand-new model ships.
 var defaultPrice = modelPrice{Family: "(unknown model)", InputPer1M: 3.0, OutputPer1M: 15.0, CacheReadPer1M: 0.3}
