@@ -301,6 +301,9 @@ func Router(ctx context.Context, s *store.Store, cfg RouterConfig) http.Handler 
 	// Observatory — Cost & ROI (Phase 8.6)
 	mux.Handle("GET /admin/cost/summary", adminMW(withCORS(adminCostSummary(s))))
 
+	// Observatory — Privacy meter (Phase 9.1)
+	mux.Handle("GET /admin/privacy/stats", adminMW(withCORS(adminPrivacyStats())))
+
 	// Observatory — Deferred-apply queue (cloud sync resilience)
 	mux.Handle("GET /admin/cloud/deferred", adminMW(withCORS(adminListDeferred(s))))
 	mux.Handle("POST /admin/cloud/deferred/{sync_id}/retry", adminMW(withBodyLimit(withCORS(adminRetryDeferred(s)))))
