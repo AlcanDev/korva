@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.19.0](https://github.com/AlcanDev/korva/compare/v1.18.0...v1.19.0) (2026-05-13)
+
+
+### 🚀 Features
+
+* **phase-10:** final — a11y WCAG AA + MCP playground + replay + insights + drift ([#44](https://github.com/AlcanDev/korva/issues/44)) ([f397893](https://github.com/AlcanDev/korva/commit/f397893d2e17b22e9fa6d1a5d86592bbd93d6a3e))
+
 ## [1.18.0](https://github.com/AlcanDev/korva/compare/v1.17.0...v1.18.0) (2026-05-13)
 
 
