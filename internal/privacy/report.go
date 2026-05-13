@@ -167,7 +167,7 @@ type RedactionStatsSnapshot struct {
 	Since             time.Time               `json:"since"`
 }
 
-// RedactionStats returns a snapshot suitable for serialisation. Safe to call
+// RedactionStats returns a snapshot suitable for serialization. Safe to call
 // concurrently with FilterReport.
 func RedactionStats() RedactionStatsSnapshot {
 	out := RedactionStatsSnapshot{
@@ -195,4 +195,3 @@ func ResetRedactionStats() {
 	})
 	counters.startedAt = time.Now().UTC()
 }
-
