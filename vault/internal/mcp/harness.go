@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/alcandev/korva/internal/harness"
@@ -64,23 +65,89 @@ func (s *Server) toolHarnessInit(args map[string]any) (any, error) {
 	if stack == "" {
 		stack = harness.StackGeneric
 	}
+	editors, err := parseEditorsArg(args, root)
+	if err != nil {
+		return nil, err
+	}
 	written, err := harness.Generate(harness.InitOptions{
-		Root:          root,
-		Project:       project,
-		Description:   stringArg(args, "description"),
-		Stack:         stack,
-		WithSubagents: boolArg(args, "with_subagents"),
-		Overwrite:     boolArg(args, "overwrite"),
+		Root:        root,
+		Project:     project,
+		Description: stringArg(args, "description"),
+		Stack:       stack,
+		Editors:     editors,
+		Overwrite:   boolArg(args, "overwrite"),
 	})
 	if err != nil {
 		return nil, err
+	}
+	editorNames := make([]string, len(editors))
+	for i, e := range editors {
+		editorNames[i] = string(e)
 	}
 	return map[string]any{
 		"root":          root,
 		"project":       project,
 		"stack":         string(stack),
+		"editors":       editorNames,
 		"files_written": written,
 	}, nil
+}
+
+// parseEditorsArg reads the `editors` arg in any of the shapes a JSON-RPC
+// client may send:
+//
+//   - missing / null                → auto-detect from `root`
+//   - "auto"                        → auto-detect from `root`
+//   - "none"                        → install no editor rule files
+//   - "claude,cursor"               → comma-separated string
+//   - ["claude", "cursor"]          → array of strings
+//
+// Unknown editor names produce an error so typos surface early.
+func parseEditorsArg(args map[string]any, root string) ([]harness.Editor, error) {
+	raw, ok := args["editors"]
+	if !ok || raw == nil {
+		return harness.DetectEditors(root), nil
+	}
+	var names []string
+	switch v := raw.(type) {
+	case string:
+		s := strings.TrimSpace(v)
+		switch strings.ToLower(s) {
+		case "", "auto":
+			return harness.DetectEditors(root), nil
+		case "none":
+			return nil, nil
+		}
+		for _, part := range strings.Split(s, ",") {
+			names = append(names, strings.TrimSpace(part))
+		}
+	case []any:
+		for _, item := range v {
+			if s, ok := item.(string); ok {
+				names = append(names, strings.TrimSpace(s))
+			}
+		}
+	default:
+		return nil, fmt.Errorf("editors arg must be a string or array of strings")
+	}
+
+	out := make([]harness.Editor, 0, len(names))
+	seen := make(map[harness.Editor]bool, len(names))
+	for _, n := range names {
+		if n == "" {
+			continue
+		}
+		name := harness.Editor(strings.ToLower(n))
+		if !harness.IsKnownEditor(name) {
+			return nil, fmt.Errorf("unknown editor %q", name)
+		}
+		if seen[name] {
+			continue
+		}
+		seen[name] = true
+		out = append(out, name)
+	}
+	return out, nil
 }
 
 // ── vault_harness_status ─────────────────────────────────────────────────────

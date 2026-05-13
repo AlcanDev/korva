@@ -65,13 +65,19 @@ desktop.ini
 *.swp
 *.swo
 
-# Claude Code project settings (local only)
+# Editor project settings (local only)
 .claude/
-# Exception: ship the subagent templates that `korva harness init --with-subagents`
-# materializes into a target repo. These templates need to be tracked even though
-# the literal `.claude/` directory pattern would otherwise ignore them.
-!internal/harness/templates/subagents/.claude/
-!internal/harness/templates/subagents/.claude/**
+.cursor/
+.windsurf/
+.windsurfrules
+.continue/
+.continuerules
+
+# Exception: ship the editor rule templates that `korva harness init --editors=...`
+# materializes into a target repo. The patterns above would otherwise ignore
+# them — gitignore evaluates rules in order, so this negation must come last.
+!internal/harness/templates/editors/
+!internal/harness/templates/editors/**
 
 # Build artifacts
 *.tar.gz

@@ -182,25 +182,25 @@ func TestGenerate_InitShIsExecutable(t *testing.T) {
 	}
 }
 
-func TestGenerate_WithSubagentsCreatesAgentFiles(t *testing.T) {
+func TestGenerate_EditorClaude_CreatesAgentFiles(t *testing.T) {
 	dir := t.TempDir()
 	if _, err := Generate(InitOptions{
-		Root:          dir,
-		Project:       "x",
-		Stack:         StackGeneric,
-		WithSubagents: true,
+		Root:    dir,
+		Project: "x",
+		Stack:   StackGeneric,
+		Editors: []Editor{EditorClaude},
 	}); err != nil {
 		t.Fatalf("generate: %v", err)
 	}
 	for _, name := range []string{"leader.md", "implementer.md", "reviewer.md"} {
-		path := filepath.Join(dir, ".claude", "agents", name)
-		if _, err := os.Stat(path); err != nil {
+		p := filepath.Join(dir, ".claude", "agents", name)
+		if _, err := os.Stat(p); err != nil {
 			t.Errorf("missing subagent file %s: %v", name, err)
 		}
 	}
 }
 
-func TestGenerate_WithoutSubagentsSkipsAgentFiles(t *testing.T) {
+func TestGenerate_NoEditors_SkipsAllEditorFiles(t *testing.T) {
 	dir := t.TempDir()
 	if _, err := Generate(InitOptions{
 		Root:    dir,
@@ -209,8 +209,150 @@ func TestGenerate_WithoutSubagentsSkipsAgentFiles(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("generate: %v", err)
 	}
+	// None of the editor-specific files should be created when Editors is nil.
+	for _, p := range []string{
+		filepath.Join(dir, ".claude", "agents", "leader.md"),
+		filepath.Join(dir, ".cursor", "rules", "korva-harness.mdc"),
+		filepath.Join(dir, ".windsurf", "rules", "korva-harness.md"),
+		filepath.Join(dir, ".continuerules"),
+		filepath.Join(dir, ".github", "copilot-instructions.md"),
+	} {
+		if _, err := os.Stat(p); !os.IsNotExist(err) {
+			t.Errorf("expected no file at %s, got err=%v", p, err)
+		}
+	}
+}
+
+func TestGenerate_PerEditor_CreatesExpectedFile(t *testing.T) {
+	cases := map[Editor][]string{
+		EditorClaude:   {".claude/agents/leader.md", ".claude/agents/implementer.md", ".claude/agents/reviewer.md"},
+		EditorCursor:   {".cursor/rules/korva-harness.mdc"},
+		EditorWindsurf: {".windsurf/rules/korva-harness.md"},
+		EditorContinue: {".continuerules"},
+		EditorCopilot:  {".github/copilot-instructions.md"},
+	}
+	for editor, paths := range cases {
+		editor, paths := editor, paths
+		t.Run(string(editor), func(t *testing.T) {
+			dir := t.TempDir()
+			if _, err := Generate(InitOptions{
+				Root: dir, Project: "x", Stack: StackGeneric, Editors: []Editor{editor},
+			}); err != nil {
+				t.Fatalf("generate: %v", err)
+			}
+			for _, p := range paths {
+				if _, err := os.Stat(filepath.Join(dir, filepath.FromSlash(p))); err != nil {
+					t.Errorf("missing %s: %v", p, err)
+				}
+			}
+		})
+	}
+}
+
+func TestGenerate_MultipleEditors_InstallsAll(t *testing.T) {
+	dir := t.TempDir()
+	if _, err := Generate(InitOptions{
+		Root: dir, Project: "x", Stack: StackGeneric,
+		Editors: []Editor{EditorCursor, EditorContinue, EditorCopilot},
+	}); err != nil {
+		t.Fatalf("generate: %v", err)
+	}
+	for _, p := range []string{
+		".cursor/rules/korva-harness.mdc",
+		".continuerules",
+		".github/copilot-instructions.md",
+	} {
+		if _, err := os.Stat(filepath.Join(dir, filepath.FromSlash(p))); err != nil {
+			t.Errorf("missing %s: %v", p, err)
+		}
+	}
+	// Claude wasn't requested → no claude files.
 	if _, err := os.Stat(filepath.Join(dir, ".claude", "agents", "leader.md")); !os.IsNotExist(err) {
-		t.Errorf("expected no subagent files when WithSubagents=false, got err=%v", err)
+		t.Errorf("claude agents created unexpectedly: %v", err)
+	}
+}
+
+func TestGenerate_UnknownEditor_ReturnsError(t *testing.T) {
+	dir := t.TempDir()
+	_, err := Generate(InitOptions{
+		Root: dir, Project: "x", Stack: StackGeneric,
+		Editors: []Editor{Editor("rustrover")},
+	})
+	if err == nil {
+		t.Fatal("expected error for unknown editor")
+	}
+	if !strings.Contains(err.Error(), "rustrover") {
+		t.Errorf("error should name the bad editor, got %v", err)
+	}
+	// Universal layer must NOT have been written when validation fails.
+	if _, err := os.Stat(filepath.Join(dir, "AGENTS.md")); !os.IsNotExist(err) {
+		t.Errorf("Generate wrote files before validating editors: %v", err)
+	}
+}
+
+func TestIsKnownEditor(t *testing.T) {
+	for _, e := range AllEditors {
+		if !IsKnownEditor(e) {
+			t.Errorf("IsKnownEditor(%q) = false, want true", e)
+		}
+	}
+	if IsKnownEditor(Editor("vim")) {
+		t.Error("IsKnownEditor(\"vim\") should be false")
+	}
+}
+
+func TestDetectEditors_EmptyDirDefaultsClaude(t *testing.T) {
+	got := DetectEditors(t.TempDir())
+	if len(got) != 1 || got[0] != EditorClaude {
+		t.Errorf("empty-dir detect = %v, want [claude]", got)
+	}
+}
+
+func TestDetectEditors_RecognizesMarkers(t *testing.T) {
+	cases := []struct {
+		name   string
+		create []string
+		want   []Editor
+	}{
+		{"cursor dir", []string{".cursor"}, []Editor{EditorCursor}},
+		{"cursorrules", []string{".cursorrules"}, []Editor{EditorCursor}},
+		{"windsurf", []string{".windsurf"}, []Editor{EditorWindsurf}},
+		{"continuerules", []string{".continuerules"}, []Editor{EditorContinue}},
+		{"copilot instructions", []string{".github/copilot-instructions.md"}, []Editor{EditorCopilot}},
+		{"claude md", []string{"CLAUDE.md"}, []Editor{EditorClaude}},
+		{"claude + cursor", []string{".claude", ".cursor"}, []Editor{EditorClaude, EditorCursor}},
+	}
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			for _, m := range tc.create {
+				full := filepath.Join(dir, filepath.FromSlash(m))
+				if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
+					t.Fatal(err)
+				}
+				// Trailing slash convention isn't relevant here; create as a file
+				// for non-dir markers, dir otherwise.
+				if strings.HasSuffix(m, "/") || !strings.Contains(filepath.Base(m), ".") {
+					if err := os.MkdirAll(full, 0o755); err != nil {
+						t.Fatal(err)
+					}
+				} else {
+					if err := os.WriteFile(full, []byte("x"), 0o644); err != nil {
+						t.Fatal(err)
+					}
+				}
+			}
+			got := DetectEditors(dir)
+			if len(got) != len(tc.want) {
+				t.Fatalf("DetectEditors = %v, want %v", got, tc.want)
+			}
+			for i := range got {
+				if got[i] != tc.want[i] {
+					t.Errorf("DetectEditors[%d] = %q, want %q", i, got[i], tc.want[i])
+				}
+			}
+		})
 	}
 }
 

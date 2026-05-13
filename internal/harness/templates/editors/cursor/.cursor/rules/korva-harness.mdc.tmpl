@@ -1,0 +1,58 @@
+---
+description: Harness Engineering contract — read this on every session start
+alwaysApply: true
+---
+
+# Korva Harness — {{.Project}}
+
+You are working inside a Korva Harness Engineering layout. The repo
+exposes a small, opinionated set of files that make autonomous work
+verifiable. Respect them.
+
+## Before you do anything
+
+1. Run `./init.sh`. If any `[FAIL]` line appears, **stop and report it**
+   to the operator. Do not proceed until it exits `0`.
+2. Read `progress/current.md`. If a session is in flight, continue it;
+   never start a new one without closing the previous.
+3. Open `feature_list.json` and find the row with `status: in_progress`.
+   If none exists, pick the lowest-id `pending` row with
+   `korva harness next`.
+
+## Hard rules (non-negotiable)
+
+- **One feature at a time.** The state machine refuses concurrent
+  `in_progress`. Don't try to work around it.
+- **`done` requires green tests.** Don't mark `done` if `./init.sh`
+  hasn't ended `[OK]` since your last code change.
+- **Document while you work** in `progress/current.md`, not at the end.
+- **Read `docs/*` before inventing.** Architecture, conventions, and
+  verification live there.
+
+## State machine commands
+
+```
+korva harness next            # show the next pending feature
+korva harness start <id>      # claim a feature (pending → in_progress)
+korva harness done <id>       # close a feature (in_progress → done)
+korva harness block <id>      # mark blocked when stuck
+korva harness status          # see counts + current feature
+```
+
+The same verbs exist over MCP as `vault_harness_*` if the Korva Vault
+is running.
+
+## When you finish a session
+
+1. `./init.sh` must exit `0`.
+2. Move the session summary from `progress/current.md` to
+   `progress/history.md`.
+3. Empty `progress/current.md` back to its template.
+4. `korva harness done <id>` for the feature you closed.
+
+## When you get stuck
+
+Write the blocker into `progress/current.md`, run
+`korva harness block <id>`, and stop. Do not invent workarounds, do
+not edit `init.sh` to mask the failure, do not bypass the state
+machine by editing `feature_list.json` directly.

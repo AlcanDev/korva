@@ -502,17 +502,20 @@ func tools() []Tool {
 		// finally to the server's CWD.
 		{
 			Name: "vault_harness_init",
-			Description: "Bootstrap a Harness Engineering layout in a repo: AGENTS.md, init.sh, feature_list.json, docs/, progress/, optional .claude/agents/. " +
-				"Idempotent: existing files are kept unless overwrite=true.",
+			Description: "Bootstrap a Harness Engineering layout in a repo: AGENTS.md, init.sh, feature_list.json, docs/, progress/, " +
+				"and optional editor-specific rule files (.claude/agents/, .cursor/rules/, .windsurf/rules/, .continuerules, " +
+				".github/copilot-instructions.md). Idempotent: existing files are kept unless overwrite=true.",
 			InputSchema: Schema{
 				Type: "object",
 				Properties: map[string]Property{
-					"root":           {Type: "string", Description: "Target directory (defaults to $KORVA_HARNESS_ROOT or CWD)"},
-					"project":        {Type: "string", Description: "Project name (required)"},
-					"description":    {Type: "string", Description: "Short blurb for AGENTS.md and feature_list.json"},
-					"stack":          {Type: "string", Description: "Stack preset", Enum: []string{"go", "typescript", "python", "generic"}},
-					"with_subagents": {Type: "boolean", Description: "Also install .claude/agents/{leader,implementer,reviewer}.md"},
-					"overwrite":      {Type: "boolean", Description: "Replace existing harness files"},
+					"root":        {Type: "string", Description: "Target directory (defaults to $KORVA_HARNESS_ROOT or CWD)"},
+					"project":     {Type: "string", Description: "Project name (required)"},
+					"description": {Type: "string", Description: "Short blurb for AGENTS.md and feature_list.json"},
+					"stack":       {Type: "string", Description: "Stack preset", Enum: []string{"go", "typescript", "python", "generic"}},
+					"editors": {Type: "array", Description: "Editor rule files to install. Each value picks one of: " +
+						"claude, cursor, windsurf, continue, copilot. Use the string 'auto' (default) to auto-detect from the repo, " +
+						"or 'none' to skip editor-specific files entirely."},
+					"overwrite": {Type: "boolean", Description: "Replace existing harness files"},
 				},
 				Required: []string{"project"},
 			},
