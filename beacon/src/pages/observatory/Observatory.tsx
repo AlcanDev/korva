@@ -1,6 +1,6 @@
 import { lazy, Suspense } from 'react'
 import { NavLink, Routes, Route, Navigate } from 'react-router'
-import { Activity, Coins, Clock, Settings, Shield, GitMerge, FolderTree, Download, Terminal, Zap, DollarSign } from 'lucide-react'
+import { Activity, Coins, Clock, Settings, Shield, GitMerge, FolderTree, Download, Terminal, Zap, DollarSign, ShieldCheck, Network } from 'lucide-react'
 import { Spinner } from '@/components/ui'
 
 // Phase 7 — code-split every Observatory sub-panel so the bundle stays
@@ -16,6 +16,8 @@ const ExportPanel          = lazy(() => import('./ExportPanel'))
 const CommandsPanel        = lazy(() => import('./CommandsPanel'))
 const LiveActivityPanel    = lazy(() => import('./LiveActivityPanel'))
 const CostPanel            = lazy(() => import('./CostPanel'))
+const PrivacyPanel         = lazy(() => import('./PrivacyPanel'))
+const GraphPanel           = lazy(() => import('./GraphPanel'))
 
 function PanelFallback() {
   return (
@@ -37,6 +39,8 @@ const SUBNAV = [
   { path: 'health', label: 'System Health', icon: Activity },
   { path: 'live', label: 'Live', icon: Zap },
   { path: 'cost', label: 'Cost & ROI', icon: DollarSign },
+  { path: 'privacy', label: 'Privacy', icon: ShieldCheck },
+  { path: 'graph', label: 'Graph', icon: Network },
   { path: 'tokens', label: 'Tokens', icon: Coins },
   { path: 'activity', label: 'Activity', icon: Clock },
   { path: 'commands', label: 'Commands', icon: Terminal },
@@ -79,6 +83,8 @@ export default function Observatory() {
             <Route path="health" element={<SystemHealth />} />
             <Route path="live" element={<LiveActivityPanel />} />
             <Route path="cost" element={<CostPanel />} />
+            <Route path="privacy" element={<PrivacyPanel />} />
+            <Route path="graph" element={<GraphPanel />} />
             <Route path="tokens" element={<TokenAnalytics />} />
             <Route path="activity" element={<ActivityTimeline />} />
             <Route path="commands" element={<CommandsPanel />} />

@@ -13,35 +13,19 @@ const redacted = "[REDACTED]"
 //   - Bearer tokens in Authorization headers
 //   - Content wrapped in <private>...</private> tags
 //   - Configurable extra patterns from korva.config.json
+//
+// Internally delegates to FilterReport (Phase 9.1) and drops the report.
+// Use FilterReport directly when you need redaction telemetry.
 func Filter(text string, extraPatterns []string) string {
-	// Apply built-in patterns
-	result := text
-	for _, p := range builtinPatterns {
-		result = p.ReplaceAllString(result, "$1"+redacted)
-	}
-
-	// Apply <private>...</private> tag removal (multiline)
-	result = privateTagPattern.ReplaceAllString(result, redacted)
-
-	// Apply Bearer token removal
-	result = bearerPattern.ReplaceAllString(result, "Bearer "+redacted)
-
-	// Apply extra patterns from config
-	for _, extra := range extraPatterns {
-		p, err := compileExtraPattern(extra)
-		if err == nil {
-			result = p.ReplaceAllString(result, "$1"+redacted)
-		}
-	}
-
-	return result
+	out, _ := FilterReport(text, extraPatterns)
+	return out
 }
 
 // ContainsSensitiveData returns true if text contains patterns that should be redacted.
 // Used to warn users before saving observations.
 func ContainsSensitiveData(text string) bool {
-	for _, p := range builtinPatterns {
-		if p.MatchString(text) {
+	for _, p := range builtinPatternsTyped {
+		if p.Re.MatchString(text) {
 			return true
 		}
 	}
@@ -54,32 +38,9 @@ func ContainsSensitiveData(text string) bool {
 	return false
 }
 
-// builtinPatterns matches common secret key=value or key: value formats.
-// Each pattern has a capturing group $1 for the key name so the redaction
-// shows which field was removed: "password=[REDACTED]"
-var builtinPatterns = []*regexp.Regexp{
-	// password=xxx, password: xxx, PASSWORD=xxx
-	regexp.MustCompile(`(?i)(password\s*[:=]\s*)\S+`),
-	// passwd=xxx
-	regexp.MustCompile(`(?i)(passwd\s*[:=]\s*)\S+`),
-	// pwd=xxx
-	regexp.MustCompile(`(?i)(pwd\s*[:=]\s*)\S+`),
-	// token=xxx, TOKEN=xxx
-	regexp.MustCompile(`(?i)(token\s*[:=]\s*)\S+`),
-	// secret=xxx
-	regexp.MustCompile(`(?i)(secret\s*[:=]\s*)\S+`),
-	// api_key=xxx, apiKey=xxx, API_KEY=xxx
-	regexp.MustCompile(`(?i)(api[_-]?key\s*[:=]\s*)\S+`),
-	// ROLE_ID=xxx (HashiCorp Vault)
-	regexp.MustCompile(`(?i)(ROLE_ID\s*[:=]\s*)\S+`),
-	// SECRET_ID=xxx (HashiCorp Vault)
-	regexp.MustCompile(`(?i)(SECRET_ID\s*[:=]\s*)\S+`),
-	// private_key=xxx
-	regexp.MustCompile(`(?i)(private[_-]?key\s*[:=]\s*)\S+`),
-	// client_secret=xxx
-	regexp.MustCompile(`(?i)(client[_-]?secret\s*[:=]\s*)\S+`),
-}
-
+// ContainsSensitiveData reuses the typed pattern list so adding a category
+// to one path automatically widens the other.
+//
 // bearerPattern matches Authorization: Bearer <token>
 var bearerPattern = regexp.MustCompile(`(?i)Bearer\s+[A-Za-z0-9\-._~+/]+=*`)
 

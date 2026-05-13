@@ -12,6 +12,13 @@ export type { DonutChartProps, DonutSegment } from "./DonutChart";
 export { BarChart } from "./BarChart";
 export type { BarChartProps, BarChartItem } from "./BarChart";
 
+export { KnowledgeGraph } from "./KnowledgeGraph";
+export type {
+	KnowledgeGraphProps,
+	KnowledgeGraphNode,
+	KnowledgeGraphEdge,
+} from "./KnowledgeGraph";
+
 // Convenience palette aligned with the design system. Use these so charts
 // look visually consistent across pages.
 export const CHART_PALETTE = {
