@@ -62,7 +62,7 @@ export default function CommandsPanel() {
 	const localOnly = data?.local_only ?? false;
 
 	return (
-		<div className="p-6 max-w-7xl mx-auto space-y-5 animate-fade-up">
+		<div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-4 sm:space-y-5 animate-fade-up">
 			<PageHero
 				eyebrow={tx.eyebrow}
 				icon={<TerminalIcon size={22} />}
@@ -90,7 +90,7 @@ export default function CommandsPanel() {
 				</Card>
 			)}
 
-			<div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-5">
+			<div className="grid grid-cols-1 md:grid-cols-[260px_1fr] lg:grid-cols-[320px_1fr] gap-4 md:gap-5">
 				{/* Catalogue */}
 				<Card variant="default">
 					<CardHeader title={tx.catalogue} subtitle={tx.catalogueHint} />

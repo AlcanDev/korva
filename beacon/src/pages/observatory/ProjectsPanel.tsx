@@ -53,7 +53,7 @@ export default function ProjectsPanel() {
 	];
 
 	return (
-		<div className="p-6 max-w-7xl mx-auto space-y-5 animate-fade-up">
+		<div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-4 sm:space-y-5 animate-fade-up">
 			<PageHero
 				eyebrow={tx.eyebrow}
 				icon={<FolderTree size={22} />}
@@ -122,7 +122,7 @@ function ProjectsList({ tx }: { tx: ProjectsLang }) {
 				/>
 			</div>
 
-			<div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-4 mt-4">
+			<div className="grid grid-cols-1 xl:grid-cols-[1fr_360px] gap-4 mt-4">
 				{/* Table */}
 				<Card>
 					<CardHeader

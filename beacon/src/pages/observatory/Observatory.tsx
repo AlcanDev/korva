@@ -48,7 +48,7 @@ export default function Observatory() {
     <div className="flex flex-col h-full">
       <nav
         aria-label="Observatory sections"
-        className="border-b border-[#21262d] bg-[#161b22] px-4 flex gap-1 overflow-x-auto flex-shrink-0"
+        className="border-b border-[#21262d] bg-[#161b22] px-2 sm:px-4 flex gap-0.5 sm:gap-1 overflow-x-auto flex-shrink-0 scrollbar-thin"
       >
         {SUBNAV.map(({ path, label, icon: Icon }) => (
           <NavLink
