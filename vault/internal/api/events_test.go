@@ -89,7 +89,15 @@ func TestAdminEventsSSE_WritesEventFramesAndPing(t *testing.T) {
 	srv := httptest.NewServer(adminEventsSSE(b))
 	defer srv.Close()
 
-	resp, err := http.Get(srv.URL)
+	// Use a cancelable context so we can shut down the long-lived SSE
+	// connection deterministically — without this, httptest.Server.Close()
+	// blocks for up to its 5s graceful-shutdown window waiting for the
+	// SSE handler's select loop to notice. With ctx cancel + explicit body
+	// close at the bottom of the test, total runtime stays under 1 second.
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL, nil)
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatalf("http: %v", err)
 	}
@@ -142,6 +150,15 @@ func TestAdminEventsSSE_WritesEventFramesAndPing(t *testing.T) {
 	}
 	if !strings.Contains(out, "\"title\":\"live\"") {
 		t.Errorf("missing payload in stream:\n%s", out)
+	}
+
+	// Explicit cancel so the SSE handler's `<-r.Context().Done()` case
+	// fires immediately, letting srv.Close() return without waiting.
+	cancel()
+	// Wait briefly for the handler goroutine to detach.
+	deadline = time.Now().Add(200 * time.Millisecond)
+	for b.SubscriberCount() > 0 && time.Now().Before(deadline) {
+		time.Sleep(5 * time.Millisecond)
 	}
 }
 
