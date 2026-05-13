@@ -94,3 +94,75 @@ func formatExpiry(expiresAt string) string {
 	}
 	return expiresAt
 }
+
+// OTPMessage builds the transactional email sent when a previously-invited
+// member requests a one-time login code via POST /auth/otp/request.
+//
+// The 6-digit code is embedded directly because it's the secret being
+// delivered. `ttlMinutes` is the validity window (typically 10) — we show it
+// to the recipient so they know how long they have to redeem it.
+func OTPMessage(to, code string, ttlMinutes int) Message {
+	text := fmt.Sprintf(
+		"Your Korva login code is:\n\n"+
+			"    %s\n\n"+
+			"Enter it in the prompt opened by `korva auth login`.\n"+
+			"This code expires in %d minutes and can only be used once.\n\n"+
+			"Not expecting this email? Ignore it — your account is unchanged.\n",
+		code, ttlMinutes)
+
+	html := fmt.Sprintf(`<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#0d1117;font-family:ui-sans-serif,system-ui,-apple-system,sans-serif">
+  <table width="100%%" cellpadding="0" cellspacing="0" style="padding:40px 16px">
+    <tr><td align="center">
+      <table width="100%%" cellpadding="0" cellspacing="0" style="max-width:520px">
+
+        <!-- Header -->
+        <tr><td style="padding-bottom:24px">
+          <span style="display:inline-flex;align-items:center;gap:8px">
+            <span style="display:inline-block;width:28px;height:28px;border-radius:6px;background:#f0883e30;border:1px solid #f0883e50;text-align:center;line-height:28px;font-size:14px">⚡</span>
+            <span style="color:#e6edf3;font-weight:600;font-size:15px">Korva</span>
+          </span>
+        </td></tr>
+
+        <!-- Card -->
+        <tr><td style="background:#161b22;border:1px solid #21262d;border-radius:12px;padding:32px">
+          <h1 style="margin:0 0 8px;color:#e6edf3;font-size:20px;font-weight:600">
+            Your login code
+          </h1>
+          <p style="margin:0 0 24px;color:#8b949e;font-size:14px;line-height:1.5">
+            Use this code to finish signing in from your terminal.
+          </p>
+
+          <div style="background:#0d1117;border:1px solid #30363d;border-radius:6px;padding:18px 16px;font-family:ui-monospace,SFMono-Regular,monospace;font-size:28px;font-weight:600;letter-spacing:6px;color:#58a6ff;text-align:center">
+            %s
+          </div>
+
+          <p style="margin:20px 0 0;color:#484f58;font-size:12px;line-height:1.5">
+            Expires in <strong style="color:#8b949e">%d minutes</strong>.
+            Single-use only.
+          </p>
+        </td></tr>
+
+        <!-- Footer -->
+        <tr><td style="padding-top:20px;text-align:center">
+          <p style="margin:0;color:#484f58;font-size:11px">
+            Not expecting this email? Ignore it — your account is unchanged.<br>
+            Sent by <a href="https://korva.dev" style="color:#388bfd;text-decoration:none">Korva for Teams</a>
+          </p>
+        </td></tr>
+
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`, code, ttlMinutes)
+
+	return Message{
+		To:      to,
+		Subject: "Your Korva login code",
+		HTML:    html,
+		Text:    text,
+	}
+}
