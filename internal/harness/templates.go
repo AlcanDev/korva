@@ -111,6 +111,7 @@ type InitOptions struct {
 	Description string   // short blurb
 	Stack       Stack    // chosen preset; empty falls back to Generic
 	Editors     []Editor // editor rule templates to install; empty installs none
+	SDD         bool     // enable Spec-Driven Development mode (Phase 13)
 	Overwrite   bool     // when false (default) we refuse to overwrite existing files
 }
 
@@ -156,26 +157,7 @@ func Generate(opts InitOptions) ([]string, error) {
 	// the runtime types exactly.
 	flPath := filepath.Join(opts.Root, FeatureListPath)
 	if !exists(flPath) || opts.Overwrite {
-		seed := &FeatureList{
-			Project:     opts.Project,
-			Description: opts.Description,
-			Rules:       DefaultRules(),
-			Features: []Feature{
-				{
-					ID:    1,
-					Name:  "harness_smoke",
-					Title: "Verify the harness is wired correctly",
-					Description: "First feature in every new harness: run `./init.sh` and confirm it exits 0. " +
-						"Once the smoke passes, replace this feature with the real backlog.",
-					Acceptance: []string{
-						"`./init.sh` exits with code 0",
-						"`feature_list.json` validates",
-						"`progress/current.md` exists",
-					},
-					Status: StatusPending,
-				},
-			},
-		}
+		seed := buildSeedFeatureList(opts)
 		if err := SaveFeatureList(opts.Root, seed); err != nil {
 			return nil, fmt.Errorf("seed feature list: %w", err)
 		}
@@ -191,7 +173,58 @@ func Generate(opts InitOptions) ([]string, error) {
 		}
 	}
 
+	// 5. SDD spec templates — only when --sdd is set. They live under
+	// templates/sdd/ and materialize into specs/SPEC-TEMPLATE/* so a
+	// human can copy them per feature without re-typing the EARS
+	// scaffolding.
+	if opts.SDD {
+		if err := walkAndWrite("templates/sdd", opts, &written); err != nil {
+			return nil, err
+		}
+	}
+
 	return written, nil
+}
+
+// buildSeedFeatureList produces the smoke feature list used to bootstrap
+// a fresh harness. In SDD mode the seed feature is `sdd: true` so the
+// new operator immediately exercises the spec workflow.
+func buildSeedFeatureList(opts InitOptions) *FeatureList {
+	rules := DefaultRules()
+	smokeAcceptance := []string{
+		"`./init.sh` exits with code 0",
+		"`feature_list.json` validates",
+		"`progress/current.md` exists",
+	}
+	smokeDescription := "First feature in every new harness: run `./init.sh` and confirm it exits 0. " +
+		"Once the smoke passes, replace this feature with the real backlog."
+
+	if opts.SDD {
+		rules = SDDRules()
+		smokeAcceptance = append(smokeAcceptance,
+			"`specs/harness_smoke/{requirements,design,tasks}.md` exist",
+		)
+		smokeDescription += " In SDD mode this feature also exercises the spec workflow — " +
+			"draft the three spec files, run `korva harness ready 1`, and a human approves " +
+			"the spec by transitioning to in_progress."
+	}
+
+	return &FeatureList{
+		Project:     opts.Project,
+		Description: opts.Description,
+		Rules:       rules,
+		Features: []Feature{
+			{
+				ID:          1,
+				Name:        "harness_smoke",
+				Title:       "Verify the harness is wired correctly",
+				Description: smokeDescription,
+				Acceptance:  smokeAcceptance,
+				Status:      StatusPending,
+				SDD:         opts.SDD,
+			},
+		},
+	}
 }
 
 // joinEditors stringifies a slice for error messages / help text.

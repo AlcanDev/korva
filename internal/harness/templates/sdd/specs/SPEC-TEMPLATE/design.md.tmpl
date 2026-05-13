@@ -1,0 +1,60 @@
+# Design — `<feature-name>`
+
+> The technical plan that satisfies `requirements.md`. The implementer
+> follows this without re-deciding anything; deviations require an
+> updated design.md (and another human approval).
+
+## Files touched
+
+> Every file the implementation will create or modify. Reviewers compare
+> the actual diff against this list; touching anything outside requires
+> a justification in `progress/impl_<feature>.md`.
+
+- `<path/to/file.go>` — `<one-line reason>`
+- `<path/to/other.go>` — `<one-line reason>`
+
+## Public API
+
+> Function signatures, type definitions, route paths, CLI flag shapes —
+> whatever counts as the interface for this feature. Show the actual
+> Go/TypeScript/SQL/HTTP signature so the reviewer can grep for it.
+
+```go
+// <signature here>
+```
+
+## Algorithm
+
+> Step-by-step pseudocode the implementer follows. Don't worry about
+> language details — focus on the decisions: which order, which branches,
+> which error paths.
+
+1. `<step 1>`
+2. `<step 2>`
+3. `<step 3>`
+
+## Error handling
+
+> One row per failure mode. Tie each to an R-id from `requirements.md`
+> (typically an IF/THEN / unwanted requirement).
+
+| Condition | Response | Covers |
+|---|---|---|
+| `<error case 1>` | `<surface to caller>` | R4 |
+
+## Alternatives considered
+
+> 1-3 alternatives you discarded, each with a one-line justification.
+> This is what makes a design review worthwhile: the reviewer sees what
+> didn't work and can challenge the choice.
+
+- **`<alternative A>`** — discarded because `<reason>`.
+- **`<alternative B>`** — discarded because `<reason>`.
+
+## Risks & open questions
+
+> Anything you'd raise in a design-review meeting. The reviewer agent
+> can refuse to approve if a high-impact risk has no mitigation plan.
+
+- `<risk>` — mitigation: `<plan>`
+- `<open question>` — to be answered by `<who/when>`

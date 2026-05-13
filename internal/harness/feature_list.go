@@ -13,9 +13,12 @@
 //	init.sh               verify env + run tests
 //	.claude/agents/*.md   optional subagent definitions
 //
-// The state machine is intentionally minimal: every feature is exactly one
-// of {pending, in_progress, done, blocked}. At most one feature in
-// in_progress at a time — enforced by the store helpers in this package.
+// The state machine has two flavors. The standard backlog uses
+// {pending, in_progress, done, blocked} with at most one in_progress
+// at a time. The SDD backlog (Phase 13 — `korva harness init --sdd`)
+// inserts an intermediate `spec_ready` state so features with
+// `sdd: true` must be drafted as `specs/<name>/{requirements,design,
+// tasks}.md` and human-approved before any code touches the repo.
 package harness
 
 import (
@@ -33,16 +36,26 @@ type FeatureStatus string
 
 const (
 	StatusPending    FeatureStatus = "pending"
+	StatusSpecReady  FeatureStatus = "spec_ready" // SDD only — spec drafted, awaiting human approval before implementation
 	StatusInProgress FeatureStatus = "in_progress"
 	StatusDone       FeatureStatus = "done"
 	StatusBlocked    FeatureStatus = "blocked"
 )
 
 // ValidStatuses lists every legal status. Used by validation + CLI prompts.
-var ValidStatuses = []FeatureStatus{StatusPending, StatusInProgress, StatusDone, StatusBlocked}
+// `spec_ready` is always accepted by the validator so a hand-edited
+// feature_list.json survives a load even when no SDD rule is enabled — the
+// state machine still gates which transitions can produce it.
+var ValidStatuses = []FeatureStatus{StatusPending, StatusSpecReady, StatusInProgress, StatusDone, StatusBlocked}
 
 // Feature is one row in the backlog. ID is integer + monotonic so agents
 // pick "the smallest pending id" deterministically.
+//
+// When `SDD` is true the feature follows the spec-driven workflow:
+// pending → spec_ready → in_progress → done. The spec_author subagent
+// drafts specs/<name>/{requirements,design,tasks}.md before the
+// implementer is allowed to touch code. A human approves the spec by
+// transitioning the feature to in_progress.
 type Feature struct {
 	ID          int           `json:"id"`
 	Name        string        `json:"name"`
@@ -50,6 +63,7 @@ type Feature struct {
 	Description string        `json:"description,omitempty"`
 	Acceptance  []string      `json:"acceptance,omitempty"`
 	Status      FeatureStatus `json:"status"`
+	SDD         bool          `json:"sdd,omitempty"`         // spec-driven feature?
 	OwnerAgent  string        `json:"owner_agent,omitempty"` // who claimed it
 	UpdatedAt   string        `json:"updated_at,omitempty"`  // ISO 8601 — set on every state change
 }
@@ -65,18 +79,31 @@ type FeatureList struct {
 // Rules pins the invariants the state machine enforces. Embedded in the
 // file so a human reading it knows the contract.
 type Rules struct {
-	OneFeatureAtATime   bool            `json:"one_feature_at_a_time"`
-	RequireTestsToClose bool            `json:"require_tests_to_close"`
-	ValidStatuses       []FeatureStatus `json:"valid_status"`
+	OneFeatureAtATime              bool            `json:"one_feature_at_a_time"`
+	RequireTestsToClose            bool            `json:"require_tests_to_close"`
+	RequireApprovedSpecToImplement bool            `json:"require_approved_spec_to_implement,omitempty"`
+	ValidStatuses                  []FeatureStatus `json:"valid_status"`
 }
 
-// DefaultRules returns the canonical ruleset. Every new harness gets this.
+// DefaultRules returns the canonical ruleset for a standard harness.
+// SDD mode (`RequireApprovedSpecToImplement: true`) is opt-in via
+// SDDRules — initialized by `korva harness init --sdd`.
 func DefaultRules() Rules {
 	return Rules{
 		OneFeatureAtATime:   true,
 		RequireTestsToClose: true,
 		ValidStatuses:       slices.Clone(ValidStatuses),
 	}
+}
+
+// SDDRules returns the canonical ruleset for a spec-driven harness.
+// Features flagged with `sdd: true` must be drafted (pending →
+// spec_ready) and approved (spec_ready → in_progress) before any
+// implementation touches code.
+func SDDRules() Rules {
+	r := DefaultRules()
+	r.RequireApprovedSpecToImplement = true
+	return r
 }
 
 // FeatureListPath is the conventional location of the backlog file.
@@ -182,6 +209,23 @@ func (fl *FeatureList) NextPending() *Feature {
 	return &out
 }
 
+// NextSpecReady returns the lowest-id feature in spec_ready (the one a
+// human reviewer should approve next), or nil when none exists.
+func (fl *FeatureList) NextSpecReady() *Feature {
+	ready := make([]Feature, 0, len(fl.Features))
+	for _, f := range fl.Features {
+		if f.Status == StatusSpecReady {
+			ready = append(ready, f)
+		}
+	}
+	if len(ready) == 0 {
+		return nil
+	}
+	sort.SliceStable(ready, func(i, j int) bool { return ready[i].ID < ready[j].ID })
+	out := ready[0]
+	return &out
+}
+
 // CurrentInProgress returns the feature currently in_progress (or nil).
 // The invariant max-one is enforced by Validate.
 func (fl *FeatureList) CurrentInProgress() *Feature {
@@ -207,9 +251,13 @@ func (fl *FeatureList) FindByID(id int) *Feature {
 // SetStatus changes a feature's status with state-machine guardrails.
 // Returns an error when:
 //   - id doesn't exist
-//   - the transition is illegal (e.g. done → in_progress)
+//   - the transition is illegal for this feature's flavor (standard
+//     vs SDD)
 //   - moving another feature to in_progress while one is already there
 //     (and one_feature_at_a_time is set)
+//   - an SDD-gated feature is shoved straight from pending into
+//     in_progress (the rule require_approved_spec_to_implement forbids
+//     skipping the spec phase)
 //
 // On success it updates UpdatedAt and OwnerAgent (when provided).
 func (fl *FeatureList) SetStatus(id int, status FeatureStatus, owner string, now string) error {
@@ -220,8 +268,15 @@ func (fl *FeatureList) SetStatus(id int, status FeatureStatus, owner string, now
 	if !slices.Contains(ValidStatuses, status) {
 		return fmt.Errorf("invalid target status %q", status)
 	}
-	if !legalTransition(f.Status, status) {
-		return fmt.Errorf("illegal transition: %s → %s", f.Status, status)
+	// SDD gate check fires *before* the generic illegal-transition error so
+	// the operator gets a hint about the missing spec_ready step instead
+	// of a bare "illegal transition" message.
+	if fl.Rules.RequireApprovedSpecToImplement && f.SDD &&
+		status == StatusInProgress && f.Status == StatusPending {
+		return fmt.Errorf("feature %d is SDD-gated — run `korva harness ready %d` first (must pass through spec_ready)", id, id)
+	}
+	if !legalTransition(f.Status, status, f.SDD) {
+		return fmt.Errorf("illegal transition: %s → %s (sdd=%v)", f.Status, status, f.SDD)
 	}
 	if status == StatusInProgress && fl.Rules.OneFeatureAtATime {
 		cur := fl.CurrentInProgress()
@@ -239,16 +294,33 @@ func (fl *FeatureList) SetStatus(id int, status FeatureStatus, owner string, now
 	return nil
 }
 
-// legalTransition enforces the directional state machine:
+// legalTransition enforces the directional state machine. The shape
+// depends on whether the feature is SDD-flagged:
 //
-//	pending → in_progress, blocked
-//	in_progress → done, blocked, pending  (the last one for "give up and re-queue")
-//	blocked → pending, in_progress
-//	done → done  (idempotent; explicit re-mark is a no-op)
-func legalTransition(from, to FeatureStatus) bool {
+//	Standard (sdd=false):
+//	  pending     → in_progress, blocked
+//	  in_progress → done, blocked, pending
+//	  blocked     → pending, in_progress
+//	  spec_ready  → pending (defensive — only reachable via manual edit)
+//	  done        → done (idempotent)
+//
+//	SDD (sdd=true):
+//	  pending     → spec_ready, blocked
+//	  spec_ready  → in_progress, pending, blocked
+//	  in_progress → done, blocked, pending, spec_ready
+//	  blocked     → pending, spec_ready, in_progress
+//	  done        → done (idempotent)
+func legalTransition(from, to FeatureStatus, sdd bool) bool {
 	if from == to {
 		return true
 	}
+	if sdd {
+		return legalTransitionSDD(from, to)
+	}
+	return legalTransitionStd(from, to)
+}
+
+func legalTransitionStd(from, to FeatureStatus) bool {
 	switch from {
 	case StatusPending:
 		return to == StatusInProgress || to == StatusBlocked
@@ -256,15 +328,40 @@ func legalTransition(from, to FeatureStatus) bool {
 		return to == StatusDone || to == StatusBlocked || to == StatusPending
 	case StatusBlocked:
 		return to == StatusPending || to == StatusInProgress
+	case StatusSpecReady:
+		// spec_ready isn't supposed to exist on a non-SDD feature, but if
+		// it does (manual edit) accept transitions back to pending so the
+		// operator can fix it without barfing.
+		return to == StatusPending
 	case StatusDone:
-		return false // done is terminal
+		return false
+	}
+	return false
+}
+
+func legalTransitionSDD(from, to FeatureStatus) bool {
+	switch from {
+	case StatusPending:
+		return to == StatusSpecReady || to == StatusBlocked
+	case StatusSpecReady:
+		return to == StatusInProgress || to == StatusPending || to == StatusBlocked
+	case StatusInProgress:
+		return to == StatusDone || to == StatusBlocked || to == StatusPending || to == StatusSpecReady
+	case StatusBlocked:
+		return to == StatusPending || to == StatusSpecReady || to == StatusInProgress
+	case StatusDone:
+		return false
 	}
 	return false
 }
 
 // Counts is a small struct that powers `korva harness status`.
+// SpecReady is zero in a standard (non-SDD) backlog and the dashboard
+// can hide it; in an SDD backlog it tells the operator how many
+// features are awaiting human approval.
 type Counts struct {
 	Pending    int `json:"pending"`
+	SpecReady  int `json:"spec_ready,omitempty"`
 	InProgress int `json:"in_progress"`
 	Done       int `json:"done"`
 	Blocked    int `json:"blocked"`
@@ -278,6 +375,8 @@ func (fl *FeatureList) CountByStatus() Counts {
 		switch f.Status {
 		case StatusPending:
 			c.Pending++
+		case StatusSpecReady:
+			c.SpecReady++
 		case StatusInProgress:
 			c.InProgress++
 		case StatusDone:
