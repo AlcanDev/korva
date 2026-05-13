@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.23.0](https://github.com/AlcanDev/korva/compare/v1.22.0...v1.23.0) (2026-05-13)
+
+
+### 🚀 Features
+
+* **phase-13.1:** SDD-aware state machine + spec templates ([#52](https://github.com/AlcanDev/korva/issues/52)) ([de1e752](https://github.com/AlcanDev/korva/commit/de1e752da355f8f219311bbc9999e96373cd8972))
+
 ## [1.22.0](https://github.com/AlcanDev/korva/compare/v1.21.0...v1.22.0) (2026-05-13)
 
 
