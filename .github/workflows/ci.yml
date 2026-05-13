@@ -42,15 +42,18 @@ jobs:
       - name: Build all modules
         run: go build github.com/alcandev/korva/...
 
-      # Race detector on Linux + macOS (reliable with modernc.org/sqlite)
+      # Race detector on Linux + macOS (reliable with modernc.org/sqlite).
+      # 5-minute timeout: race adds 2-10x overhead and the suite has ~250
+      # tests across api+store+hive+mcp. Plenty of headroom; the gate is
+      # still tight enough to catch genuine deadlocks.
       - name: Test (Linux / macOS)
         if: runner.os != 'Windows'
-        run: go test github.com/alcandev/korva/... -race -count=1 -timeout 120s
+        run: go test github.com/alcandev/korva/... -race -count=1 -timeout 5m
 
       # Windows: skip race detector — known flakiness with SQLite file locking
       - name: Test (Windows)
         if: runner.os == 'Windows'
-        run: go test github.com/alcandev/korva/... -count=1 -timeout 120s
+        run: go test github.com/alcandev/korva/... -count=1 -timeout 5m
 
   # ─── Go lint ────────────────────────────────────────────────────────────────
   # Korva uses a Go workspace (go.work). golangci-lint can't enumerate modules

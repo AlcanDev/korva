@@ -1,6 +1,6 @@
 import { lazy, Suspense } from 'react'
 import { NavLink, Routes, Route, Navigate } from 'react-router'
-import { Activity, Coins, Clock, Settings, Shield, GitMerge, FolderTree, Download, Terminal, Zap, DollarSign, ShieldCheck, Network } from 'lucide-react'
+import { Activity, Coins, Clock, Settings, Shield, GitMerge, FolderTree, Download, Terminal, Zap, DollarSign, ShieldCheck, Network, Plug, Film, Lightbulb, AlertTriangle } from 'lucide-react'
 import { Spinner } from '@/components/ui'
 
 // Phase 7 — code-split every Observatory sub-panel so the bundle stays
@@ -18,6 +18,10 @@ const LiveActivityPanel    = lazy(() => import('./LiveActivityPanel'))
 const CostPanel            = lazy(() => import('./CostPanel'))
 const PrivacyPanel         = lazy(() => import('./PrivacyPanel'))
 const GraphPanel           = lazy(() => import('./GraphPanel'))
+const MCPPlaygroundPanel   = lazy(() => import('./MCPPlaygroundPanel'))
+const ReplayPanel          = lazy(() => import('./ReplayPanel'))
+const InsightsPanel        = lazy(() => import('./InsightsPanel'))
+const DriftPanel           = lazy(() => import('./DriftPanel'))
 
 function PanelFallback() {
   return (
@@ -41,6 +45,10 @@ const SUBNAV = [
   { path: 'cost', label: 'Cost & ROI', icon: DollarSign },
   { path: 'privacy', label: 'Privacy', icon: ShieldCheck },
   { path: 'graph', label: 'Graph', icon: Network },
+  { path: 'mcp', label: 'MCP', icon: Plug },
+  { path: 'replay', label: 'Replay', icon: Film },
+  { path: 'insights', label: 'Insights', icon: Lightbulb },
+  { path: 'drift', label: 'Drift', icon: AlertTriangle },
   { path: 'tokens', label: 'Tokens', icon: Coins },
   { path: 'activity', label: 'Activity', icon: Clock },
   { path: 'commands', label: 'Commands', icon: Terminal },
@@ -85,6 +93,10 @@ export default function Observatory() {
             <Route path="cost" element={<CostPanel />} />
             <Route path="privacy" element={<PrivacyPanel />} />
             <Route path="graph" element={<GraphPanel />} />
+            <Route path="mcp" element={<MCPPlaygroundPanel />} />
+            <Route path="replay" element={<ReplayPanel />} />
+            <Route path="insights" element={<InsightsPanel />} />
+            <Route path="drift" element={<DriftPanel />} />
             <Route path="tokens" element={<TokenAnalytics />} />
             <Route path="activity" element={<ActivityTimeline />} />
             <Route path="commands" element={<CommandsPanel />} />

@@ -148,6 +148,26 @@ const fetchMock = vi.fn(async (input?: RequestInfo | URL | string | null) => {
     edges: [],
     truncated: false,
   })
+  if (url.includes('/admin/mcp/tools')) return jsonResponse({
+    tools: [],
+    profile: 'readonly',
+  })
+  if (url.match(/\/admin\/sessions\/[^/]+\/replay/)) return jsonResponse({
+    session_id: 'x',
+    started_at: '2026-01-01T00:00:00Z',
+    entries: [],
+    total: 0,
+  })
+  if (url.includes('/admin/insights/patterns')) return jsonResponse({
+    project: '',
+    suggestions: [],
+  })
+  if (url.includes('/admin/drift/decisions')) return jsonResponse({
+    project: '',
+    window_days: 30,
+    alerts: [],
+  })
+  if (url.includes('/admin/sessions')) return jsonResponse({ sessions: [] })
   return jsonResponse({})
 })
 vi.stubGlobal('fetch', fetchMock)
@@ -183,7 +203,7 @@ describe('Observatory navigation', () => {
     expect(OBSERVATORY_BASE).toBe('/admin/observatory')
   })
 
-  it('renders 13 sub-tabs with absolute hrefs from /admin/observatory/health', () => {
+  it('renders 17 sub-tabs with absolute hrefs from /admin/observatory/health', () => {
     renderAt('/admin/observatory/health')
     const nav = screen.getByRole('navigation', { name: /observatory sections/i })
     const hrefs = Array.from(nav.querySelectorAll('a')).map(
@@ -195,6 +215,10 @@ describe('Observatory navigation', () => {
       '/admin/observatory/cost',
       '/admin/observatory/privacy',
       '/admin/observatory/graph',
+      '/admin/observatory/mcp',
+      '/admin/observatory/replay',
+      '/admin/observatory/insights',
+      '/admin/observatory/drift',
       '/admin/observatory/tokens',
       '/admin/observatory/activity',
       '/admin/observatory/commands',
@@ -218,6 +242,10 @@ describe('Observatory navigation', () => {
       '/admin/observatory/cost',
       '/admin/observatory/privacy',
       '/admin/observatory/graph',
+      '/admin/observatory/mcp',
+      '/admin/observatory/replay',
+      '/admin/observatory/insights',
+      '/admin/observatory/drift',
       '/admin/observatory/tokens',
       '/admin/observatory/activity',
       '/admin/observatory/commands',
@@ -277,6 +305,10 @@ describe('Observatory navigation', () => {
     ['cost', /Cost & ROI/i],
     ['privacy', /Privacy meter/i],
     ['graph', /Knowledge graph/i],
+    ['mcp', /MCP playground/i],
+    ['replay', /Session replay/i],
+    ['insights', /Insights/i],
+    ['drift', /Decision drift/i],
     ['tokens', /Token Analytics/i],
     ['activity', /Activity Timeline/i],
     ['commands', /Commands/i],

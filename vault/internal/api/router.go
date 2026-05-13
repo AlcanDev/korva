@@ -310,6 +310,19 @@ func Router(ctx context.Context, s *store.Store, cfg RouterConfig) http.Handler 
 	// Observatory — Knowledge Graph (Phase 9.3)
 	mux.Handle("GET /admin/graph", adminMW(withCORS(adminGraph(s))))
 
+	// Observatory — MCP playground (Phase 10.2, read-only)
+	mux.Handle("GET /admin/mcp/tools", adminMW(withCORS(adminMCPTools())))
+	mux.Handle("POST /admin/mcp/invoke", adminMW(withBodyLimit(withCORS(adminMCPInvoke(s)))))
+
+	// Observatory — Session replay (Phase 10.3)
+	mux.Handle("GET /admin/sessions/{id}/replay", adminMW(withCORS(adminSessionReplay(s))))
+
+	// Observatory — Pattern insights (Phase 10.4)
+	mux.Handle("GET /admin/insights/patterns", adminMW(withCORS(adminPatternInsights(s))))
+
+	// Observatory — Decision drift alerts (Phase 10.5)
+	mux.Handle("GET /admin/drift/decisions", adminMW(withCORS(adminDecisionDrift(s))))
+
 	// Observatory — Deferred-apply queue (cloud sync resilience)
 	mux.Handle("GET /admin/cloud/deferred", adminMW(withCORS(adminListDeferred(s))))
 	mux.Handle("POST /admin/cloud/deferred/{sync_id}/retry", adminMW(withBodyLimit(withCORS(adminRetryDeferred(s)))))
