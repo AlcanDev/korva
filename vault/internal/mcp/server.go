@@ -481,6 +481,8 @@ func (s *Server) dispatchInner(tool string, args map[string]any) (any, error) {
 		return s.toolHarnessSpec(args)
 	case "vault_harness_ready":
 		return s.toolHarnessReady(args)
+	case "vault_harness_check":
+		return s.toolHarnessCheck(args)
 	default:
 		return nil, fmt.Errorf("unknown tool: %s", tool)
 	}

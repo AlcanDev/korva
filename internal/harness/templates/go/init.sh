@@ -54,7 +54,24 @@ else
 fi
 
 echo ""
-echo "── 4. Build ───────────────────────────────────────────"
+echo "── 4. Harness invariants (schema + SDD spec coverage) ─"
+
+# `korva harness check` exits 0 when the feature_list is internally
+# consistent AND every SDD-flagged feature past `pending` has its three
+# spec files on disk.
+if command -v korva >/dev/null 2>&1; then
+  if korva harness check; then
+    ok "korva harness check passed"
+  else
+    fail "korva harness check reported issues"
+    EXIT_CODE=1
+  fi
+else
+  warn "korva CLI not on PATH — skipping invariant check"
+fi
+
+echo ""
+echo "── 5. Build ───────────────────────────────────────────"
 
 if [ $EXIT_CODE -eq 0 ]; then
   if go build ./... 2>&1; then
@@ -66,7 +83,7 @@ if [ $EXIT_CODE -eq 0 ]; then
 fi
 
 echo ""
-echo "── 5. Test suite ──────────────────────────────────────"
+echo "── 6. Test suite ──────────────────────────────────────"
 
 if [ $EXIT_CODE -eq 0 ]; then
   # -count=1 disables the test cache so a green run is a real run.
@@ -79,7 +96,7 @@ if [ $EXIT_CODE -eq 0 ]; then
 fi
 
 echo ""
-echo "── 6. Summary ─────────────────────────────────────────"
+echo "── 7. Summary ─────────────────────────────────────────"
 
 if [ $EXIT_CODE -eq 0 ]; then
   ok "Harness ready. Proceed."

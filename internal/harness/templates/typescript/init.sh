@@ -61,7 +61,21 @@ else
 fi
 
 echo ""
-echo "── 4. Dependencies installed ──────────────────────────"
+echo "── 4. Harness invariants (schema + SDD spec coverage) ─"
+
+if command -v korva >/dev/null 2>&1; then
+  if korva harness check; then
+    ok "korva harness check passed"
+  else
+    fail "korva harness check reported issues"
+    EXIT_CODE=1
+  fi
+else
+  warn "korva CLI not on PATH — skipping invariant check"
+fi
+
+echo ""
+echo "── 5. Dependencies installed ──────────────────────────"
 
 if [ -f package.json ]; then
   if [ ! -d node_modules ]; then
@@ -80,7 +94,7 @@ else
 fi
 
 echo ""
-echo "── 5. Type-check + build ──────────────────────────────"
+echo "── 6. Type-check + build ──────────────────────────────"
 
 if [ $EXIT_CODE -eq 0 ] && [ -f package.json ]; then
   # Many projects do tsc -b + vite/esbuild via `npm run build`. If a
@@ -105,7 +119,7 @@ if [ $EXIT_CODE -eq 0 ] && [ -f package.json ]; then
 fi
 
 echo ""
-echo "── 6. Test suite ──────────────────────────────────────"
+echo "── 7. Test suite ──────────────────────────────────────"
 
 if [ $EXIT_CODE -eq 0 ] && [ -f package.json ]; then
   if npm run --silent test >/dev/null 2>&1; then
@@ -121,7 +135,7 @@ if [ $EXIT_CODE -eq 0 ] && [ -f package.json ]; then
 fi
 
 echo ""
-echo "── 7. Summary ─────────────────────────────────────────"
+echo "── 8. Summary ─────────────────────────────────────────"
 
 if [ $EXIT_CODE -eq 0 ]; then
   ok "Harness ready. Proceed."

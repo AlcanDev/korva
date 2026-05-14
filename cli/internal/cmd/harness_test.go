@@ -500,6 +500,51 @@ func TestStatusMarker_SpecReady(t *testing.T) {
 	}
 }
 
+func TestRunHarnessCheck_PassesOnFreshHarness(t *testing.T) {
+	_ = initHarnessForTest(t)
+	out := captureStdout(t, func() error { return runHarnessCheck(nil, nil) })
+	if !strings.Contains(out, "no issues") {
+		t.Errorf("expected clean check output: %s", out)
+	}
+}
+
+func TestRunHarnessCheck_FailsOnSDDSpecMissing(t *testing.T) {
+	dir := initSDDHarnessForTest(t)
+	// Promote pending → spec_ready by hand without the spec files.
+	fl, _ := harness.LoadFeatureList(dir)
+	fl.Features[0].Status = harness.StatusSpecReady
+	if err := harness.SaveFeatureList(dir, fl); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+
+	err := runHarnessCheck(nil, nil)
+	if err == nil {
+		t.Fatal("expected non-zero exit when SDD specs are missing")
+	}
+	if !strings.Contains(err.Error(), "harness check failed") {
+		t.Errorf("error should be the sentinel, got %v", err)
+	}
+}
+
+func TestRunHarnessCheck_JSON(t *testing.T) {
+	_ = initSDDHarnessForTest(t)
+	harnessCheckJSON = true
+	t.Cleanup(func() { harnessCheckJSON = false })
+
+	out := captureStdout(t, func() error { return runHarnessCheck(nil, nil) })
+
+	var report harness.CheckReport
+	if err := json.Unmarshal([]byte(out), &report); err != nil {
+		t.Fatalf("invalid JSON: %v\nraw: %s", err, out)
+	}
+	if !report.OK {
+		t.Errorf("fresh SDD harness should be OK: %+v", report)
+	}
+	if !report.SDDMode {
+		t.Error("sdd_mode flag should be true")
+	}
+}
+
 func TestDetectStack(t *testing.T) {
 	tests := []struct {
 		name string

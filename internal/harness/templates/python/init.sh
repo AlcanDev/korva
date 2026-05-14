@@ -71,7 +71,21 @@ else
 fi
 
 echo ""
-echo "── 5. Test suite ──────────────────────────────────────"
+echo "── 5. Harness invariants (schema + SDD spec coverage) ─"
+
+if command -v korva >/dev/null 2>&1; then
+  if korva harness check; then
+    ok "korva harness check passed"
+  else
+    fail "korva harness check reported issues"
+    EXIT_CODE=1
+  fi
+else
+  warn "korva CLI not on PATH — skipping invariant check"
+fi
+
+echo ""
+echo "── 6. Test suite ──────────────────────────────────────"
 
 if [ $EXIT_CODE -eq 0 ] && [ -n "$PYTHON_BIN" ]; then
   if "$PYTHON_BIN" -m pytest --version >/dev/null 2>&1; then
@@ -88,7 +102,7 @@ if [ $EXIT_CODE -eq 0 ] && [ -n "$PYTHON_BIN" ]; then
 fi
 
 echo ""
-echo "── 6. Summary ─────────────────────────────────────────"
+echo "── 7. Summary ─────────────────────────────────────────"
 
 if [ $EXIT_CODE -eq 0 ]; then
   ok "Harness ready. Proceed."

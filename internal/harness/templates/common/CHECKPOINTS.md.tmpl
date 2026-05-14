@@ -34,9 +34,27 @@
 - [ ] No suspicious untracked files (`*.tmp`, build artefacts not in `.gitignore`).
 - [ ] `progress/history.md` carries one entry for the most recent session.
 - [ ] The feature you worked on is in its correct final status.
+{{if .SDDMode}}
+## C6 — Spec-driven contract upheld
 
+> Only applies when `rules.require_approved_spec_to_implement` is set
+> in `feature_list.json`. The reviewer skips C6 for non-SDD features.
+
+- [ ] Every feature with `sdd: true` past `pending` has all three files
+      under `specs/<feature.name>/`: `requirements.md`, `design.md`,
+      `tasks.md`.
+- [ ] `requirements.md` uses EARS notation (WHEN / WHILE / WHERE /
+      IF…THEN) and every `acceptance` bullet from `feature_list.json`
+      maps to ≥ 1 R-id in the traceability table.
+- [ ] `design.md` lists every file the implementer touched, plus at
+      least one rejected alternative.
+- [ ] Every `T<n>` in `tasks.md` is checked `[x]` and references the
+      R-id(s) it covers.
+- [ ] `korva harness check` exits 0 (or `vault_harness_check` returns
+      `ok: true` over MCP).
+{{end}}
 ---
 
 **How to use this file:** a reviewer agent (see `.claude/agents/reviewer.md`)
 walks each checkbox, marks `[x]` or `[ ]`, and rejects the session close
-when any C1-C5 box is empty.
+when any C1-C5{{if .SDDMode}}/C6{{end}} box is empty.

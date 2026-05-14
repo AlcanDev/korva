@@ -539,6 +539,54 @@ func TestGenerate_NonSDD_NoSpecAuthorForAnyEditor(t *testing.T) {
 	}
 }
 
+func TestGenerate_SDD_CheckpointsIncludeC6Section(t *testing.T) {
+	dir := t.TempDir()
+	if _, err := Generate(InitOptions{
+		Root: dir, Project: "x", Stack: StackGeneric, SDD: true,
+	}); err != nil {
+		t.Fatalf("generate: %v", err)
+	}
+	body, err := os.ReadFile(filepath.Join(dir, "CHECKPOINTS.md"))
+	if err != nil {
+		t.Fatalf("read: %v", err)
+	}
+	for _, want := range []string{
+		"## C6 — Spec-driven contract upheld",
+		"EARS notation",
+		"korva harness check",
+		"C1-C5/C6", // footer mentions C6 too
+	} {
+		if !strings.Contains(string(body), want) {
+			t.Errorf("CHECKPOINTS missing %q\nfull body:\n%s", want, body)
+		}
+	}
+	if strings.Contains(string(body), "{{") {
+		t.Errorf("CHECKPOINTS still contains unrendered template tags")
+	}
+}
+
+func TestGenerate_NonSDD_CheckpointsOmitC6Section(t *testing.T) {
+	dir := t.TempDir()
+	if _, err := Generate(InitOptions{
+		Root: dir, Project: "x", Stack: StackGeneric, // SDD: false
+	}); err != nil {
+		t.Fatalf("generate: %v", err)
+	}
+	body, err := os.ReadFile(filepath.Join(dir, "CHECKPOINTS.md"))
+	if err != nil {
+		t.Fatalf("read: %v", err)
+	}
+	if strings.Contains(string(body), "## C6") {
+		t.Error("non-SDD CHECKPOINTS should not render the C6 section")
+	}
+	if strings.Contains(string(body), "C1-C5/C6") {
+		t.Error("non-SDD footer should not mention C6")
+	}
+	if strings.Contains(string(body), "{{") {
+		t.Errorf("CHECKPOINTS still contains unrendered template tags")
+	}
+}
+
 func TestGenerate_SDD_TemplatesRenderProjectVar(t *testing.T) {
 	dir := t.TempDir()
 	if _, err := Generate(InitOptions{

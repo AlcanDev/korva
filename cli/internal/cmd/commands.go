@@ -94,6 +94,7 @@ func runCommands(_ *cobra.Command, _ []string) {
 				{"korva harness add", "Append a new feature (--name, --title, --accept, --sdd)"},
 				{"korva harness spec <id>", "SDD: materialize specs/<feature>/{requirements,design,tasks}.md"},
 				{"korva harness ready <id>", "SDD: mark a feature's spec as ready for human approval (pending → spec_ready)"},
+				{"korva harness check", "Validate the harness against every invariant (schema + SDD spec coverage)"},
 			},
 		},
 		{

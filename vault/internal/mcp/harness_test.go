@@ -668,3 +668,163 @@ func TestFeatureToMap_IncludesSDDFlag(t *testing.T) {
 		t.Errorf("featureToMap should omit sdd when false, got %+v", plain)
 	}
 }
+
+// ───────────────────────── Phase 13.3 — Check + bridge ─────────────────────────
+
+func TestToolHarnessCheck_OnFreshHarness(t *testing.T) {
+	srv := newHarnessTestServer(t)
+	root := initHarness(t)
+	res, err := srv.toolHarnessCheck(map[string]any{"root": root})
+	if err != nil {
+		t.Fatalf("check: %v", err)
+	}
+	report := res.(*harness.CheckReport)
+	if !report.OK || len(report.Issues) != 0 {
+		t.Errorf("fresh harness should be OK, got %+v", report)
+	}
+}
+
+func TestToolHarnessCheck_FlagsSDDViolation(t *testing.T) {
+	srv := newHarnessTestServer(t)
+	root := initSDDHarnessMCP(t)
+	// Promote pending → spec_ready by hand without spec files.
+	fl, _ := harness.LoadFeatureList(root)
+	fl.Features[0].Status = harness.StatusSpecReady
+	_ = harness.SaveFeatureList(root, fl)
+
+	res, err := srv.toolHarnessCheck(map[string]any{"root": root})
+	if err != nil {
+		t.Fatalf("check: %v", err)
+	}
+	report := res.(*harness.CheckReport)
+	if report.OK {
+		t.Errorf("expected non-OK report")
+	}
+	if len(report.Issues) != 1 || report.Issues[0].Code != "sdd_spec_missing" {
+		t.Errorf("expected single sdd_spec_missing issue, got %+v", report.Issues)
+	}
+}
+
+func TestHarnessToSDDPhase_Mapping(t *testing.T) {
+	cases := map[harness.FeatureStatus]struct {
+		want store.SDDPhase
+		ok   bool
+	}{
+		harness.StatusSpecReady:  {store.SDDSpec, true},
+		harness.StatusInProgress: {store.SDDApply, true},
+		harness.StatusDone:       {store.SDDVerify, true},
+		harness.StatusPending:    {"", false},
+		harness.StatusBlocked:    {"", false},
+	}
+	for status, want := range cases {
+		got, ok := harnessToSDDPhase(status)
+		if ok != want.ok {
+			t.Errorf("ok(%s) = %v, want %v", status, ok, want.ok)
+		}
+		if got != want.want {
+			t.Errorf("phase(%s) = %s, want %s", status, got, want.want)
+		}
+	}
+}
+
+func TestBridgeSDDPhase_SkipsWhenProjectEmpty(t *testing.T) {
+	srv := newHarnessTestServer(t)
+	if got := srv.bridgeSDDPhase(map[string]any{}, harness.StatusInProgress); got {
+		t.Error("missing project arg should skip the bridge")
+	}
+}
+
+func TestBridgeSDDPhase_SkipsForUnmappableStatus(t *testing.T) {
+	srv := newHarnessTestServer(t)
+	for _, status := range []harness.FeatureStatus{harness.StatusPending, harness.StatusBlocked} {
+		if got := srv.bridgeSDDPhase(map[string]any{"project": "p"}, status); got {
+			t.Errorf("status %s should not bridge", status)
+		}
+	}
+}
+
+func TestBridgeSDDPhase_PushesPhaseToStore(t *testing.T) {
+	srv := newHarnessTestServer(t)
+	if !srv.bridgeSDDPhase(map[string]any{"project": "team-x"}, harness.StatusSpecReady) {
+		t.Fatal("bridge should succeed when project + mappable status are present")
+	}
+	state, err := srv.store.GetSDDPhase("team-x")
+	if err != nil {
+		t.Fatalf("GetSDDPhase: %v", err)
+	}
+	if state.Phase != store.SDDSpec {
+		t.Errorf("phase pushed = %s, want %s", state.Phase, store.SDDSpec)
+	}
+}
+
+func TestToolHarnessReady_BridgesWhenProjectGiven(t *testing.T) {
+	srv := newHarnessTestServer(t)
+	root := initSDDHarnessMCP(t)
+	_, _ = srv.toolHarnessSpec(map[string]any{"root": root, "id": float64(1)})
+
+	res, err := srv.toolHarnessReady(map[string]any{
+		"root": root, "id": float64(1), "project": "team-x",
+	})
+	if err != nil {
+		t.Fatalf("ready: %v", err)
+	}
+	resp := res.(map[string]any)
+	if resp["sdd_phase_synced"] != true {
+		t.Errorf("sdd_phase_synced = %v, want true", resp["sdd_phase_synced"])
+	}
+	state, _ := srv.store.GetSDDPhase("team-x")
+	if state.Phase != store.SDDSpec {
+		t.Errorf("vault SDD phase = %s, want spec", state.Phase)
+	}
+}
+
+func TestToolHarnessTransition_BridgesOnStart(t *testing.T) {
+	srv := newHarnessTestServer(t)
+	root := initHarness(t) // standard harness — non-SDD start is fine
+
+	start := srv.toolHarnessTransition(harness.StatusInProgress)
+	res, err := start(map[string]any{
+		"root": root, "id": float64(1), "project": "team-y",
+	})
+	if err != nil {
+		t.Fatalf("start: %v", err)
+	}
+	if res.(map[string]any)["sdd_phase_synced"] != true {
+		t.Error("start with project should bridge")
+	}
+	state, _ := srv.store.GetSDDPhase("team-y")
+	if state.Phase != store.SDDApply {
+		t.Errorf("vault SDD phase = %s, want apply", state.Phase)
+	}
+}
+
+func TestToolHarnessTransition_NoBridgeWithoutProject(t *testing.T) {
+	srv := newHarnessTestServer(t)
+	root := initHarness(t)
+	start := srv.toolHarnessTransition(harness.StatusInProgress)
+	res, err := start(map[string]any{"root": root, "id": float64(1)})
+	if err != nil {
+		t.Fatalf("start: %v", err)
+	}
+	if res.(map[string]any)["sdd_phase_synced"] != false {
+		t.Errorf("sdd_phase_synced should be false without project arg, got %v", res.(map[string]any)["sdd_phase_synced"])
+	}
+}
+
+func TestProfileWiring_CheckToolEverywhere(t *testing.T) {
+	// vault_harness_check is read-only — available under every profile.
+	for _, profile := range []Profile{ProfileReadonly, ProfileAgent, ProfileAdmin} {
+		if !isAllowed(profile, "vault_harness_check") {
+			t.Errorf("vault_harness_check should be allowed under %s profile", profile)
+		}
+	}
+}
+
+func TestDispatch_CheckToolRegistered(t *testing.T) {
+	srv := newHarnessTestServer(t)
+	root := initHarness(t)
+	if _, err := srv.dispatch("vault_harness_check",
+		map[string]any{"root": root}); err != nil {
+		t.Errorf("dispatch check: %v", err)
+	}
+}
