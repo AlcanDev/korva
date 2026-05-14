@@ -73,6 +73,11 @@ function AdoptionList({ payload }: AdoptionListProps) {
     )
   }
 
+  // Phase 19.D — total spans both telemetry channels. Headline
+  // wording stays "interactions" (the user-facing label) but the
+  // per-row hover surfaces the http/mcp split when both are
+  // non-zero, so an operator can spot "this editor only shows up
+  // via MCP" at a glance.
   return (
     <>
       <p className="text-xs text-[#8b949e] mb-3 tabular-nums">
@@ -83,11 +88,18 @@ function AdoptionList({ payload }: AdoptionListProps) {
           const pct = (row.count / payload.total) * 100
           const label = row.editor || 'anonymous'
           const color = row.editor ? editorColor[row.editor] ?? '#8b949e' : anonymousColor
+          const breakdown = formatChannelBreakdown(row.by_channel)
           return (
             <li key={label} className="text-xs">
               <div className="flex items-center justify-between mb-1">
-                <span className="text-[#e6edf3] capitalize">{label}</span>
-                <span className="text-[#8b949e] tabular-nums">
+                <span
+                  className="text-[#e6edf3] capitalize"
+                  title={breakdown}
+                  aria-label={`${label}, ${row.count} interactions (${breakdown})`}
+                >
+                  {label}
+                </span>
+                <span className="text-[#8b949e] tabular-nums" title={breakdown}>
                   {row.count} · {pct.toFixed(1)}%
                 </span>
               </div>
@@ -104,6 +116,19 @@ function AdoptionList({ payload }: AdoptionListProps) {
       </ul>
     </>
   )
+}
+
+// formatChannelBreakdown returns a compact label like "http 5 · mcp 10"
+// for the tooltip. When the row has only one channel populated we
+// shorten further to "mcp only" / "http only" so the badge isn't
+// noisy for the common single-channel case.
+function formatChannelBreakdown(by: { http: number; mcp: number } | undefined): string {
+  // Defensive: older payloads (before 19.D) might not carry the field.
+  if (!by) return ''
+  if (by.http === 0 && by.mcp === 0) return ''
+  if (by.http === 0) return 'mcp only'
+  if (by.mcp === 0) return 'http only'
+  return `http ${by.http} · mcp ${by.mcp}`
 }
 
 function SkeletonRows() {

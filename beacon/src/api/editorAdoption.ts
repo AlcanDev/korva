@@ -12,6 +12,13 @@ import { adminFetch } from './_fetch'
 export interface EditorAdoptionRow {
   editor: string
   count: number
+  // Phase 19.D — count broken down by telemetry channel. `http` is
+  // POST /api/v1/interactions with X-Korva-Editor; `mcp` is the
+  // stdio MCP initialize.clientInfo.name path. Sums to `count`.
+  by_channel: {
+    http: number
+    mcp: number
+  }
 }
 
 export interface EditorAdoptionPayload {
