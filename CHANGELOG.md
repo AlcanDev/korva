@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.27.0](https://github.com/AlcanDev/korva/compare/v1.26.0...v1.27.0) (2026-05-14)
+
+
+### 🚀 Features
+
+* **phase-14.2:** vault REST harness endpoints with multi-tenant isolation ([#60](https://github.com/AlcanDev/korva/issues/60)) ([8250e4c](https://github.com/AlcanDev/korva/commit/8250e4cb446ae5183c8583c69f055886a685ba09))
+
 ## [1.26.0](https://github.com/AlcanDev/korva/compare/v1.25.0...v1.26.0) (2026-05-14)
 
 
