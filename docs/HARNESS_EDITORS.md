@@ -141,6 +141,47 @@ it.
 
 ---
 
+## SDD reviewer subagent
+
+When the harness is initialized with `--sdd`, multi-file editors
+(Claude, Cursor, Windsurf) get TWO extra rule files on top of the
+base set:
+
+| File                                          | Role |
+| --------------------------------------------- | ---- |
+| `spec_author.md` / `…-sdd-spec-author.*`      | Drafts the three spec files. Transitions `pending → spec_ready`. |
+| `spec_reviewer.md` / `…-sdd-spec-reviewer.*`  | Audits the spec_ready feature. Records the verdict (Phase 18.A) but never transitions the state. |
+
+Single-file editors (Continue, Copilot, Aider, Codex) get the
+universal `AGENTS.md` and operate the same workflow via CLI / MCP
+verbs without a dedicated reviewer template.
+
+### The review verdict record
+
+`korva harness review <id> --record` (or MCP
+`vault_harness_spec_review` with `record: true`) persists the
+verdict to `feature_list.json` under the feature's `review` field:
+
+```json
+{
+  "verdict": "approve",
+  "reviewer": "alice@acme.io",
+  "at": "2026-05-14T16:42:11Z",
+  "issue_count": 0,
+  "error_count": 0,
+  "note": "spec covers all acceptance bullets"
+}
+```
+
+Three verdicts: `approve | needs_fixes | reject`. The default is
+derived from the linter outcome (clean → approve, warnings →
+needs_fixes, errors → reject); reviewers override with `--verdict`.
+
+**Recording a verdict NEVER changes the feature's status.** The
+state machine retains authority. Approve doesn't auto-promote
+spec_ready → in_progress; reject doesn't lock the feature. The
+operator (or the leader subagent) drives the transition.
+
 ## Adding a new editor
 
 Two-step process — see `internal/harness/templates.go` for the

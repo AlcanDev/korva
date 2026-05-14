@@ -642,6 +642,33 @@ func TestGenerate_SDD_AddsSpecAuthorForMultiFileEditors(t *testing.T) {
 	}
 }
 
+// Phase 18.B — spec_reviewer template is the SDD counterpart of
+// spec_author. Same shape (multi-file editors only), same trigger
+// (SDD harness init). Pins drift between AllEditors and the SDD
+// template set.
+func TestGenerate_SDD_AddsSpecReviewerForMultiFileEditors(t *testing.T) {
+	cases := map[Editor]string{
+		EditorClaude:   ".claude/agents/spec_reviewer.md",
+		EditorCursor:   ".cursor/rules/korva-harness-sdd-spec-reviewer.mdc",
+		EditorWindsurf: ".windsurf/rules/korva-harness-sdd-spec-reviewer.md",
+	}
+	for editor, path := range cases {
+		editor, path := editor, path
+		t.Run(string(editor), func(t *testing.T) {
+			dir := t.TempDir()
+			if _, err := Generate(InitOptions{
+				Root: dir, Project: "x", Stack: StackGeneric,
+				Editors: []Editor{editor}, SDD: true,
+			}); err != nil {
+				t.Fatalf("generate: %v", err)
+			}
+			if _, err := os.Stat(filepath.Join(dir, filepath.FromSlash(path))); err != nil {
+				t.Errorf("missing spec_reviewer rule for %s at %s: %v", editor, path, err)
+			}
+		})
+	}
+}
+
 func TestGenerate_SDD_NoSpecAuthorForSingleFileEditors(t *testing.T) {
 	// continue / copilot's rule files already encode the harness flow.
 	// No SDD-specific extra file — the SDD steps are universal CLI/MCP
