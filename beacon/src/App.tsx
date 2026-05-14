@@ -4,7 +4,7 @@ import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { ToastProvider, CommandPaletteProvider } from '@/components/ui'
 import GlobalCommands from '@/components/GlobalCommands'
 import {
-  LayoutDashboard, Database, Clock, BookOpen, Settings, Activity, Shield
+  LayoutDashboard, Database, Clock, BookOpen, Settings, Activity, Shield, GitBranch
 } from 'lucide-react'
 import { useVaultHealth } from '@/api/vault'
 import LandingPage from '@/pages/landing/LandingPage'
@@ -14,6 +14,8 @@ import Sessions from '@/pages/sessions/Sessions'
 import LoreManager from '@/pages/lore-manager/LoreManager'
 import SettingsPage from '@/pages/settings/Settings'
 import Admin from '@/pages/admin/Admin'
+import HarnessDashboard from '@/pages/harness/HarnessDashboard'
+import HarnessProjectDetail from '@/pages/harness/HarnessProjectDetail'
 
 export default function App() {
   return (
@@ -34,12 +36,14 @@ export default function App() {
               <Sidebar />
               <main style={{ flex: 1, overflowY: 'auto' }}>
                 <Routes>
-                  <Route path="overview"  element={<Overview />} />
-                  <Route path="vault"     element={<VaultExplorer />} />
-                  <Route path="sessions"  element={<Sessions />} />
-                  <Route path="lore"      element={<LoreManager />} />
-                  <Route path="settings"  element={<SettingsPage />} />
-                  <Route path="*"         element={<Navigate to="/app/overview" replace />} />
+                  <Route path="overview"           element={<Overview />} />
+                  <Route path="vault"              element={<VaultExplorer />} />
+                  <Route path="sessions"           element={<Sessions />} />
+                  <Route path="lore"               element={<LoreManager />} />
+                  <Route path="harness"            element={<HarnessDashboard />} />
+                  <Route path="harness/:project"   element={<HarnessProjectDetail />} />
+                  <Route path="settings"           element={<SettingsPage />} />
+                  <Route path="*"                  element={<Navigate to="/app/overview" replace />} />
                 </Routes>
               </main>
             </div>
@@ -63,6 +67,7 @@ function Sidebar() {
     { to: '/app/vault',     icon: Database,        label: 'Vault' },
     { to: '/app/sessions',  icon: Clock,           label: 'Sessions' },
     { to: '/app/lore',      icon: BookOpen,        label: 'Lore' },
+    { to: '/app/harness',   icon: GitBranch,       label: 'Harness' },
     { to: '/app/settings',  icon: Settings,        label: 'Settings' },
   ]
 
