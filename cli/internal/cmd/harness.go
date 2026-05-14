@@ -629,6 +629,45 @@ func joinStacks() string {
 	return strings.Join(parts, ", ")
 }
 
+// --- review ---------------------------------------------------------------
+// `korva harness review <id>` lints the spec files for an SDD feature
+// against the EARS + traceability + R↔T coverage contract. Exits
+// non-zero when any error-severity issue is found so it can be wired
+// into CI or pre-merge hooks.
+
+var harnessReviewJSON bool
+
+var harnessReviewCmd = &cobra.Command{
+	Use:   "review <id>",
+	Short: "Lint an SDD feature's spec (EARS validity + R↔T traceability + acceptance coverage)",
+	Args:  cobra.ExactArgs(1),
+	RunE:  runHarnessReview,
+}
+
+func runHarnessReview(_ *cobra.Command, args []string) error {
+	id, err := strconv.Atoi(args[0])
+	if err != nil {
+		return fmt.Errorf("id must be an integer, got %q", args[0])
+	}
+	report, err := harness.ReviewSpec(".", id)
+	if err != nil {
+		return err
+	}
+	if harnessReviewJSON {
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		if err := enc.Encode(report); err != nil {
+			return err
+		}
+	} else {
+		fmt.Print(harness.FormatSpecReviewReport(report))
+	}
+	if !report.OK {
+		return fmt.Errorf("spec review failed — %d issue(s)", len(report.Issues))
+	}
+	return nil
+}
+
 // --- ci install ------------------------------------------------------------
 // `korva harness ci install --provider=<X>` materializes a ready-to-use
 // CI workflow that gates merges on `korva harness check`. Two providers
@@ -768,6 +807,9 @@ func init() {
 	// check flags
 	harnessCheckCmd.Flags().BoolVar(&harnessCheckJSON, "json", false, "emit machine-readable JSON")
 
+	// review flags
+	harnessReviewCmd.Flags().BoolVar(&harnessReviewJSON, "json", false, "emit machine-readable JSON")
+
 	// ci install flags
 	harnessCIInstallCmd.Flags().StringVar(&harnessCIInstallOpts.Provider, "provider", "",
 		"CI vendor: "+joinCIProviders()+" (auto-detect when empty)")
@@ -788,5 +830,6 @@ func init() {
 	harnessCmd.AddCommand(harnessSpecCmd)
 	harnessCmd.AddCommand(harnessReadyCmd)
 	harnessCmd.AddCommand(harnessCheckCmd)
+	harnessCmd.AddCommand(harnessReviewCmd)
 	harnessCmd.AddCommand(harnessCICmd)
 }

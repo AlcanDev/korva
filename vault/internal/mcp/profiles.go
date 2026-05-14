@@ -58,10 +58,11 @@ var profileTools = map[Profile]map[string]bool{
 		"vault_harness_block":     true,
 		"vault_harness_reopen":    true,
 		"vault_harness_add":       true,
-		"vault_harness_spec":       true,
-		"vault_harness_ready":      true,
-		"vault_harness_check":      true,
-		"vault_harness_ci_install": true,
+		"vault_harness_spec":        true,
+		"vault_harness_ready":       true,
+		"vault_harness_check":       true,
+		"vault_harness_spec_review": true,
+		"vault_harness_ci_install":  true,
 	},
 	ProfileReadonly: {
 		"vault_search":         true,
@@ -79,7 +80,8 @@ var profileTools = map[Profile]map[string]bool{
 		"vault_harness_status": true,
 		"vault_harness_list":   true,
 		"vault_harness_next":   true,
-		"vault_harness_check":  true,
+		"vault_harness_check":       true,
+		"vault_harness_spec_review": true,
 	},
 	ProfileAdmin: {
 		"vault_save":              true,
@@ -125,8 +127,9 @@ var profileTools = map[Profile]map[string]bool{
 		"vault_harness_add":       true,
 		"vault_harness_spec":      true,
 		"vault_harness_ready":     true,
-		"vault_harness_check":     true,
-		"vault_harness_ci_install": true,
+		"vault_harness_check":       true,
+		"vault_harness_spec_review": true,
+		"vault_harness_ci_install":  true,
 	},
 }
 

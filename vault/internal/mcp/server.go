@@ -483,6 +483,8 @@ func (s *Server) dispatchInner(tool string, args map[string]any) (any, error) {
 		return s.toolHarnessReady(args)
 	case "vault_harness_check":
 		return s.toolHarnessCheck(args)
+	case "vault_harness_spec_review":
+		return s.toolHarnessSpecReview(args)
 	case "vault_harness_ci_install":
 		return s.toolHarnessCIInstall(args)
 	default:

@@ -545,6 +545,96 @@ func TestRunHarnessCheck_JSON(t *testing.T) {
 	}
 }
 
+// ───────────────────────── Phase 15.B — `harness review` ─────────────────────────
+
+func TestRunHarnessReview_PassesOnCleanSpec(t *testing.T) {
+	dir := initSDDHarnessForTest(t)
+	// Materialize the per-feature spec dir first (the SDD harness seed
+	// only creates specs/SPEC-TEMPLATE/, not specs/harness_smoke/).
+	_ = captureStdout(t, func() error { return runHarnessSpec(nil, []string{"1"}) })
+
+	// Replace placeholder-laden templates with a clean spec covering
+	// every acceptance bullet the SDD seed carries (4 bullets).
+	specDir := filepath.Join(dir, "specs", "harness_smoke")
+	if err := os.WriteFile(filepath.Join(specDir, "requirements.md"), []byte(`# Requirements
+## R1
+WHEN init.sh runs THE SYSTEM SHALL exit 0.
+## R2
+WHEN feature_list.json loads THE SYSTEM SHALL validate.
+## R3
+WHEN the harness starts THE SYSTEM SHALL render progress/current.md.
+## R4
+WHEN the SDD harness initializes THE SYSTEM SHALL materialize the three spec files.
+
+## Traceability
+| acceptance | Covered by |
+|---|---|
+| `+"`./init.sh` exits with code 0"+` | R1 |
+| `+"`feature_list.json` validates"+` | R2 |
+| `+"`progress/current.md` exists"+` | R3 |
+| `+"`specs/harness_smoke/{requirements,design,tasks}.md` exist"+` | R4 |
+`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(specDir, "tasks.md"), []byte(`# Tasks
+- [x] T1 — init.sh exits 0 *(Covers: R1)*
+- [x] T2 — feature_list validates *(Covers: R2)*
+- [x] T3 — progress exists *(Covers: R3)*
+- [x] T4 — specs materialized *(Covers: R4)*
+`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	out := captureStdout(t, func() error { return runHarnessReview(nil, []string{"1"}) })
+	if !strings.Contains(out, "no issues") {
+		t.Errorf("clean spec should pass: %s", out)
+	}
+}
+
+func TestRunHarnessReview_FailsOnFreshScaffold(t *testing.T) {
+	// Right after MaterializeSpec the placeholders are still there.
+	_ = initSDDHarnessForTest(t)
+	_ = captureStdout(t, func() error { return runHarnessSpec(nil, []string{"1"}) })
+
+	err := runHarnessReview(nil, []string{"1"})
+	if err == nil || !strings.Contains(err.Error(), "spec review failed") {
+		t.Errorf("expected fail-fast error, got %v", err)
+	}
+}
+
+func TestRunHarnessReview_JSONShape(t *testing.T) {
+	_ = initSDDHarnessForTest(t)
+	_ = captureStdout(t, func() error { return runHarnessSpec(nil, []string{"1"}) })
+
+	harnessReviewJSON = true
+	t.Cleanup(func() { harnessReviewJSON = false })
+
+	out := captureStdout(t, func() error {
+		// Errors return non-nil but stdout has the JSON anyway.
+		_ = runHarnessReview(nil, []string{"1"})
+		return nil
+	})
+	var report harness.SpecReviewReport
+	if err := json.Unmarshal([]byte(out), &report); err != nil {
+		t.Fatalf("invalid JSON: %v\nraw: %s", err, out)
+	}
+	if report.FeatureID != 1 {
+		t.Errorf("feature_id = %d", report.FeatureID)
+	}
+	if report.OK {
+		t.Errorf("fresh scaffold should report OK=false")
+	}
+}
+
+func TestRunHarnessReview_RejectsBadID(t *testing.T) {
+	_ = initSDDHarnessForTest(t)
+	if err := runHarnessReview(nil, []string{"not-a-number"}); err == nil {
+		t.Error("expected parse error")
+	}
+	if err := runHarnessReview(nil, []string{"999"}); err == nil {
+		t.Error("expected not-found error")
+	}
+}
+
 // ───────────────────────── Phase 15.A — `harness ci install` ─────────────────────────
 
 func TestRunHarnessCIInstall_GitHubActions(t *testing.T) {

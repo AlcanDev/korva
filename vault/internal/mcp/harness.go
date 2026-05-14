@@ -425,6 +425,26 @@ func (s *Server) toolHarnessCheck(args map[string]any) (any, error) {
 	return report, nil
 }
 
+// ── vault_harness_spec_review ────────────────────────────────────────────────
+//
+// Phase 15.B — lints an SDD feature's spec (EARS validity + R↔T
+// coverage + traceability) and returns the structured report. The
+// reviewer subagent gates on `ok: true` before approving a feature
+// for transition to in_progress.
+
+func (s *Server) toolHarnessSpecReview(args map[string]any) (any, error) {
+	root := resolveHarnessRoot(args)
+	id, err := readIDArg(args)
+	if err != nil {
+		return nil, err
+	}
+	report, err := harness.ReviewSpec(root, id)
+	if err != nil {
+		return nil, err
+	}
+	return report, nil
+}
+
 // ── vault_harness_ci_install ─────────────────────────────────────────────────
 //
 // Materializes a CI workflow (Phase 15.A). Mirrors `korva harness ci

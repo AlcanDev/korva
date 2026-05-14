@@ -666,6 +666,19 @@ func tools() []Tool {
 			},
 		},
 		{
+			Name: "vault_harness_spec_review",
+			Description: "Lint an SDD feature's spec — EARS validity in requirements.md, R-id coverage by tasks.md, traceability of feature_list acceptance bullets to R-ids. " +
+				"Read-only. Available under every profile. The reviewer subagent gates on `ok: true` before approving a transition to in_progress.",
+			InputSchema: Schema{
+				Type: "object",
+				Properties: map[string]Property{
+					"root": {Type: "string", Description: "Target directory (defaults to $KORVA_HARNESS_ROOT or CWD)"},
+					"id":   {Type: "number", Description: "Feature id"},
+				},
+				Required: []string{"id"},
+			},
+		},
+		{
 			Name: "vault_harness_ci_install",
 			Description: "Materialize a CI workflow that runs `korva harness check` on every PR/MR and posts the backlog summary as a comment. " +
 				"Two providers ship out of the box: github-actions (.github/workflows/harness.yml) and gitlab-ci (.gitlab-ci.harness.yml). " +

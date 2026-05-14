@@ -1085,6 +1085,49 @@ func TestCallerTeamID_ReturnsSessionTeam(t *testing.T) {
 	}
 }
 
+// ───────────────────────── Phase 15.B — `vault_harness_spec_review` ─────────────────────────
+
+func TestToolHarnessSpecReview_FreshScaffoldFails(t *testing.T) {
+	srv := newHarnessTestServer(t)
+	root := initSDDHarnessMCP(t)
+	_, _ = srv.toolHarnessSpec(map[string]any{"root": root, "id": float64(1)})
+
+	res, err := srv.toolHarnessSpecReview(map[string]any{"root": root, "id": float64(1)})
+	if err != nil {
+		t.Fatalf("review: %v", err)
+	}
+	report := res.(*harness.SpecReviewReport)
+	if report.OK {
+		t.Errorf("fresh scaffold should fail the lint, got %+v", report.Issues)
+	}
+}
+
+func TestToolHarnessSpecReview_RejectsNonSDDFeature(t *testing.T) {
+	srv := newHarnessTestServer(t)
+	root := initHarness(t)
+	_, err := srv.toolHarnessSpecReview(map[string]any{"root": root, "id": float64(1)})
+	if err == nil || !strings.Contains(err.Error(), "not SDD-flagged") {
+		t.Errorf("expected non-SDD rejection, got %v", err)
+	}
+}
+
+func TestToolHarnessSpecReview_RegisteredInProfilesAndDispatch(t *testing.T) {
+	srv := newHarnessTestServer(t)
+	// Read-only → every profile including readonly.
+	for _, p := range []Profile{ProfileReadonly, ProfileAgent, ProfileAdmin} {
+		if !isAllowed(p, "vault_harness_spec_review") {
+			t.Errorf("spec_review should be in %s profile", p)
+		}
+	}
+	// Dispatch wiring.
+	root := initSDDHarnessMCP(t)
+	_, _ = srv.toolHarnessSpec(map[string]any{"root": root, "id": float64(1)})
+	if _, err := srv.dispatch("vault_harness_spec_review",
+		map[string]any{"root": root, "id": float64(1)}); err != nil {
+		t.Errorf("dispatch: %v", err)
+	}
+}
+
 // ───────────────────────── Phase 15.A — `vault_harness_ci_install` ─────────────────────────
 
 func TestToolHarnessCIInstall_GitHubActions(t *testing.T) {
