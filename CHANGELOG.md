@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.30.0](https://github.com/AlcanDev/korva/compare/v1.29.0...v1.30.0) (2026-05-14)
+
+
+### 🚀 Features
+
+* **phase-16:** multi-editor harness — Aider + Codex + detect command ([#66](https://github.com/AlcanDev/korva/issues/66)) ([d1fb680](https://github.com/AlcanDev/korva/commit/d1fb68044e4a4cabe5ea6a9c632d0989494daa70))
+
 ## [1.29.0](https://github.com/AlcanDev/korva/compare/v1.28.0...v1.29.0) (2026-05-14)
 
 
