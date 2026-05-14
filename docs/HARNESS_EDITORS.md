@@ -141,6 +141,102 @@ it.
 
 ---
 
+## SDD reviewer subagent
+
+When the harness is initialized with `--sdd`, multi-file editors
+(Claude, Cursor, Windsurf) get TWO extra rule files on top of the
+base set:
+
+| File                                          | Role |
+| --------------------------------------------- | ---- |
+| `spec_author.md` / `…-sdd-spec-author.*`      | Drafts the three spec files. Transitions `pending → spec_ready`. |
+| `spec_reviewer.md` / `…-sdd-spec-reviewer.*`  | Audits the spec_ready feature. Records the verdict (Phase 18.A) but never transitions the state. |
+
+Single-file editors (Continue, Copilot, Aider, Codex) get the
+universal `AGENTS.md` and operate the same workflow via CLI / MCP
+verbs without a dedicated reviewer template.
+
+### The review verdict record
+
+`korva harness review <id> --record` (or MCP
+`vault_harness_spec_review` with `record: true`) persists the
+verdict to `feature_list.json` under the feature's `review` field:
+
+```json
+{
+  "verdict": "approve",
+  "reviewer": "alice@acme.io",
+  "at": "2026-05-14T16:42:11Z",
+  "issue_count": 0,
+  "error_count": 0,
+  "note": "spec covers all acceptance bullets"
+}
+```
+
+Three verdicts: `approve | needs_fixes | reject`. The default is
+derived from the linter outcome (clean → approve, warnings →
+needs_fixes, errors → reject); reviewers override with `--verdict`.
+
+**Recording a verdict NEVER changes the feature's status.** The
+state machine retains authority. Approve doesn't auto-promote
+spec_ready → in_progress; reject doesn't lock the feature. The
+operator (or the leader subagent) drives the transition.
+
+## Telemetry: editor adoption (Phase 18.C / D)
+
+The Beacon "Editor adoption" widget on the Overview page shows
+which editors are calling the vault, broken down by share of total
+interactions in the last 7 days. The data point comes from the
+optional `X-Korva-Editor` HTTP header on `POST /api/v1/interactions`.
+
+**Important caveat:** the header is HTTP-only. Calls that arrive via
+stdio MCP (the default integration for Cursor, Windsurf, Continue,
+and Codex) do *not* contribute. The adoption widget reflects what
+your *interaction-ingest wrappers* report — typically the
+Anthropic SDK wrapper, a Copilot extension, or a custom script that
+POSTs every prompt round-trip.
+
+### Setting the header
+
+A wrapper that already POSTs to `/api/v1/interactions` adds:
+
+```http
+POST /api/v1/interactions HTTP/1.1
+Content-Type: application/json
+X-Korva-Editor: cursor
+
+{ "project": "…", "agent": "…", "model": "…", … }
+```
+
+The vault validates the value against `internal/harness.AllEditors`;
+unknown values are silently treated as if no header had been sent
+(so a typo doesn't poison the analytics table).
+
+### Operator opt-out
+
+Two levers:
+
+| Lever                                  | Effect                                                  |
+| -------------------------------------- | ------------------------------------------------------- |
+| `KORVA_EDITOR_TELEMETRY_DISABLE=1`     | Vault ignores the header on every request.              |
+| Don't send the header                  | The interaction is bucketed as "anonymous" in the widget. |
+
+The widget always reserves the anonymous bucket so operators can
+see opt-in coverage at a glance — "10 of 87 calls didn't identify"
+is itself useful signal.
+
+### Codex CLI specifics
+
+Codex's `.codex/config.toml` (materialized by `korva harness init
+--editors codex`) sets `env = { KORVA_EDITOR = "codex" }` on the
+spawned `korva-vault --mode mcp` subprocess. The env var is a
+forward-looking hint: it doesn't drive the HTTP header today (MCP
+is stdio), but any wrapper that reads its environment can use it
+to tag outgoing ingest calls without hardcoding the editor name.
+
+To opt out without uninstalling the MCP integration: empty the env
+value (`env = { KORVA_EDITOR = "" }`).
+
 ## Adding a new editor
 
 Two-step process — see `internal/harness/templates.go` for the

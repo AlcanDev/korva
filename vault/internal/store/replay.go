@@ -71,7 +71,7 @@ func (s *Store) ListObservationsBySession(sessionID string) ([]Observation, erro
 func (s *Store) ListInteractionsBySession(sessionID string) ([]Interaction, error) {
 	rows, err := s.db.Query(`
 		SELECT id, COALESCE(session_id, ''), project, COALESCE(team, ''),
-		       agent, model, prompt_excerpt, COALESCE(response_excerpt, ''),
+		       agent, editor, model, prompt_excerpt, COALESCE(response_excerpt, ''),
 		       input_tokens, output_tokens, cache_read, cache_creation,
 		       duration_ms, COALESCE(tool_calls, '[]'), status,
 		       COALESCE(error_msg, ''), estimated, created_at
@@ -91,7 +91,7 @@ func (s *Store) ListInteractionsBySession(sessionID string) ([]Interaction, erro
 		var estimated int
 		err := rows.Scan(
 			&in.ID, &in.SessionID, &in.Project, &in.Team,
-			&in.Agent, &in.Model, &in.PromptExcerpt, &in.ResponseExcerpt,
+			&in.Agent, &in.Editor, &in.Model, &in.PromptExcerpt, &in.ResponseExcerpt,
 			&in.InputTokens, &in.OutputTokens, &in.CacheRead, &in.CacheCreation,
 			&in.DurationMs, &toolCalls, &in.Status,
 			&in.ErrorMsg, &estimated, &createdAt,

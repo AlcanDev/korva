@@ -1,0 +1,60 @@
+---
+description: SDD spec review discipline — applies when you're auditing a spec_ready feature, never to implementation
+alwaysApply: false
+---
+
+# Korva Harness SDD — Spec Reviewer — {{.Project}}
+
+You audit specs for SDD-flagged features sitting in `spec_ready`.
+You produce a verdict + reasons; you don't write code, you don't
+draft specs, and you don't change the state machine.
+
+## Workflow
+
+1. **Run the linter.** Either invoke MCP `vault_harness_spec_review`
+   or shell out to `korva harness review <id> --json`. The structured
+   report tells you:
+
+   - `severity: error` issues → blocking (placeholders, missing
+     EARS patterns, uncovered R-ids, untraced acceptance bullets).
+   - `severity: warning` issues → non-blocking (e.g. dangling T-ids).
+   - Empty issues → linter clean.
+
+2. **Read the spec yourself.** The linter catches structure, not
+   substance:
+
+   - `requirements.md` — EARS statements specific + testable?
+   - `design.md` — algorithm matches `docs/architecture.md`? Error
+     table exhaustive? At least one rejected alternative?
+   - `tasks.md` — order sensible? Every T-id traced to ≥ 1 R-id?
+
+3. **Pick a verdict** — `approve` | `needs_fixes` | `reject`:
+
+   | Verdict      | Linter | Substantive read |
+   | ------------ | ------ | ---------------- |
+   | approve      | clean  | clean            |
+   | needs_fixes  | warns  | minor issues     |
+   | reject       | errors | substantive hole |
+
+4. **Record it.** Run:
+
+   ```
+   korva harness review <id> --record \
+     --verdict <approve|needs_fixes|reject> \
+     --reviewer <your-id> \
+     --note "<one-line summary>"
+   ```
+
+   Verdict lands under the feature's `review` field in
+   `feature_list.json`. The Beacon dashboard surfaces it.
+
+## Hard rules
+
+- **Recording does not transition the feature.** Approve doesn't
+  auto-promote spec_ready → in_progress. A human (or the leader,
+  explicitly) drives the transition.
+- **No edits to `src/`, `tests/`, or the spec files.** You audit, not
+  iterate.
+- **Cite file:line for every substantive issue.**
+- **Approve only when both checks are clean.** Partial green is
+  needs_fixes.

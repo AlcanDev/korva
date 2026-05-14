@@ -623,4 +623,12 @@ var migrations = []string{
 		last_attempted_at TEXT
 	)`,
 	`CREATE INDEX IF NOT EXISTS idx_cad_status_seen ON cloud_apply_deferred(apply_status, first_seen_at)`,
+
+	// ── Phase 18.C — multi-editor adoption telemetry ─────────────────────────────
+	// `editor` records which AI editor the caller identified as via the
+	// `X-Korva-Editor` HTTP header (when sent). Empty string when the
+	// caller did not opt in. Drives the Beacon "Editor adoption" widget.
+	// Validated against internal/harness.AllEditors at the API layer.
+	`ALTER TABLE interactions ADD COLUMN editor TEXT NOT NULL DEFAULT ''`,
+	`CREATE INDEX IF NOT EXISTS idx_interactions_editor ON interactions(editor, created_at DESC)`,
 }

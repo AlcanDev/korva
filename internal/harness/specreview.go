@@ -58,6 +58,43 @@ func (r *SpecReviewReport) HasErrors() bool {
 	return false
 }
 
+// CountBySeverity returns (errors, warnings) — used by the verdict
+// derivation and by the CLI summary line.
+func (r *SpecReviewReport) CountBySeverity() (errors, warnings int) {
+	for _, i := range r.Issues {
+		switch i.Severity {
+		case SeverityError:
+			errors++
+		case SeverityWarning:
+			warnings++
+		}
+	}
+	return
+}
+
+// Verdict derives the high-level outcome from the issue list using
+// the same precedence rule the reviewer subagent prompt teaches:
+//
+//	any error → reject
+//	any warning → needs_fixes
+//	clean → approve
+//
+// Phase 18.A — the reviewer can override this in their `--verdict`
+// flag (e.g. when the spec linter passes but the human spot-checked
+// a design hole the linter can't see). Verdict() is what the CLI
+// suggests when no override is provided.
+func (r *SpecReviewReport) Verdict() ReviewVerdict {
+	errors, warnings := r.CountBySeverity()
+	switch {
+	case errors > 0:
+		return VerdictReject
+	case warnings > 0:
+		return VerdictNeedsFixes
+	default:
+		return VerdictApprove
+	}
+}
+
 // ReviewSpec runs the spec linter on the feature at `featureID` inside
 // the harness rooted at `root`. Returns sql-style structured report
 // regardless of outcome; only returns an error for genuine I/O failures

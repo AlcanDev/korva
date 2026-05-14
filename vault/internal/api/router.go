@@ -269,6 +269,10 @@ func Router(ctx context.Context, s *store.Store, cfg RouterConfig) http.Handler 
 	mux.Handle("GET /admin/interactions", adminMW(withCORS(adminListInteractions(s))))
 	mux.Handle("GET /admin/interactions/stats", adminMW(withCORS(adminInteractionStats(s))))
 
+	// Phase 18.C — multi-editor adoption widget feeds off the
+	// X-Korva-Editor header recorded in interactions.
+	mux.Handle("GET /admin/editor/adoption", adminMW(withCORS(adminEditorAdoption(s))))
+
 	// Observatory — prompt-level activity timeline + token analytics
 	mux.Handle("GET /admin/activity", adminMW(withCORS(adminListActivity(s))))
 	mux.Handle("GET /admin/activity/{id}", adminMW(withCORS(adminGetActivity(s))))
@@ -784,7 +788,7 @@ func withCORS(h http.Handler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", corsOrigin())
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-Admin-Key, X-Session-Token")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-Admin-Key, X-Session-Token, X-Korva-Editor")
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)
 			return

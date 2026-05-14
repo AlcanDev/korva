@@ -806,13 +806,33 @@ func joinStacks() string {
 // non-zero when any error-severity issue is found so it can be wired
 // into CI or pre-merge hooks.
 
-var harnessReviewJSON bool
+type harnessReviewFlags struct {
+	JSON     bool
+	Record   bool
+	Verdict  string
+	Reviewer string
+	Note     string
+}
+
+var harnessReviewOpts harnessReviewFlags
 
 var harnessReviewCmd = &cobra.Command{
 	Use:   "review <id>",
 	Short: "Lint an SDD feature's spec (EARS validity + R↔T traceability + acceptance coverage)",
-	Args:  cobra.ExactArgs(1),
-	RunE:  runHarnessReview,
+	Long: `Runs the EARS linter + R↔T traceability + acceptance-coverage check.
+
+Without --record the command is pure-read: it prints the report and
+exits non-zero on errors so CI can gate on it.
+
+With --record (Phase 18.A) the verdict derived from the report is
+persisted under the feature's "review" field in feature_list.json.
+The default verdict comes from the linter outcome (clean → approve,
+warnings → needs_fixes, errors → reject); the reviewer can override
+with --verdict <approve|needs_fixes|reject>. Recording NEVER changes
+the feature's status — the operator keeps discretion to start (or
+not) regardless of the verdict.`,
+	Args: cobra.ExactArgs(1),
+	RunE: runHarnessReview,
 }
 
 func runHarnessReview(_ *cobra.Command, args []string) error {
@@ -824,7 +844,7 @@ func runHarnessReview(_ *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	if harnessReviewJSON {
+	if harnessReviewOpts.JSON {
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
 		if err := enc.Encode(report); err != nil {
@@ -833,8 +853,58 @@ func runHarnessReview(_ *cobra.Command, args []string) error {
 	} else {
 		fmt.Print(harness.FormatSpecReviewReport(report))
 	}
-	if !report.OK {
+	if harnessReviewOpts.Record {
+		if err := recordReview(id, report); err != nil {
+			return fmt.Errorf("record verdict: %w", err)
+		}
+	}
+	if !report.OK && !harnessReviewOpts.Record {
+		// --record is the "I'm taking responsibility for this verdict"
+		// signal; the reviewer can record a reject and still exit 0 so
+		// CI hooks behave predictably. Without --record, surface the
+		// failure as a non-zero exit so scripted callers notice.
 		return fmt.Errorf("spec review failed — %d issue(s)", len(report.Issues))
+	}
+	return nil
+}
+
+// recordReview persists the verdict to feature_list.json. The verdict
+// is either derived from the report (default) or overridden via
+// --verdict. --reviewer / --note come from flags or env fallbacks.
+func recordReview(id int, report *harness.SpecReviewReport) error {
+	verdict := report.Verdict()
+	if override := strings.TrimSpace(harnessReviewOpts.Verdict); override != "" {
+		v := harness.ReviewVerdict(strings.ToLower(override))
+		if !harness.IsKnownReviewVerdict(v) {
+			return fmt.Errorf("unknown verdict %q — pick approve | needs_fixes | reject", override)
+		}
+		verdict = v
+	}
+	reviewer := strings.TrimSpace(harnessReviewOpts.Reviewer)
+	if reviewer == "" {
+		reviewer = defaultAgentName()
+	}
+	errs, _ := report.CountBySeverity()
+	dec := harness.ReviewDecision{
+		Verdict:    verdict,
+		Reviewer:   reviewer,
+		At:         time.Now().UTC().Format(time.RFC3339),
+		IssueCount: len(report.Issues),
+		ErrorCount: errs,
+		Note:       strings.TrimSpace(harnessReviewOpts.Note),
+	}
+	fl, err := harness.LoadFeatureList(".")
+	if err != nil {
+		return err
+	}
+	if err := fl.RecordReview(id, dec); err != nil {
+		return err
+	}
+	if err := harness.SaveFeatureList(".", fl); err != nil {
+		return err
+	}
+	if !harnessReviewOpts.JSON {
+		fmt.Printf("\nRecorded verdict: %s (by %s)\n", dec.Verdict, dec.Reviewer)
 	}
 	return nil
 }
@@ -979,7 +1049,15 @@ func init() {
 	harnessCheckCmd.Flags().BoolVar(&harnessCheckJSON, "json", false, "emit machine-readable JSON")
 
 	// review flags
-	harnessReviewCmd.Flags().BoolVar(&harnessReviewJSON, "json", false, "emit machine-readable JSON")
+	harnessReviewCmd.Flags().BoolVar(&harnessReviewOpts.JSON, "json", false, "emit machine-readable JSON")
+	harnessReviewCmd.Flags().BoolVar(&harnessReviewOpts.Record, "record", false,
+		"persist the verdict to feature_list.json (Phase 18.A)")
+	harnessReviewCmd.Flags().StringVar(&harnessReviewOpts.Verdict, "verdict", "",
+		"override the derived verdict: approve | needs_fixes | reject (requires --record)")
+	harnessReviewCmd.Flags().StringVar(&harnessReviewOpts.Reviewer, "reviewer", "",
+		"reviewer identifier recorded with the verdict (defaults to $KORVA_AGENT or 'cli')")
+	harnessReviewCmd.Flags().StringVar(&harnessReviewOpts.Note, "note", "",
+		"optional one-line note to surface in the dashboard (requires --record)")
 
 	// ci install flags
 	harnessCIInstallCmd.Flags().StringVar(&harnessCIInstallOpts.Provider, "provider", "",

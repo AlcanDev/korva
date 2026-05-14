@@ -334,6 +334,62 @@ func TestFormatSpecReviewReport_HumanReadable(t *testing.T) {
 	}
 }
 
+// ─────────────────────────── Phase 18.A — verdict derivation ────────────────
+
+func TestSpecReviewReport_Verdict(t *testing.T) {
+	cases := []struct {
+		name   string
+		issues []CheckIssue
+		want   ReviewVerdict
+	}{
+		{
+			name:   "clean → approve",
+			issues: nil,
+			want:   VerdictApprove,
+		},
+		{
+			name:   "only warnings → needs_fixes",
+			issues: []CheckIssue{{Severity: SeverityWarning, Code: "x"}},
+			want:   VerdictNeedsFixes,
+		},
+		{
+			name:   "any error → reject",
+			issues: []CheckIssue{{Severity: SeverityError, Code: "x"}},
+			want:   VerdictReject,
+		},
+		{
+			name: "errors win over warnings",
+			issues: []CheckIssue{
+				{Severity: SeverityWarning, Code: "w"},
+				{Severity: SeverityError, Code: "e"},
+			},
+			want: VerdictReject,
+		},
+	}
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			r := &SpecReviewReport{Issues: tc.issues}
+			if got := r.Verdict(); got != tc.want {
+				t.Errorf("Verdict() = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestSpecReviewReport_CountBySeverity(t *testing.T) {
+	r := &SpecReviewReport{Issues: []CheckIssue{
+		{Severity: SeverityError},
+		{Severity: SeverityWarning},
+		{Severity: SeverityWarning},
+		{Severity: SeverityError},
+	}}
+	errs, warns := r.CountBySeverity()
+	if errs != 2 || warns != 2 {
+		t.Errorf("errs=%d warns=%d, want 2/2", errs, warns)
+	}
+}
+
 // ── helpers ────────────────────────────────────────────────────────────────
 
 func issueCodes(issues []CheckIssue) []string {

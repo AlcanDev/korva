@@ -1128,6 +1128,84 @@ func TestToolHarnessSpecReview_RegisteredInProfilesAndDispatch(t *testing.T) {
 	}
 }
 
+// ─────────────── Phase 18.A — vault_harness_spec_review record path ──────────
+
+func TestToolHarnessSpecReview_RecordPersistsVerdict(t *testing.T) {
+	srv := newHarnessTestServer(t)
+	root := initSDDHarnessMCP(t)
+	_, _ = srv.toolHarnessSpec(map[string]any{"root": root, "id": float64(1)})
+
+	res, err := srv.toolHarnessSpecReview(map[string]any{
+		"root": root, "id": float64(1),
+		"record": true, "verdict": "needs_fixes",
+		"reviewer": "claude-reviewer", "note": "iterate on R3",
+	})
+	if err != nil {
+		t.Fatalf("review --record: %v", err)
+	}
+	payload, ok := res.(map[string]any)
+	if !ok {
+		t.Fatalf("record path should return a map, got %T", res)
+	}
+	if _, ok := payload["report"]; !ok {
+		t.Error("payload missing `report`")
+	}
+	dec, ok := payload["decision"].(harness.ReviewDecision)
+	if !ok {
+		t.Fatalf("payload.decision wrong type: %T", payload["decision"])
+	}
+	if dec.Verdict != harness.VerdictNeedsFixes {
+		t.Errorf("verdict = %q, want needs_fixes", dec.Verdict)
+	}
+	if dec.Reviewer != "claude-reviewer" {
+		t.Errorf("reviewer = %q", dec.Reviewer)
+	}
+	if dec.Note != "iterate on R3" {
+		t.Errorf("note = %q", dec.Note)
+	}
+
+	// Re-load from disk to prove the decision was persisted, not just
+	// echoed.
+	fl, err := harness.LoadFeatureList(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rv := fl.Features[0].Review
+	if rv == nil || rv.Verdict != harness.VerdictNeedsFixes {
+		t.Errorf("Review not persisted: %+v", rv)
+	}
+}
+
+func TestToolHarnessSpecReview_NoRecordKeepsLegacyShape(t *testing.T) {
+	// Without record=true the tool must return the bare report struct
+	// to preserve compatibility with Phase 15.B callers.
+	srv := newHarnessTestServer(t)
+	root := initSDDHarnessMCP(t)
+	_, _ = srv.toolHarnessSpec(map[string]any{"root": root, "id": float64(1)})
+
+	res, err := srv.toolHarnessSpecReview(map[string]any{"root": root, "id": float64(1)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := res.(*harness.SpecReviewReport); !ok {
+		t.Errorf("legacy callers expect *SpecReviewReport, got %T", res)
+	}
+}
+
+func TestToolHarnessSpecReview_RecordRejectsUnknownVerdict(t *testing.T) {
+	srv := newHarnessTestServer(t)
+	root := initSDDHarnessMCP(t)
+	_, _ = srv.toolHarnessSpec(map[string]any{"root": root, "id": float64(1)})
+
+	_, err := srv.toolHarnessSpecReview(map[string]any{
+		"root": root, "id": float64(1),
+		"record": true, "verdict": "lgtm",
+	})
+	if err == nil || !strings.Contains(err.Error(), "unknown verdict") {
+		t.Errorf("expected unknown-verdict error, got %v", err)
+	}
+}
+
 // ───────────────────────── Phase 15.A — `vault_harness_ci_install` ─────────────────────────
 
 func TestToolHarnessCIInstall_GitHubActions(t *testing.T) {

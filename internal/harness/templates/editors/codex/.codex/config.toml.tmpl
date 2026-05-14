@@ -20,9 +20,15 @@
 # `korva-vault --mode mcp` speaks JSON-RPC over stdio. Make sure the
 # binary is on PATH (typically `~/.korva/bin/korva-vault` or installed
 # system-wide via `brew install korva`).
+#
+# `KORVA_EDITOR` is the canonical env var the vault reads to tag
+# every interaction it records on this Codex session — feeds the
+# Beacon "Editor adoption" widget. Set it to "" to opt out without
+# disabling the MCP integration.
 [mcp_servers.korva_vault]
 command = "korva-vault"
 args = ["--mode", "mcp"]
+env = { KORVA_EDITOR = "codex" }
 # enabled = false   # uncomment to keep the wiring but turn it off
 
 # Optional — point Codex at a remote vault instead of a local one.
