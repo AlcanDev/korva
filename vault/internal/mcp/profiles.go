@@ -58,6 +58,8 @@ var profileTools = map[Profile]map[string]bool{
 		"vault_harness_block":     true,
 		"vault_harness_reopen":    true,
 		"vault_harness_add":       true,
+		"vault_harness_spec":      true,
+		"vault_harness_ready":     true,
 	},
 	ProfileReadonly: {
 		"vault_search":         true,
@@ -118,6 +120,8 @@ var profileTools = map[Profile]map[string]bool{
 		"vault_harness_block":     true,
 		"vault_harness_reopen":    true,
 		"vault_harness_add":       true,
+		"vault_harness_spec":      true,
+		"vault_harness_ready":     true,
 	},
 }
 

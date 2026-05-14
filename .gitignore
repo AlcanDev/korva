@@ -78,6 +78,9 @@ desktop.ini
 # them — gitignore evaluates rules in order, so this negation must come last.
 !internal/harness/templates/editors/
 !internal/harness/templates/editors/**
+# Same exception for the SDD-only spec_author rule files (Phase 13.2).
+!internal/harness/templates/editors-sdd/
+!internal/harness/templates/editors-sdd/**
 
 # Build artifacts
 *.tar.gz

@@ -83,7 +83,7 @@ func runCommands(_ *cobra.Command, _ []string) {
 		{
 			"Harness Engineering (autonomous agents)",
 			[]entry{
-				{"korva harness init", "Lay down AGENTS.md, init.sh, feature_list.json, docs/, progress/"},
+				{"korva harness init", "Lay down AGENTS.md, init.sh, feature_list.json, docs/, progress/ (--sdd for spec-driven)"},
 				{"korva harness status", "Show backlog counts + currently in_progress feature"},
 				{"korva harness list", "Print every feature with its status"},
 				{"korva harness next", "Show the next pending feature + acceptance criteria"},
@@ -91,7 +91,9 @@ func runCommands(_ *cobra.Command, _ []string) {
 				{"korva harness done <id>", "Move a feature to done"},
 				{"korva harness block <id>", "Mark a feature as blocked"},
 				{"korva harness reopen <id>", "Return a feature to pending"},
-				{"korva harness add", "Append a new feature (--name, --title, --accept)"},
+				{"korva harness add", "Append a new feature (--name, --title, --accept, --sdd)"},
+				{"korva harness spec <id>", "SDD: materialize specs/<feature>/{requirements,design,tasks}.md"},
+				{"korva harness ready <id>", "SDD: mark a feature's spec as ready for human approval (pending → spec_ready)"},
 			},
 		},
 		{

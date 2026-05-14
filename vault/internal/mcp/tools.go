@@ -504,7 +504,9 @@ func tools() []Tool {
 			Name: "vault_harness_init",
 			Description: "Bootstrap a Harness Engineering layout in a repo: AGENTS.md, init.sh, feature_list.json, docs/, progress/, " +
 				"and optional editor-specific rule files (.claude/agents/, .cursor/rules/, .windsurf/rules/, .continuerules, " +
-				".github/copilot-instructions.md). Idempotent: existing files are kept unless overwrite=true.",
+				".github/copilot-instructions.md). Pass sdd=true to enable Spec-Driven Development mode (extra " +
+				"specs/SPEC-TEMPLATE/ scaffolding + the spec_ready gate on every SDD feature). " +
+				"Idempotent: existing files are kept unless overwrite=true.",
 			InputSchema: Schema{
 				Type: "object",
 				Properties: map[string]Property{
@@ -515,6 +517,7 @@ func tools() []Tool {
 					"editors": {Type: "array", Description: "Editor rule files to install. Each value picks one of: " +
 						"claude, cursor, windsurf, continue, copilot. Use the string 'auto' (default) to auto-detect from the repo, " +
 						"or 'none' to skip editor-specific files entirely."},
+					"sdd":       {Type: "boolean", Description: "Enable Spec-Driven Development mode (specs/SPEC-TEMPLATE scaffolding + spec_ready gate)"},
 					"overwrite": {Type: "boolean", Description: "Replace existing harness files"},
 				},
 				Required: []string{"project"},
@@ -605,7 +608,7 @@ func tools() []Tool {
 		},
 		{
 			Name:        "vault_harness_add",
-			Description: "Append a new feature to the backlog with a pending status.",
+			Description: "Append a new feature to the backlog with a pending status. Set sdd=true to mark it as spec-driven (gated through spec_ready before implementation).",
 			InputSchema: Schema{
 				Type: "object",
 				Properties: map[string]Property{
@@ -614,8 +617,38 @@ func tools() []Tool {
 					"title":       {Type: "string", Description: "Human-readable title (defaults to name)"},
 					"description": {Type: "string", Description: "Longer description"},
 					"acceptance":  {Type: "array", Description: "Acceptance criteria — one bullet per item"},
+					"sdd":         {Type: "boolean", Description: "Flag as SDD-gated (requires specs/<name>/* drafting + ready approval before implementation)"},
 				},
 				Required: []string{"name"},
+			},
+		},
+		{
+			Name: "vault_harness_spec",
+			Description: "Materialize specs/<feature>/{requirements,design,tasks}.md for an SDD feature, from the embedded EARS templates. " +
+				"Idempotent: existing operator content is preserved unless overwrite=true. Refuses to operate on non-SDD features.",
+			InputSchema: Schema{
+				Type: "object",
+				Properties: map[string]Property{
+					"root":      {Type: "string", Description: "Target directory (defaults to $KORVA_HARNESS_ROOT or CWD)"},
+					"id":        {Type: "number", Description: "Feature id"},
+					"overwrite": {Type: "boolean", Description: "Replace existing spec files (operator content lost)"},
+				},
+				Required: []string{"id"},
+			},
+		},
+		{
+			Name: "vault_harness_ready",
+			Description: "Mark an SDD feature's spec as ready for human review (pending → spec_ready). Refuses when the spec files " +
+				"(requirements/design/tasks.md) aren't all on disk — the spec_author subagent must call vault_harness_spec first and " +
+				"then draft the files before invoking this.",
+			InputSchema: Schema{
+				Type: "object",
+				Properties: map[string]Property{
+					"root":  {Type: "string", Description: "Target directory"},
+					"id":    {Type: "number", Description: "Feature id"},
+					"agent": {Type: "string", Description: "Override the recorded owner"},
+				},
+				Required: []string{"id"},
 			},
 		},
 	}

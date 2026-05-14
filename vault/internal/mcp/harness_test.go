@@ -474,3 +474,197 @@ func TestDispatch_HarnessToolsRegistered(t *testing.T) {
 		t.Errorf("dispatch did not return harness payload: %+v", res)
 	}
 }
+
+// ───────────────────────── Phase 13.2 — SDD MCP tools ─────────────────────────
+
+// initSDDHarnessMCP wires an SDD harness for the MCP tests.
+func initSDDHarnessMCP(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	if _, err := harness.Generate(harness.InitOptions{
+		Root: dir, Project: "sdd-mcp", Stack: harness.StackGeneric, SDD: true,
+	}); err != nil {
+		t.Fatalf("generate: %v", err)
+	}
+	return dir
+}
+
+func TestToolHarnessInit_SDDFlag(t *testing.T) {
+	srv := newHarnessTestServer(t)
+	dir := t.TempDir()
+	res, err := srv.toolHarnessInit(map[string]any{
+		"root":    dir,
+		"project": "via-mcp-sdd",
+		"sdd":     true,
+		"editors": "none",
+	})
+	if err != nil {
+		t.Fatalf("init: %v", err)
+	}
+	if res.(map[string]any)["sdd"] != true {
+		t.Errorf("response sdd = %v", res.(map[string]any)["sdd"])
+	}
+	fl, err := harness.LoadFeatureList(dir)
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if !fl.Rules.RequireApprovedSpecToImplement {
+		t.Error("SDD rule not applied")
+	}
+	if !fl.Features[0].SDD {
+		t.Error("seed feature not sdd:true")
+	}
+	if _, err := os.Stat(filepath.Join(dir, "specs", "SPEC-TEMPLATE", "requirements.md")); err != nil {
+		t.Errorf("SPEC-TEMPLATE not materialized: %v", err)
+	}
+}
+
+func TestToolHarnessAdd_SDDFlag(t *testing.T) {
+	srv := newHarnessTestServer(t)
+	root := initSDDHarnessMCP(t)
+
+	res, err := srv.toolHarnessAdd(map[string]any{
+		"root": root,
+		"name": "auth_layer",
+		"sdd":  true,
+	})
+	if err != nil {
+		t.Fatalf("add: %v", err)
+	}
+	feat := res.(map[string]any)["feature"].(map[string]any)
+	if feat["sdd"] != true {
+		t.Errorf("added feature missing sdd:true wire field, got %+v", feat)
+	}
+}
+
+func TestToolHarnessSpec_CreatesFiles(t *testing.T) {
+	srv := newHarnessTestServer(t)
+	root := initSDDHarnessMCP(t)
+
+	res, err := srv.toolHarnessSpec(map[string]any{"root": root, "id": float64(1)})
+	if err != nil {
+		t.Fatalf("spec: %v", err)
+	}
+	resp := res.(map[string]any)
+	if !resp["complete"].(bool) {
+		t.Errorf("complete should be true after first call: %+v", resp)
+	}
+	written := resp["written"].([]string)
+	if len(written) != 3 {
+		t.Errorf("written = %v, want 3", written)
+	}
+	for _, f := range harness.SpecFiles {
+		if _, err := os.Stat(filepath.Join(root, "specs", "harness_smoke", f)); err != nil {
+			t.Errorf("spec file %s not created: %v", f, err)
+		}
+	}
+}
+
+func TestToolHarnessSpec_RejectsNonSDDFeature(t *testing.T) {
+	srv := newHarnessTestServer(t)
+	root := initHarness(t) // standard harness, sdd=false
+
+	_, err := srv.toolHarnessSpec(map[string]any{"root": root, "id": float64(1)})
+	if err == nil || !strings.Contains(err.Error(), "not SDD") {
+		t.Errorf("expected non-SDD rejection, got %v", err)
+	}
+}
+
+func TestToolHarnessSpec_IdempotentByDefault(t *testing.T) {
+	srv := newHarnessTestServer(t)
+	root := initSDDHarnessMCP(t)
+	_, _ = srv.toolHarnessSpec(map[string]any{"root": root, "id": float64(1)})
+
+	// Overwrite operator content.
+	reqPath := filepath.Join(root, "specs", "harness_smoke", "requirements.md")
+	if err := os.WriteFile(reqPath, []byte("OPERATOR"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	res, err := srv.toolHarnessSpec(map[string]any{"root": root, "id": float64(1)})
+	if err != nil {
+		t.Fatalf("second spec: %v", err)
+	}
+	skipped := res.(map[string]any)["skipped"].([]string)
+	if len(skipped) != 3 {
+		t.Errorf("expected all 3 files skipped, got %v", skipped)
+	}
+	body, _ := os.ReadFile(reqPath)
+	if string(body) != "OPERATOR" {
+		t.Errorf("operator content was overwritten: %s", body)
+	}
+}
+
+func TestToolHarnessReady_RejectsWithoutSpecFiles(t *testing.T) {
+	srv := newHarnessTestServer(t)
+	root := initSDDHarnessMCP(t)
+
+	_, err := srv.toolHarnessReady(map[string]any{"root": root, "id": float64(1)})
+	if err == nil || !strings.Contains(err.Error(), "spec files missing") {
+		t.Errorf("expected spec-missing error, got %v", err)
+	}
+}
+
+func TestToolHarnessReady_HappyPath(t *testing.T) {
+	srv := newHarnessTestServer(t)
+	root := initSDDHarnessMCP(t)
+	_, _ = srv.toolHarnessSpec(map[string]any{"root": root, "id": float64(1)})
+
+	res, err := srv.toolHarnessReady(map[string]any{
+		"root": root, "id": float64(1), "agent": "spec_author",
+	})
+	if err != nil {
+		t.Fatalf("ready: %v", err)
+	}
+	resp := res.(map[string]any)
+	if resp["status"] != string(harness.StatusSpecReady) {
+		t.Errorf("status = %v", resp["status"])
+	}
+	if resp["owner"] != "spec_author" {
+		t.Errorf("owner = %v", resp["owner"])
+	}
+}
+
+func TestToolHarnessReady_RejectsNonSDDFeature(t *testing.T) {
+	srv := newHarnessTestServer(t)
+	root := initHarness(t)
+	_, err := srv.toolHarnessReady(map[string]any{"root": root, "id": float64(1)})
+	if err == nil || !strings.Contains(err.Error(), "not SDD") {
+		t.Errorf("expected non-SDD rejection, got %v", err)
+	}
+}
+
+func TestProfileWiring_SDDToolsAvailableUnderAgent(t *testing.T) {
+	for _, tool := range []string{"vault_harness_spec", "vault_harness_ready"} {
+		if !isAllowed(ProfileAgent, tool) {
+			t.Errorf("%s should be allowed under agent profile", tool)
+		}
+		if isAllowed(ProfileReadonly, tool) {
+			t.Errorf("%s should NOT be allowed under readonly profile", tool)
+		}
+	}
+}
+
+func TestDispatch_SDDToolsRegistered(t *testing.T) {
+	srv := newHarnessTestServer(t)
+	root := initSDDHarnessMCP(t)
+	if _, err := srv.dispatch("vault_harness_spec",
+		map[string]any{"root": root, "id": float64(1)}); err != nil {
+		t.Errorf("dispatch spec: %v", err)
+	}
+	if _, err := srv.dispatch("vault_harness_ready",
+		map[string]any{"root": root, "id": float64(1)}); err != nil {
+		t.Errorf("dispatch ready: %v", err)
+	}
+}
+
+func TestFeatureToMap_IncludesSDDFlag(t *testing.T) {
+	got := featureToMap(harness.Feature{ID: 1, Name: "x", SDD: true})
+	if got["sdd"] != true {
+		t.Errorf("featureToMap missing sdd:true, got %+v", got)
+	}
+	plain := featureToMap(harness.Feature{ID: 2, Name: "y"})
+	if _, ok := plain["sdd"]; ok {
+		t.Errorf("featureToMap should omit sdd when false, got %+v", plain)
+	}
+}
