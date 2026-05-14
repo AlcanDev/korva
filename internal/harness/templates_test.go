@@ -333,7 +333,7 @@ func TestAllEditorsHasDetectionMarker(t *testing.T) {
 	}
 	for _, e := range AllEditors {
 		if !have[e] {
-			t.Errorf("editor %q in AllEditors has no entry in editorSpecs — DetectEditors can't recognise it", e)
+			t.Errorf("editor %q in AllEditors has no entry in editorSpecs — DetectEditors can't recognize it", e)
 		}
 	}
 }

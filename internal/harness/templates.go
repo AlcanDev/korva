@@ -2,6 +2,7 @@ package harness
 
 import (
 	"embed"
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -130,7 +131,7 @@ type DetectionHit struct {
 // DetectEditorsDetailed returns the same set of editors as
 // DetectEditors but also names which marker matched. Unlike
 // DetectEditors it does NOT inject EditorClaude as a fallback when
-// nothing matched — callers that want the fallback behaviour should
+// nothing matched — callers that want the fallback behavior should
 // use DetectEditors instead. This keeps the detect command honest:
 // "no markers found" surfaces clearly rather than masquerading as a
 // real Claude install.
@@ -182,11 +183,15 @@ func CommonFiles() ([]string, error) {
 
 // listTemplateTree walks the embedded template FS and returns the
 // destination paths (with .tmpl stripped) under fsDir. Returns an
-// empty slice when fsDir doesn't exist, so callers can probe
-// optional trees without an error guard.
+// empty slice (and nil error) when fsDir doesn't exist in the
+// embed, so callers can probe optional trees without a stat guard.
+// Any other read failure is surfaced as a real error.
 func listTemplateTree(fsDir string) ([]string, error) {
 	if _, err := templateFS.ReadDir(fsDir); err != nil {
-		return nil, nil
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil, nil
+		}
+		return nil, err
 	}
 	var out []string
 	err := fs.WalkDir(templateFS, fsDir, func(p string, d fs.DirEntry, err error) error {
