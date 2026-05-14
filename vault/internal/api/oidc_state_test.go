@@ -11,7 +11,7 @@ import (
 
 // Phase 17.A — direct unit tests for the signed state helper.
 // Handler-level tests in auth_oidc_test.go cover the end-to-end
-// behaviour; this file pins the crypto contract.
+// behavior; this file pins the crypto contract.
 
 func TestSignedOIDCState_MintProducesUniqueTokens(t *testing.T) {
 	signer := newSignedOIDCStateFromKey([]byte("k"))

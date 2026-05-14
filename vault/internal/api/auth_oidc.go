@@ -13,6 +13,18 @@ import (
 	"github.com/alcandev/korva/vault/internal/store"
 )
 
+// Phase 17.B context — earlier drafts of this file carried an
+// `isHTTPSRequest` helper that looked at `r.TLS` and
+// `X-Forwarded-Proto`. That helper existed because we needed to
+// decide whether to set `Secure` on the state cookie. Phase 17.A
+// removed the cookie entirely (stateless signed state), so the
+// helper became dead code AND the original concern about trusting
+// `X-Forwarded-Proto` from arbitrary requests went away with it.
+// The transport-security boundary now lives at the reverse proxy
+// (TLS termination) and the SPA's URL fragment (never sent to the
+// server). Nothing in this file inspects the transport scheme
+// directly.
+
 // Phase 15.D — OIDC web flow for self-hosted vaults.
 // Phase 17.A — stateless signed state (see oidc_state.go).
 //
@@ -226,17 +238,4 @@ func mintSessionToken() (plain, hash string, err error) {
 	plain = hex.EncodeToString(raw)
 	hash = fmt.Sprintf("%x", sha256.Sum256([]byte(plain)))
 	return plain, hash, nil
-}
-
-// isHTTPSRequest reports whether the incoming request is over HTTPS,
-// either directly or via a trusted reverse proxy that set
-// X-Forwarded-Proto. Used to decide the Secure cookie flag.
-func isHTTPSRequest(r *http.Request) bool {
-	if r.TLS != nil {
-		return true
-	}
-	if p := r.Header.Get("X-Forwarded-Proto"); strings.EqualFold(p, "https") {
-		return true
-	}
-	return false
 }

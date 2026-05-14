@@ -531,31 +531,3 @@ func TestMintSessionTokenHashesPlaintext(t *testing.T) {
 		t.Error("plain must differ from hash")
 	}
 }
-
-func TestIsHTTPSRequest(t *testing.T) {
-	cases := []struct {
-		name string
-		mod  func(r *http.Request)
-		want bool
-	}{
-		{"plain http", func(_ *http.Request) {}, false},
-		{"X-Forwarded-Proto=https", func(r *http.Request) {
-			r.Header.Set("X-Forwarded-Proto", "https")
-		}, true},
-		{"X-Forwarded-Proto=HTTPS uppercase", func(r *http.Request) {
-			r.Header.Set("X-Forwarded-Proto", "HTTPS")
-		}, true},
-		{"X-Forwarded-Proto=http", func(r *http.Request) {
-			r.Header.Set("X-Forwarded-Proto", "http")
-		}, false},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			r := httptest.NewRequest(http.MethodGet, "/", nil)
-			tc.mod(r)
-			if got := isHTTPSRequest(r); got != tc.want {
-				t.Errorf("isHTTPSRequest = %v, want %v", got, tc.want)
-			}
-		})
-	}
-}

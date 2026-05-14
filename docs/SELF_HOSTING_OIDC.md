@@ -65,8 +65,9 @@ is designed to prevent.
 │ Browser ├────────────────────────────────────▶ │ Korva    │
 │         │                                       │ Vault    │
 │         │ ◀──────────────────────────────────── │          │
-│         │   2. 302 to IdP authorize URL         │          │
-│         │      + Set-Cookie korva_oidc_state    └──────────┘
+│         │   2. 302 to IdP authorize URL with    │          │
+│         │      HMAC-signed state= param         └──────────┘
+│         │      (no cookies set)
 │         │
 │         │   3. user authenticates at the IdP
 │         │
@@ -76,7 +77,8 @@ is designed to prevent.
 │         ├─────────────────────────────────────▶  │ Vault    │
 │         │                                        │          │
 │         │                                        │ verify   │
-│         │                                        │ state +  │
+│         │                                        │ state    │
+│         │                                        │ HMAC +   │
 │         │                                        │ id_token │
 │         │                                        │ + lookup │
 │         │                                        │ member   │
@@ -90,11 +92,14 @@ is designed to prevent.
 ```
 
 Key invariants:
-- **CSRF**: a random 24-byte nonce is set as both a `HttpOnly;
-  SameSite=Lax` cookie AND the `state` URL param. The callback rejects
-  any request where the two don't match. The cookie is `Secure` when
-  the request arrived over HTTPS (`r.TLS != nil` or
-  `X-Forwarded-Proto: https`).
+- **CSRF (Phase 17.A)**: the `state` URL param is a self-contained,
+  HMAC-signed token: `issued_at(8B) || nonce(16B) || HMAC-SHA256(K, …)`.
+  The signing key `K` is derived from `SHA256(admin.key bytes)` —
+  unique per install, deterministic across vault restarts. The
+  callback rejects tokens whose HMAC doesn't verify or whose
+  `issued_at` is older than 10 minutes. **No cookies** are involved,
+  so two browser tabs can start logins concurrently without one
+  overwriting the other.
 - **No token in URL log**: the session token rides in the URL
   fragment, which browsers never send to servers or to `Referer`
   headers. The SPA strips it via `history.replaceState` before mount.
@@ -225,20 +230,23 @@ her, not to log in again.
 
 ## Reverse-proxy + TLS notes
 
-The `Secure` flag on the state cookie is set automatically when the
-request is HTTPS — detected via `r.TLS != nil` *or*
-`X-Forwarded-Proto: https`. If you terminate TLS at Traefik / Nginx /
-Caddy:
+The OIDC flow no longer sets cookies (Phase 17.A — the state lives
+in a signed URL parameter instead), so there's no `Secure` flag for
+Korva to decide. Transport security is fully delegated to the
+reverse proxy:
 
-- **Traefik (default in `docker-compose.yml`)**: forwards
-  `X-Forwarded-Proto` automatically.
-- **Nginx**: add `proxy_set_header X-Forwarded-Proto $scheme;`
-  inside the `location /auth/oidc/ { ... }` block.
-- **Caddy**: handles `X-Forwarded-Proto` automatically.
-
-If the cookie ends up being set without `Secure` in production, your
-upstream proxy is not forwarding the header — fix that before going
-live.
+- The vault should always be reached over HTTPS in production. The
+  IdP requires the registered `KORVA_OIDC_REDIRECT_URL` to match
+  exactly, including the scheme, so misconfiguring the proxy
+  surfaces as an IdP-side rejection long before any request reaches
+  the vault.
+- The session token rides in the URL fragment of the final redirect.
+  Fragments are never sent to servers or `Referer` headers, so the
+  token never leaks through proxy access logs.
+- No `X-Forwarded-*` headers are consulted by the OIDC handlers; you
+  don't need to configure your proxy to forward them for OIDC
+  specifically. (Other parts of Korva may still benefit — see
+  DEPLOYMENT.md.)
 
 ---
 
@@ -248,7 +256,7 @@ live.
 | ---------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
 | `503 — OIDC is not configured on this vault`                           | One of the four required env vars is empty. Check `docker compose config`.                    |
 | `503 — OIDC discovery failed`                                          | Vault container can't reach the IdP (DNS, firewall, or wrong issuer URL).                     |
-| `400 — state mismatch — possible CSRF, restart the login`              | User opened `/auth/oidc/callback` in a new browser/tab. Restart from `/auth/oidc/login`.       |
+| `400 — invalid state — possible CSRF or expired token`                 | The signed state failed HMAC verification (tampered or signed by a different admin.key) OR is older than 10 minutes. Restart from `/auth/oidc/login`. |
 | `403 — email is not verified at the IdP — contact your admin`          | The id_token has `email_verified: false`. Verify the email at the IdP side first.             |
 | `403 — email domain is not in KORVA_OIDC_ALLOWED_DOMAINS`              | Adjust the env var or the user's email.                                                       |
 | `403 — no team membership found for this email — ask your admin`       | Pre-invite the user with `korva invite` or via the admin REST API.                            |
