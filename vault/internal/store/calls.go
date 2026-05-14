@@ -6,11 +6,15 @@ import (
 )
 
 // CallLog is one MCP tool invocation record.
+// Phase 19.A — `Editor` records the editor that opened the MCP
+// connection (from clientInfo.name at initialize). Empty when the
+// client didn't identify or sent an unknown name.
 type CallLog struct {
 	ID        string
 	Tool      string
 	Project   string
 	Author    string
+	Editor    string
 	Status    string // "ok" | "error"
 	LatencyMs int64
 	ErrorMsg  string
@@ -41,9 +45,9 @@ type CallStats struct {
 func (s *Store) LogCall(c CallLog) error {
 	c.ID = newID()
 	_, err := s.db.Exec(
-		`INSERT INTO mcp_calls (id, tool, project, author, status, latency_ms, error_msg)
-		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
-		c.ID, c.Tool, c.Project, c.Author, c.Status, c.LatencyMs, c.ErrorMsg,
+		`INSERT INTO mcp_calls (id, tool, project, author, editor, status, latency_ms, error_msg)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		c.ID, c.Tool, c.Project, c.Author, c.Editor, c.Status, c.LatencyMs, c.ErrorMsg,
 	)
 	return err
 }
@@ -53,7 +57,7 @@ func (s *Store) ListCalls(f CallFilters) ([]CallLog, error) {
 	if f.Limit <= 0 {
 		f.Limit = 100
 	}
-	query := `SELECT id, tool, project, author, status, latency_ms, error_msg, created_at
+	query := `SELECT id, tool, project, author, editor, status, latency_ms, error_msg, created_at
 	           FROM mcp_calls WHERE 1=1`
 	args := []any{}
 
@@ -86,7 +90,7 @@ func (s *Store) ListCalls(f CallFilters) ([]CallLog, error) {
 	for rows.Next() {
 		var c CallLog
 		var createdAt string
-		if err := rows.Scan(&c.ID, &c.Tool, &c.Project, &c.Author, &c.Status,
+		if err := rows.Scan(&c.ID, &c.Tool, &c.Project, &c.Author, &c.Editor, &c.Status,
 			&c.LatencyMs, &c.ErrorMsg, &createdAt); err != nil {
 			return nil, err
 		}
