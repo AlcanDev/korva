@@ -14,6 +14,7 @@ import (
 )
 
 // Phase 15.D — OIDC web flow for self-hosted vaults.
+// Phase 17.A — stateless signed state (see oidc_state.go).
 //
 // Why a second auth path: the invite-token + OTP flow (Phase 11/12)
 // covers individual developers, but enterprise deployments want one of
@@ -28,60 +29,48 @@ import (
 // The flow is deliberately minimal:
 //
 //   GET  /auth/oidc/login    → 302 to IdP authorize endpoint
-//                              + sets short-lived korva_oidc_state cookie
-//   GET  /auth/oidc/callback → verifies state, exchanges code,
-//                              checks email_verified + domain allowlist,
-//                              looks up an EXISTING team_member by
-//                              email, mints a member_sessions row,
-//                              redirects to the Beacon dashboard with
-//                              the session token hash-fragmented in.
+//                              with HMAC-signed state param (no cookie)
+//   GET  /auth/oidc/callback → verifies state signature + TTL, exchanges
+//                              code, checks email_verified + domain
+//                              allowlist, looks up an EXISTING
+//                              team_member by email, mints a
+//                              member_sessions row, redirects to the
+//                              Beacon dashboard with the session token
+//                              in the URL fragment.
 //
 // The team admin must still pre-invite the user (POST /admin/teams/.../
 // members) — OIDC only proves "this email controls the IdP account",
 // not "this person is in the team". This keeps multi-tenant boundaries
 // intact and avoids implicit account provisioning.
 
-const (
-	// oidcStateCookie holds the per-request CSRF nonce. HttpOnly +
-	// SameSite=Lax so the cookie survives the IdP round-trip but is
-	// inaccessible to JS. Short-lived: 10 minutes.
-	oidcStateCookie = "korva_oidc_state"
-	// oidcStateTTL bounds the IdP round-trip. Anything longer is
-	// rejected at the callback step — typical IdP flows take seconds.
-	oidcStateTTL = 10 * time.Minute
-)
-
-// generateState mints a fresh CSRF nonce. The same value is set as a
-// cookie AND sent to the IdP via the `state` param; the callback
-// rejects requests where they don't match (classic OAuth CSRF guard).
-func generateState() (string, error) {
-	raw := make([]byte, 24)
-	if _, err := rand.Read(raw); err != nil {
-		return "", err
-	}
-	return hex.EncodeToString(raw), nil
-}
+// oidcStateTTL bounds the IdP round-trip. Anything longer is
+// rejected at the callback step — typical IdP flows take seconds.
+const oidcStateTTL = 10 * time.Minute
 
 // oidcLoginHandler starts the OAuth dance.
 //
 // Steps:
-//  1. Mint a state nonce, set as cookie + auth URL param.
+//  1. Mint a self-signed state token (HMAC over nonce + timestamp).
 //  2. Redirect the browser to the IdP authorize endpoint.
+//
+// No cookie is set: the state is fully self-contained, so two tabs
+// can start logins concurrently without one overwriting the other.
 //
 // Failure modes (all 503 with a hint operator can act on):
 //   - verifier == nil (config missing at startup)
+//   - signer == nil (admin.key not available — guarded at registration)
 //   - AuthCodeURL returns "" (discovery failed, lazy init couldn't
 //     contact the IdP)
-func oidcLoginHandler(_ *OIDCConfig, v OIDCVerifier) http.HandlerFunc {
+func oidcLoginHandler(_ *OIDCConfig, v OIDCVerifier, signer *signedOIDCState) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if v == nil {
+		if v == nil || signer == nil {
 			writeError(w, http.StatusServiceUnavailable,
 				"OIDC is not configured on this vault — see docs/SELF_HOSTING_OIDC.md")
 			return
 		}
-		state, err := generateState()
+		state, err := signer.Mint()
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, "could not generate state")
+			writeError(w, http.StatusInternalServerError, "could not mint state token")
 			return
 		}
 		authURL := v.AuthCodeURL(state)
@@ -90,17 +79,6 @@ func oidcLoginHandler(_ *OIDCConfig, v OIDCVerifier) http.HandlerFunc {
 				"OIDC discovery failed — check KORVA_OIDC_ISSUER_URL and vault network access")
 			return
 		}
-		// Same TTL on cookie + server-side check so a stale tab can't
-		// replay a 30-minute-old state.
-		http.SetCookie(w, &http.Cookie{
-			Name:     oidcStateCookie,
-			Value:    state,
-			Path:     "/auth/oidc",
-			MaxAge:   int(oidcStateTTL.Seconds()),
-			HttpOnly: true,
-			Secure:   isHTTPSRequest(r),
-			SameSite: http.SameSiteLaxMode,
-		})
 		http.Redirect(w, r, authURL, http.StatusFound)
 	}
 }
@@ -109,8 +87,8 @@ func oidcLoginHandler(_ *OIDCConfig, v OIDCVerifier) http.HandlerFunc {
 // session.
 //
 // Steps:
-//  1. Extract `code` + `state` query params + cookie state.
-//  2. Reject if any are missing or state mismatches (CSRF guard).
+//  1. Extract `code` + `state` query params.
+//  2. Verify the state's HMAC signature + TTL (no cookie needed).
 //  3. Exchange code with the IdP, verify id_token.
 //  4. Reject if email_verified=false or domain not allowlisted.
 //  5. Look up team_members by email; reject if not pre-invited.
@@ -120,9 +98,9 @@ func oidcLoginHandler(_ *OIDCConfig, v OIDCVerifier) http.HandlerFunc {
 //
 // All failure modes return 4xx with a clear hint so operators can
 // debug from logs without leaking IdP internals.
-func oidcCallbackHandler(s *store.Store, cfg *OIDCConfig, v OIDCVerifier) http.HandlerFunc {
+func oidcCallbackHandler(s *store.Store, cfg *OIDCConfig, v OIDCVerifier, signer *signedOIDCState) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if v == nil || cfg == nil {
+		if v == nil || cfg == nil || signer == nil {
 			writeError(w, http.StatusServiceUnavailable,
 				"OIDC is not configured on this vault")
 			return
@@ -146,28 +124,13 @@ func oidcCallbackHandler(s *store.Store, cfg *OIDCConfig, v OIDCVerifier) http.H
 			return
 		}
 
-		stateCookie, err := r.Cookie(oidcStateCookie)
-		if err != nil {
+		// Verify the state HMAC + TTL. A stateless check means
+		// concurrent tabs no longer fight over a single cookie value.
+		if _, err := signer.Verify(stateParam, oidcStateTTL); err != nil {
 			writeError(w, http.StatusBadRequest,
-				"missing state cookie — make sure cookies are enabled and restart the login")
+				"invalid state — possible CSRF or expired token, restart the login")
 			return
 		}
-		if stateCookie.Value == "" || stateCookie.Value != stateParam {
-			writeError(w, http.StatusBadRequest, "state mismatch — possible CSRF, restart the login")
-			return
-		}
-
-		// State checked; clear the cookie so a stale value can't be
-		// replayed.
-		http.SetCookie(w, &http.Cookie{
-			Name:     oidcStateCookie,
-			Value:    "",
-			Path:     "/auth/oidc",
-			MaxAge:   -1,
-			HttpOnly: true,
-			Secure:   isHTTPSRequest(r),
-			SameSite: http.SameSiteLaxMode,
-		})
 
 		claims, err := v.ExchangeAndVerify(r.Context(), code)
 		if err != nil {
