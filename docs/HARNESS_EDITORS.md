@@ -182,6 +182,61 @@ state machine retains authority. Approve doesn't auto-promote
 spec_ready → in_progress; reject doesn't lock the feature. The
 operator (or the leader subagent) drives the transition.
 
+## Telemetry: editor adoption (Phase 18.C / D)
+
+The Beacon "Editor adoption" widget on the Overview page shows
+which editors are calling the vault, broken down by share of total
+interactions in the last 7 days. The data point comes from the
+optional `X-Korva-Editor` HTTP header on `POST /api/v1/interactions`.
+
+**Important caveat:** the header is HTTP-only. Calls that arrive via
+stdio MCP (the default integration for Cursor, Windsurf, Continue,
+and Codex) do *not* contribute. The adoption widget reflects what
+your *interaction-ingest wrappers* report — typically the
+Anthropic SDK wrapper, a Copilot extension, or a custom script that
+POSTs every prompt round-trip.
+
+### Setting the header
+
+A wrapper that already POSTs to `/api/v1/interactions` adds:
+
+```http
+POST /api/v1/interactions HTTP/1.1
+Content-Type: application/json
+X-Korva-Editor: cursor
+
+{ "project": "…", "agent": "…", "model": "…", … }
+```
+
+The vault validates the value against `internal/harness.AllEditors`;
+unknown values are silently treated as if no header had been sent
+(so a typo doesn't poison the analytics table).
+
+### Operator opt-out
+
+Two levers:
+
+| Lever                                  | Effect                                                  |
+| -------------------------------------- | ------------------------------------------------------- |
+| `KORVA_EDITOR_TELEMETRY_DISABLE=1`     | Vault ignores the header on every request.              |
+| Don't send the header                  | The interaction is bucketed as "anonymous" in the widget. |
+
+The widget always reserves the anonymous bucket so operators can
+see opt-in coverage at a glance — "10 of 87 calls didn't identify"
+is itself useful signal.
+
+### Codex CLI specifics
+
+Codex's `.codex/config.toml` (materialized by `korva harness init
+--editors codex`) sets `env = { KORVA_EDITOR = "codex" }` on the
+spawned `korva-vault --mode mcp` subprocess. The env var is a
+forward-looking hint: it doesn't drive the HTTP header today (MCP
+is stdio), but any wrapper that reads its environment can use it
+to tag outgoing ingest calls without hardcoding the editor name.
+
+To opt out without uninstalling the MCP integration: empty the env
+value (`env = { KORVA_EDITOR = "" }`).
+
 ## Adding a new editor
 
 Two-step process — see `internal/harness/templates.go` for the
