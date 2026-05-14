@@ -79,12 +79,16 @@ func Validate(cfg KorvaConfig) error {
 		return &ValidationError{Field: "beacon.port", Message: "port must be between 1024 and 65535"}
 	}
 	if cfg.Agent != "" {
+		// Kept in sync with internal/harness.AllEditors. The config
+		// package can't import harness without pulling in the
+		// templates embed.FS, so we hardcode the list here; the
+		// TestValidate_AgentMirrorsHarnessEditors check pins drift.
 		switch cfg.Agent {
-		case "claude", "cursor", "copilot":
+		case "claude", "cursor", "copilot", "windsurf", "continue", "aider", "codex":
 			// ok
 		default:
 			return &ValidationError{Field: "agent",
-				Message: fmt.Sprintf("agent must be one of: claude, cursor, copilot (got %q)", cfg.Agent)}
+				Message: fmt.Sprintf("agent must be one of: claude, cursor, copilot, windsurf, continue, aider, codex (got %q)", cfg.Agent)}
 		}
 	}
 	if cfg.Country != "" && (len(cfg.Country) != 2 || strings.ToUpper(cfg.Country) != cfg.Country) {

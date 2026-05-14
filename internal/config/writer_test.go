@@ -63,6 +63,29 @@ func TestValidate_AgentEnum(t *testing.T) {
 	}
 }
 
+// TestValidate_AgentAcceptsAllSupportedEditors is the drift check
+// against internal/harness.AllEditors. If a new editor is added there
+// but not mirrored in Validate(), this test fails — the error
+// message points the caller at writer.go. We can't import harness
+// from config (would pull the templates embed.FS in), so the list
+// is hardcoded; keep them in sync.
+func TestValidate_AgentAcceptsAllSupportedEditors(t *testing.T) {
+	allEditors := []string{
+		"claude", "cursor", "windsurf", "continue",
+		"copilot", "aider", "codex",
+	}
+	for _, e := range allEditors {
+		e := e
+		t.Run(e, func(t *testing.T) {
+			cfg := DefaultConfig()
+			cfg.Agent = e
+			if err := Validate(cfg); err != nil {
+				t.Errorf("Validate(agent=%q) = %v; the validator must mirror harness.AllEditors. Update writer.go.", e, err)
+			}
+		})
+	}
+}
+
 func TestValidate_BlankPattern(t *testing.T) {
 	cfg := DefaultConfig()
 	cfg.Vault.PrivatePatterns = []string{"password", "  ", "token"}

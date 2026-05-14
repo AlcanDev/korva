@@ -10,6 +10,7 @@ import (
 
 	"github.com/alcandev/korva/internal/admin"
 	"github.com/alcandev/korva/internal/config"
+	"github.com/alcandev/korva/internal/harness"
 	"github.com/alcandev/korva/internal/identity"
 	"github.com/alcandev/korva/internal/license"
 	"github.com/alcandev/korva/internal/profile"
@@ -37,7 +38,8 @@ func init() {
 	initCmd.Flags().StringVar(&initProfile, "profile", "", "Team profile repo URL (e.g., git@github.com:org/korva-profile.git)")
 	initCmd.Flags().BoolVar(&initAdmin, "admin", false, "Initialize as admin (generates admin.key)")
 	initCmd.Flags().StringVar(&initOwner, "owner", "", "Admin owner email (used with --admin)")
-	initCmd.Flags().StringVar(&initAgent, "agent", "", "AI agent: copilot | claude | cursor (auto-detected if not set)")
+	initCmd.Flags().StringVar(&initAgent, "agent", "",
+		"AI agent: claude | cursor | windsurf | continue | copilot | aider | codex (auto-detected if not set)")
 	initCmd.Flags().BoolVar(&initDryRun, "dry-run", false, "Show what would be done without making changes")
 }
 
@@ -169,24 +171,25 @@ func runInit(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
+// detectAgent picks the operator's primary editor for the
+// `KorvaConfig.Agent` field. It delegates to harness.DetectEditors so
+// the seven supported editors stay defined in exactly one place
+// (templates.go's editorSpecs table). Returns "claude" when nothing
+// matched — the same fallback `korva harness init --editors auto`
+// uses.
+//
+// Prior to Phase 16.C this had its own hand-rolled markers + checked
+// `.vscode/settings.json` as a Copilot signal, which falsely flagged
+// every TS project. The harness markers are stricter and have unit
+// tests, so we let them drive both the config field and the harness
+// install.
 func detectAgent() string {
 	cwd, _ := os.Getwd()
-	// Check for Copilot
-	if fileExists(filepath.Join(cwd, ".github", "copilot-instructions.md")) ||
-		fileExists(filepath.Join(cwd, ".vscode", "settings.json")) {
-		return "copilot"
-	}
-	// Check for Claude Code
-	if fileExists(filepath.Join(cwd, "CLAUDE.md")) ||
-		fileExists(filepath.Join(cwd, ".claude")) {
+	editors := harness.DetectEditors(cwd)
+	if len(editors) == 0 {
 		return "claude"
 	}
-	// Check for Cursor
-	if fileExists(filepath.Join(cwd, ".cursorrules")) ||
-		fileExists(filepath.Join(cwd, ".cursor")) {
-		return "cursor"
-	}
-	return "copilot"
+	return string(editors[0])
 }
 
 func fileExists(path string) bool {
