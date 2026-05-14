@@ -1084,3 +1084,75 @@ func TestCallerTeamID_ReturnsSessionTeam(t *testing.T) {
 		t.Errorf("callerTeamID = %q, want team-x", got)
 	}
 }
+
+// ───────────────────────── Phase 15.A — `vault_harness_ci_install` ─────────────────────────
+
+func TestToolHarnessCIInstall_GitHubActions(t *testing.T) {
+	srv := newHarnessTestServer(t)
+	dir := t.TempDir()
+	res, err := srv.toolHarnessCIInstall(map[string]any{
+		"root": dir, "provider": "github-actions",
+	})
+	if err != nil {
+		t.Fatalf("install: %v", err)
+	}
+	result := res.(*harness.InstallCIResult)
+	if result.Provider != harness.CIGitHubActions {
+		t.Errorf("provider = %q", result.Provider)
+	}
+	if len(result.Written) == 0 {
+		t.Errorf("expected files written, got %+v", result)
+	}
+	if _, err := os.Stat(filepath.Join(dir, ".github", "workflows", "harness.yml")); err != nil {
+		t.Errorf("workflow file missing: %v", err)
+	}
+}
+
+func TestToolHarnessCIInstall_GitLab(t *testing.T) {
+	srv := newHarnessTestServer(t)
+	dir := t.TempDir()
+	if _, err := srv.toolHarnessCIInstall(map[string]any{
+		"root": dir, "provider": "gitlab-ci",
+	}); err != nil {
+		t.Fatalf("install: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, ".gitlab-ci.harness.yml")); err != nil {
+		t.Errorf("gitlab yml missing: %v", err)
+	}
+}
+
+func TestToolHarnessCIInstall_RequiresProvider(t *testing.T) {
+	srv := newHarnessTestServer(t)
+	_, err := srv.toolHarnessCIInstall(map[string]any{"root": t.TempDir()})
+	if err == nil || !strings.Contains(err.Error(), "provider is required") {
+		t.Errorf("expected provider-required error, got %v", err)
+	}
+}
+
+func TestToolHarnessCIInstall_RejectsUnknownProvider(t *testing.T) {
+	srv := newHarnessTestServer(t)
+	_, err := srv.toolHarnessCIInstall(map[string]any{
+		"root": t.TempDir(), "provider": "circleci",
+	})
+	if err == nil || !strings.Contains(err.Error(), "unknown") {
+		t.Errorf("expected unknown-provider error, got %v", err)
+	}
+}
+
+func TestToolHarnessCIInstall_RegisteredInProfilesAndDispatch(t *testing.T) {
+	srv := newHarnessTestServer(t)
+	// Profile gating — only agent + admin (write op).
+	if !isAllowed(ProfileAgent, "vault_harness_ci_install") {
+		t.Error("ci_install should be in agent profile")
+	}
+	if isAllowed(ProfileReadonly, "vault_harness_ci_install") {
+		t.Error("ci_install should NOT be in readonly profile")
+	}
+	// Dispatch wiring.
+	dir := t.TempDir()
+	if _, err := srv.dispatch("vault_harness_ci_install", map[string]any{
+		"root": dir, "provider": "github-actions",
+	}); err != nil {
+		t.Errorf("dispatch: %v", err)
+	}
+}

@@ -95,8 +95,9 @@ func TestToolsList(t *testing.T) {
 	// Phase 11 adds 9 vault_harness_* tools (init, status, list, next, start,
 	// done, block, reopen, add). Phase 13.2 adds 2 more (spec, ready) for the
 	// Spec-Driven Development workflow. Phase 13.3 adds vault_harness_check.
-	// Together: 12 harness tools on top of Phase 3's 32 vault tools.
-	const wantTools = 44 // 32 prior + 12 Harness Engineering tools
+	// Phase 15.A adds vault_harness_ci_install for CI templates.
+	// Together: 13 harness tools on top of Phase 3's 32 vault tools.
+	const wantTools = 45 // 32 prior + 13 Harness Engineering tools
 	// Phase 3 baseline (32):
 	//   vault_save, vault_search, vault_context, vault_timeline, vault_get, vault_hint,
 	//   vault_code_health, vault_pattern_mine, vault_skill_match, vault_compress,
@@ -114,6 +115,8 @@ func TestToolsList(t *testing.T) {
 	//   vault_harness_spec, vault_harness_ready.
 	// Phase 13.3 addition (1):
 	//   vault_harness_check.
+	// Phase 15.A addition (1):
+	//   vault_harness_ci_install.
 	if len(toolsArr) != wantTools {
 		t.Errorf("expected exactly %d tools, got %d", wantTools, len(toolsArr))
 	}

@@ -1,0 +1,88 @@
+name: Harness check
+
+# Phase 15.A — drop-in GitHub Actions workflow that runs `korva harness
+# check` on every pull request and posts a backlog summary as a comment.
+# Materialized by `korva harness ci install --provider=github-actions`.
+#
+# Behaviour:
+#   - On every PR (opened / synchronize / reopened) the harness invariants
+#     run; non-zero exit fails the gate.
+#   - When the gate passes, a comment with the current backlog table is
+#     posted (or updated in place — keyed off a hidden marker so we don't
+#     pile up comments on every push).
+#   - Soft-skipped on PRs that don't touch feature_list.json or the harness
+#     directories — keeps the gate cheap on documentation-only changes.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - 'feature_list.json'
+      - 'specs/**'
+      - 'progress/**'
+      - 'docs/architecture.md'
+      - 'docs/conventions.md'
+      - 'docs/verification.md'
+      - 'AGENTS.md'
+      - 'CHECKPOINTS.md'
+      - 'init.sh'
+
+permissions:
+  contents: read
+  pull-requests: write   # required to post the backlog comment
+
+# Cancel redundant runs on the same PR — only the last commit's gate matters.
+concurrency:
+  group: harness-${{ github.head_ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Harness invariants
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Install Korva via the official one-liner. Pinned to a release tag
+      # in production deployments — bump `KORVA_VERSION` env when you cut
+      # a new install.
+      - name: Install Korva CLI
+        env:
+          KORVA_VERSION: latest
+        run: |
+          curl -fsSL https://korva.dev/install | bash
+          echo "$HOME/.korva/bin" >> "$GITHUB_PATH"
+
+      - name: Run harness check
+        id: check
+        run: korva harness check --json | tee harness-check.json
+
+      - name: Render PR comment
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          # Hidden marker lets us update the same comment instead of posting
+          # a new one on every push.
+          MARKER='<!-- korva-harness-status -->'
+          STATUS=$(korva harness status)
+          BODY=$(printf '%s\n\n## Harness status\n\n```text\n%s\n```\n' "$MARKER" "$STATUS")
+
+          # Find an existing comment by this bot containing the marker.
+          EXISTING=$(gh api "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" \
+            --jq ".[] | select(.body | contains(\"${MARKER}\")) | .id" | head -n1)
+
+          if [ -n "$EXISTING" ]; then
+            gh api "repos/${GITHUB_REPOSITORY}/issues/comments/${EXISTING}" \
+              -X PATCH -f body="$BODY" >/dev/null
+          else
+            gh pr comment "$PR_NUMBER" --body "$BODY"
+          fi
+
+      - name: Upload check report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: harness-check
+          path: harness-check.json

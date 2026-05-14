@@ -665,5 +665,20 @@ func tools() []Tool {
 				},
 			},
 		},
+		{
+			Name: "vault_harness_ci_install",
+			Description: "Materialize a CI workflow that runs `korva harness check` on every PR/MR and posts the backlog summary as a comment. " +
+				"Two providers ship out of the box: github-actions (.github/workflows/harness.yml) and gitlab-ci (.gitlab-ci.harness.yml). " +
+				"Idempotent — existing workflow files are kept unless overwrite=true. The CLI counterpart is `korva harness ci install`.",
+			InputSchema: Schema{
+				Type: "object",
+				Properties: map[string]Property{
+					"root":      {Type: "string", Description: "Target repository root (defaults to $KORVA_HARNESS_ROOT or CWD)"},
+					"provider":  {Type: "string", Description: "CI vendor", Enum: []string{"github-actions", "gitlab-ci"}},
+					"overwrite": {Type: "boolean", Description: "Replace an existing workflow file"},
+				},
+				Required: []string{"provider"},
+			},
+		},
 	}
 }

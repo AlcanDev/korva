@@ -545,6 +545,125 @@ func TestRunHarnessCheck_JSON(t *testing.T) {
 	}
 }
 
+// ───────────────────────── Phase 15.A — `harness ci install` ─────────────────────────
+
+func TestRunHarnessCIInstall_GitHubActions(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	harnessCIInstallOpts = harnessCIInstallFlags{
+		Root: ".", Provider: "github-actions",
+	}
+	t.Cleanup(func() { harnessCIInstallOpts = harnessCIInstallFlags{} })
+
+	out := captureStdout(t, func() error { return runHarnessCIInstall(nil, nil) })
+
+	if !strings.Contains(out, "CI installed") {
+		t.Errorf("expected success line: %s", out)
+	}
+	if _, err := os.Stat(filepath.Join(dir, ".github", "workflows", "harness.yml")); err != nil {
+		t.Errorf("workflow not on disk: %v", err)
+	}
+}
+
+func TestRunHarnessCIInstall_GitLab(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	harnessCIInstallOpts = harnessCIInstallFlags{
+		Root: ".", Provider: "gitlab-ci",
+	}
+	t.Cleanup(func() { harnessCIInstallOpts = harnessCIInstallFlags{} })
+
+	out := captureStdout(t, func() error { return runHarnessCIInstall(nil, nil) })
+
+	if !strings.Contains(out, "CI installed") {
+		t.Errorf("expected success line: %s", out)
+	}
+	if _, err := os.Stat(filepath.Join(dir, ".gitlab-ci.harness.yml")); err != nil {
+		t.Errorf("gitlab yml not on disk: %v", err)
+	}
+	// GitLab variant tells the operator to set the access token.
+	if !strings.Contains(out, "KORVA_GITLAB_TOKEN") {
+		t.Errorf("gitlab post-install hint missing: %s", out)
+	}
+}
+
+func TestRunHarnessCIInstall_AutoDetectFromGitHubDir(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, ".github"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(dir)
+	harnessCIInstallOpts = harnessCIInstallFlags{Root: "."}
+	t.Cleanup(func() { harnessCIInstallOpts = harnessCIInstallFlags{} })
+
+	_ = captureStdout(t, func() error { return runHarnessCIInstall(nil, nil) })
+	if _, err := os.Stat(filepath.Join(dir, ".github", "workflows", "harness.yml")); err != nil {
+		t.Errorf("auto-detect should have picked github-actions: %v", err)
+	}
+}
+
+func TestRunHarnessCIInstall_AutoDetectFromGitLabYAML(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, ".gitlab-ci.yml"), []byte(""), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(dir)
+	harnessCIInstallOpts = harnessCIInstallFlags{Root: "."}
+	t.Cleanup(func() { harnessCIInstallOpts = harnessCIInstallFlags{} })
+
+	_ = captureStdout(t, func() error { return runHarnessCIInstall(nil, nil) })
+	if _, err := os.Stat(filepath.Join(dir, ".gitlab-ci.harness.yml")); err != nil {
+		t.Errorf("auto-detect should have picked gitlab-ci: %v", err)
+	}
+}
+
+func TestRunHarnessCIInstall_AutoDetectFailsWithoutSignal(t *testing.T) {
+	// Neither .github/ nor .gitlab-ci.yml present → error.
+	dir := t.TempDir()
+	t.Chdir(dir)
+	harnessCIInstallOpts = harnessCIInstallFlags{Root: "."}
+	t.Cleanup(func() { harnessCIInstallOpts = harnessCIInstallFlags{} })
+
+	err := runHarnessCIInstall(nil, nil)
+	if err == nil || !strings.Contains(err.Error(), "auto-detect") {
+		t.Errorf("expected auto-detect error, got %v", err)
+	}
+}
+
+func TestRunHarnessCIInstall_RejectsUnknownProvider(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	harnessCIInstallOpts = harnessCIInstallFlags{Root: ".", Provider: "circleci"}
+	t.Cleanup(func() { harnessCIInstallOpts = harnessCIInstallFlags{} })
+
+	err := runHarnessCIInstall(nil, nil)
+	if err == nil || !strings.Contains(err.Error(), "unknown provider") {
+		t.Errorf("expected unknown-provider error, got %v", err)
+	}
+}
+
+func TestRunHarnessCIInstall_IdempotentKeepsOperatorEdits(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	harnessCIInstallOpts = harnessCIInstallFlags{Root: ".", Provider: "github-actions"}
+	t.Cleanup(func() { harnessCIInstallOpts = harnessCIInstallFlags{} })
+	_ = captureStdout(t, func() error { return runHarnessCIInstall(nil, nil) })
+
+	dest := filepath.Join(dir, ".github", "workflows", "harness.yml")
+	if err := os.WriteFile(dest, []byte("OPERATOR"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	out := captureStdout(t, func() error { return runHarnessCIInstall(nil, nil) })
+	if !strings.Contains(out, "Kept existing") {
+		t.Errorf("re-run should report kept files: %s", out)
+	}
+	body, _ := os.ReadFile(dest)
+	if string(body) != "OPERATOR" {
+		t.Errorf("operator content was overwritten: %s", body)
+	}
+}
+
 func TestDetectStack(t *testing.T) {
 	tests := []struct {
 		name string
