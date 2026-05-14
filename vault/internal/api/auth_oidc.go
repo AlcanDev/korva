@@ -13,7 +13,20 @@ import (
 	"github.com/alcandev/korva/vault/internal/store"
 )
 
+// Phase 17.B context — earlier drafts of this file carried an
+// `isHTTPSRequest` helper that looked at `r.TLS` and
+// `X-Forwarded-Proto`. That helper existed because we needed to
+// decide whether to set `Secure` on the state cookie. Phase 17.A
+// removed the cookie entirely (stateless signed state), so the
+// helper became dead code AND the original concern about trusting
+// `X-Forwarded-Proto` from arbitrary requests went away with it.
+// The transport-security boundary now lives at the reverse proxy
+// (TLS termination) and the SPA's URL fragment (never sent to the
+// server). Nothing in this file inspects the transport scheme
+// directly.
+
 // Phase 15.D — OIDC web flow for self-hosted vaults.
+// Phase 17.A — stateless signed state (see oidc_state.go).
 //
 // Why a second auth path: the invite-token + OTP flow (Phase 11/12)
 // covers individual developers, but enterprise deployments want one of
@@ -28,60 +41,69 @@ import (
 // The flow is deliberately minimal:
 //
 //   GET  /auth/oidc/login    → 302 to IdP authorize endpoint
-//                              + sets short-lived korva_oidc_state cookie
-//   GET  /auth/oidc/callback → verifies state, exchanges code,
-//                              checks email_verified + domain allowlist,
-//                              looks up an EXISTING team_member by
-//                              email, mints a member_sessions row,
-//                              redirects to the Beacon dashboard with
-//                              the session token hash-fragmented in.
+//                              with HMAC-signed state param (no cookie)
+//   GET  /auth/oidc/callback → verifies state signature + TTL, exchanges
+//                              code, checks email_verified + domain
+//                              allowlist, looks up an EXISTING
+//                              team_member by email, mints a
+//                              member_sessions row, redirects to the
+//                              Beacon dashboard with the session token
+//                              in the URL fragment.
 //
 // The team admin must still pre-invite the user (POST /admin/teams/.../
 // members) — OIDC only proves "this email controls the IdP account",
 // not "this person is in the team". This keeps multi-tenant boundaries
 // intact and avoids implicit account provisioning.
 
-const (
-	// oidcStateCookie holds the per-request CSRF nonce. HttpOnly +
-	// SameSite=Lax so the cookie survives the IdP round-trip but is
-	// inaccessible to JS. Short-lived: 10 minutes.
-	oidcStateCookie = "korva_oidc_state"
-	// oidcStateTTL bounds the IdP round-trip. Anything longer is
-	// rejected at the callback step — typical IdP flows take seconds.
-	oidcStateTTL = 10 * time.Minute
-)
+// oidcStateTTL bounds the IdP round-trip. Anything longer is
+// rejected at the callback step — typical IdP flows take seconds.
+const oidcStateTTL = 10 * time.Minute
 
-// generateState mints a fresh CSRF nonce. The same value is set as a
-// cookie AND sent to the IdP via the `state` param; the callback
-// rejects requests where they don't match (classic OAuth CSRF guard).
-func generateState() (string, error) {
-	raw := make([]byte, 24)
-	if _, err := rand.Read(raw); err != nil {
-		return "", err
+// oidcCallbackMinDuration is the floor for every error response out
+// of the callback. Phase 17.C — even if the underlying check (state
+// verify vs. domain reject vs. team_members SELECT) takes wildly
+// different real time, the response time is padded up to this
+// minimum so a network observer can't tell from latency whether the
+// email was already invited, just that the login failed.
+//
+// 100ms is well above typical SQLite read latency (low ms on warm
+// cache) and imperceptible to human users.
+const oidcCallbackMinDuration = 100 * time.Millisecond
+
+// padToMinDuration sleeps until `start + min` has elapsed. No-op
+// when the elapsed time already exceeds min. Cheap to call from
+// every error branch; keeps the timing-flattening logic in one
+// place.
+func padToMinDuration(start time.Time, min time.Duration) {
+	if d := min - time.Since(start); d > 0 {
+		time.Sleep(d)
 	}
-	return hex.EncodeToString(raw), nil
 }
 
 // oidcLoginHandler starts the OAuth dance.
 //
 // Steps:
-//  1. Mint a state nonce, set as cookie + auth URL param.
+//  1. Mint a self-signed state token (HMAC over nonce + timestamp).
 //  2. Redirect the browser to the IdP authorize endpoint.
+//
+// No cookie is set: the state is fully self-contained, so two tabs
+// can start logins concurrently without one overwriting the other.
 //
 // Failure modes (all 503 with a hint operator can act on):
 //   - verifier == nil (config missing at startup)
+//   - signer == nil (admin.key not available — guarded at registration)
 //   - AuthCodeURL returns "" (discovery failed, lazy init couldn't
 //     contact the IdP)
-func oidcLoginHandler(_ *OIDCConfig, v OIDCVerifier) http.HandlerFunc {
+func oidcLoginHandler(_ *OIDCConfig, v OIDCVerifier, signer *signedOIDCState) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if v == nil {
+		if v == nil || signer == nil {
 			writeError(w, http.StatusServiceUnavailable,
 				"OIDC is not configured on this vault — see docs/SELF_HOSTING_OIDC.md")
 			return
 		}
-		state, err := generateState()
+		state, err := signer.Mint()
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, "could not generate state")
+			writeError(w, http.StatusInternalServerError, "could not mint state token")
 			return
 		}
 		authURL := v.AuthCodeURL(state)
@@ -90,17 +112,6 @@ func oidcLoginHandler(_ *OIDCConfig, v OIDCVerifier) http.HandlerFunc {
 				"OIDC discovery failed — check KORVA_OIDC_ISSUER_URL and vault network access")
 			return
 		}
-		// Same TTL on cookie + server-side check so a stale tab can't
-		// replay a 30-minute-old state.
-		http.SetCookie(w, &http.Cookie{
-			Name:     oidcStateCookie,
-			Value:    state,
-			Path:     "/auth/oidc",
-			MaxAge:   int(oidcStateTTL.Seconds()),
-			HttpOnly: true,
-			Secure:   isHTTPSRequest(r),
-			SameSite: http.SameSiteLaxMode,
-		})
 		http.Redirect(w, r, authURL, http.StatusFound)
 	}
 }
@@ -109,8 +120,8 @@ func oidcLoginHandler(_ *OIDCConfig, v OIDCVerifier) http.HandlerFunc {
 // session.
 //
 // Steps:
-//  1. Extract `code` + `state` query params + cookie state.
-//  2. Reject if any are missing or state mismatches (CSRF guard).
+//  1. Extract `code` + `state` query params.
+//  2. Verify the state's HMAC signature + TTL (no cookie needed).
 //  3. Exchange code with the IdP, verify id_token.
 //  4. Reject if email_verified=false or domain not allowlisted.
 //  5. Look up team_members by email; reject if not pre-invited.
@@ -119,10 +130,26 @@ func oidcLoginHandler(_ *OIDCConfig, v OIDCVerifier) http.HandlerFunc {
 //     pluck it from window.location.hash.
 //
 // All failure modes return 4xx with a clear hint so operators can
-// debug from logs without leaking IdP internals.
-func oidcCallbackHandler(s *store.Store, cfg *OIDCConfig, v OIDCVerifier) http.HandlerFunc {
+// debug from logs without leaking IdP internals. Phase 17.C —
+// every 4xx response goes through `reject`, which pads the
+// response time to oidcCallbackMinDuration so the latency between
+// "domain not allowlisted" (fast) and "email not in team_members"
+// (DB lookup) becomes indistinguishable.
+func oidcCallbackHandler(s *store.Store, cfg *OIDCConfig, v OIDCVerifier, signer *signedOIDCState) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if v == nil || cfg == nil {
+		start := time.Now()
+		// reject is the single funnel for every 4xx out of this
+		// handler. It pads the response time up to a constant
+		// minimum so the rejection reason can't be inferred from
+		// latency.
+		reject := func(status int, msg string) {
+			padToMinDuration(start, oidcCallbackMinDuration)
+			writeError(w, status, msg)
+		}
+
+		if v == nil || cfg == nil || signer == nil {
+			// 503 — operator misconfiguration, not user enumeration;
+			// no padding needed.
 			writeError(w, http.StatusServiceUnavailable,
 				"OIDC is not configured on this vault")
 			return
@@ -133,7 +160,7 @@ func oidcCallbackHandler(s *store.Store, cfg *OIDCConfig, v OIDCVerifier) http.H
 		// already user-facing strings.
 		if e := r.URL.Query().Get("error"); e != "" {
 			desc := r.URL.Query().Get("error_description")
-			writeError(w, http.StatusBadRequest,
+			reject(http.StatusBadRequest,
 				fmt.Sprintf("IdP returned error: %s — %s", e, desc))
 			return
 		}
@@ -141,50 +168,35 @@ func oidcCallbackHandler(s *store.Store, cfg *OIDCConfig, v OIDCVerifier) http.H
 		stateParam := r.URL.Query().Get("state")
 		code := r.URL.Query().Get("code")
 		if stateParam == "" || code == "" {
-			writeError(w, http.StatusBadRequest,
+			reject(http.StatusBadRequest,
 				"missing state or code in callback — restart the login")
 			return
 		}
 
-		stateCookie, err := r.Cookie(oidcStateCookie)
-		if err != nil {
-			writeError(w, http.StatusBadRequest,
-				"missing state cookie — make sure cookies are enabled and restart the login")
+		// Verify the state HMAC + TTL. A stateless check means
+		// concurrent tabs no longer fight over a single cookie value.
+		if _, err := signer.Verify(stateParam, oidcStateTTL); err != nil {
+			reject(http.StatusBadRequest,
+				"invalid state — possible CSRF or expired token, restart the login")
 			return
 		}
-		if stateCookie.Value == "" || stateCookie.Value != stateParam {
-			writeError(w, http.StatusBadRequest, "state mismatch — possible CSRF, restart the login")
-			return
-		}
-
-		// State checked; clear the cookie so a stale value can't be
-		// replayed.
-		http.SetCookie(w, &http.Cookie{
-			Name:     oidcStateCookie,
-			Value:    "",
-			Path:     "/auth/oidc",
-			MaxAge:   -1,
-			HttpOnly: true,
-			Secure:   isHTTPSRequest(r),
-			SameSite: http.SameSiteLaxMode,
-		})
 
 		claims, err := v.ExchangeAndVerify(r.Context(), code)
 		if err != nil {
-			writeError(w, http.StatusUnauthorized, err.Error())
+			reject(http.StatusUnauthorized, err.Error())
 			return
 		}
 		if claims.Email == "" {
-			writeError(w, http.StatusBadRequest, "id_token has no email claim — check IdP scope settings")
+			reject(http.StatusBadRequest, "id_token has no email claim — check IdP scope settings")
 			return
 		}
 		if !claims.EmailVerified {
-			writeError(w, http.StatusForbidden, "email is not verified at the IdP — contact your admin")
+			reject(http.StatusForbidden, "email is not verified at the IdP — contact your admin")
 			return
 		}
 		email := strings.ToLower(strings.TrimSpace(claims.Email))
 		if !cfg.EmailDomainAllowed(email) {
-			writeError(w, http.StatusForbidden,
+			reject(http.StatusForbidden,
 				"email domain is not in KORVA_OIDC_ALLOWED_DOMAINS — contact your admin")
 			return
 		}
@@ -196,7 +208,7 @@ func oidcCallbackHandler(s *store.Store, cfg *OIDCConfig, v OIDCVerifier) http.H
 			`SELECT id, team_id FROM team_members WHERE lower(email)=? LIMIT 1`,
 			email).Scan(&memberID, &teamID)
 		if err != nil {
-			writeError(w, http.StatusForbidden,
+			reject(http.StatusForbidden,
 				"no team membership found for this email — ask your admin to invite you first")
 			return
 		}
@@ -263,17 +275,4 @@ func mintSessionToken() (plain, hash string, err error) {
 	plain = hex.EncodeToString(raw)
 	hash = fmt.Sprintf("%x", sha256.Sum256([]byte(plain)))
 	return plain, hash, nil
-}
-
-// isHTTPSRequest reports whether the incoming request is over HTTPS,
-// either directly or via a trusted reverse proxy that set
-// X-Forwarded-Proto. Used to decide the Secure cookie flag.
-func isHTTPSRequest(r *http.Request) bool {
-	if r.TLS != nil {
-		return true
-	}
-	if p := r.Header.Get("X-Forwarded-Proto"); strings.EqualFold(p, "https") {
-		return true
-	}
-	return false
 }

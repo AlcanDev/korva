@@ -177,12 +177,18 @@ func Router(ctx context.Context, s *store.Store, cfg RouterConfig) http.Handler 
 	mux.HandleFunc("POST /auth/otp/verify", withCORS(authOTPVerify(s)))
 
 	// Phase 15.D — OIDC web flow. Routes are only registered when
-	// the operator supplied the four required env vars; otherwise
-	// callers hit 404 (rather than a hard-coded 503) so the surface
-	// area stays tight for default deployments.
+	// the operator supplied the four required env vars AND we can
+	// derive a per-install signing key from admin.key (Phase 17.A).
+	// Otherwise callers hit 404 so the surface area stays tight for
+	// default deployments.
 	if cfg.OIDCConfig != nil && cfg.OIDCVerifier != nil {
-		mux.HandleFunc("GET /auth/oidc/login", oidcLoginHandler(cfg.OIDCConfig, cfg.OIDCVerifier))
-		mux.HandleFunc("GET /auth/oidc/callback", oidcCallbackHandler(s, cfg.OIDCConfig, cfg.OIDCVerifier))
+		signer, err := newSignedOIDCState(cfg.AdminKeyPath, cfg.AdminKeyOverride)
+		if err != nil {
+			log.Printf("OIDC: signing key unavailable (%v) — /auth/oidc/* routes disabled", err)
+		} else {
+			mux.HandleFunc("GET /auth/oidc/login", oidcLoginHandler(cfg.OIDCConfig, cfg.OIDCVerifier, signer))
+			mux.HandleFunc("GET /auth/oidc/callback", oidcCallbackHandler(s, cfg.OIDCConfig, cfg.OIDCVerifier, signer))
+		}
 	}
 
 	// --- Admin-protected endpoints (X-Admin-Key required) ---

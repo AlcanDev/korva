@@ -14,9 +14,9 @@ import (
 )
 
 // fakeOIDCVerifier is a hand-crafted OIDCVerifier we plug into the
-// handler tests. It captures the state passed to AuthCodeURL so we can
-// re-use it on the callback request, and lets each test customize the
-// claims returned from ExchangeAndVerify.
+// handler tests. It captures the state passed to AuthCodeURL so we
+// can extract it on the callback request, and lets each test
+// customize the claims returned from ExchangeAndVerify.
 type fakeOIDCVerifier struct {
 	authURLBase string // base authorize URL the test asserts on
 	lastState   string
@@ -41,11 +41,12 @@ func (f *fakeOIDCVerifier) ExchangeAndVerify(_ context.Context, code string) (*O
 }
 
 // oidcTestEnv wires an in-memory store seeded with one team + one
-// pre-invited member + a fake verifier.
+// pre-invited member + a fake verifier + a deterministic signer.
 type oidcTestEnv struct {
 	store    *store.Store
 	verifier *fakeOIDCVerifier
 	cfg      *OIDCConfig
+	signer   *signedOIDCState
 	teamID   string
 	email    string
 }
@@ -69,6 +70,9 @@ func newOIDCTestEnv(t *testing.T) *oidcTestEnv {
 		"member-oidc-001", teamID, "alice@oidc.co", "member", now); err != nil {
 		t.Fatalf("seed member: %v", err)
 	}
+	// Fixed signing key — the actual bytes don't matter for tests,
+	// only that mint + verify share them.
+	signer := newSignedOIDCStateFromKey([]byte("test-signing-key-32-bytes-long!!"))
 	return &oidcTestEnv{
 		store:    s,
 		verifier: &fakeOIDCVerifier{authURLBase: "https://idp.example.com/authorize?client_id=k"},
@@ -79,30 +83,31 @@ func newOIDCTestEnv(t *testing.T) *oidcTestEnv {
 			RedirectURL:  "https://vault.example.com/auth/oidc/callback",
 			Scopes:       []string{"openid", "email", "profile"},
 		},
+		signer: signer,
 		teamID: teamID,
 		email:  "alice@oidc.co",
 	}
 }
 
 // runLogin issues a GET /auth/oidc/login through the handler and
-// returns the resulting state cookie value + the Location header.
-func (e *oidcTestEnv) runLogin(t *testing.T) (stateCookie, location string) {
+// returns the signed state token the IdP would have received via the
+// `state` URL parameter. Phase 17.A: no cookie is set.
+func (e *oidcTestEnv) runLogin(t *testing.T) (state, location string) {
 	t.Helper()
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodGet, "/auth/oidc/login", nil)
-	oidcLoginHandler(e.cfg, e.verifier).ServeHTTP(w, r)
+	oidcLoginHandler(e.cfg, e.verifier, e.signer).ServeHTTP(w, r)
 
 	resp := w.Result()
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusFound {
 		t.Fatalf("login: want 302, got %d", resp.StatusCode)
 	}
-	for _, c := range resp.Cookies() {
-		if c.Name == oidcStateCookie {
-			stateCookie = c.Value
-		}
+	if len(resp.Cookies()) != 0 {
+		t.Errorf("login should not set any cookie; got %d", len(resp.Cookies()))
 	}
 	location = resp.Header.Get("Location")
+	state = e.verifier.lastState
 	return
 }
 
@@ -193,47 +198,42 @@ func TestEmailDomainAllowed(t *testing.T) {
 	}
 }
 
-func TestGenerateStateIsUniqueAndHex(t *testing.T) {
-	seen := map[string]bool{}
-	for i := 0; i < 100; i++ {
-		s, err := generateState()
-		if err != nil {
-			t.Fatalf("generateState: %v", err)
-		}
-		if len(s) != 48 { // 24 bytes hex-encoded
-			t.Fatalf("state len: %d", len(s))
-		}
-		if seen[s] {
-			t.Fatalf("collision after %d iters", i)
-		}
-		seen[s] = true
-	}
-}
-
-func TestOIDCLoginRedirectsAndSetsStateCookie(t *testing.T) {
+func TestOIDCLoginRedirectsWithSignedState(t *testing.T) {
 	env := newOIDCTestEnv(t)
-	stateCookie, location := env.runLogin(t)
-	if stateCookie == "" {
-		t.Fatal("state cookie missing")
+	state, location := env.runLogin(t)
+	if state == "" {
+		t.Fatal("state missing")
 	}
-	if env.verifier.lastState != stateCookie {
-		t.Errorf("cookie %q != verifier state %q", stateCookie, env.verifier.lastState)
+	// The state must be a verifiable signed token.
+	if _, err := env.signer.Verify(state, oidcStateTTL); err != nil {
+		t.Errorf("login emitted unverifiable state %q: %v", state, err)
 	}
 	wantPrefix := env.verifier.authURLBase
 	if !strings.HasPrefix(location, wantPrefix) {
 		t.Errorf("Location %q has no expected prefix %q", location, wantPrefix)
 	}
-	if !strings.Contains(location, "state="+stateCookie) {
+	if !strings.Contains(location, "state="+state) {
 		t.Errorf("Location %q missing state param", location)
 	}
 }
 
 func TestOIDCLoginRefusesWhenVerifierMissing(t *testing.T) {
+	env := newOIDCTestEnv(t)
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodGet, "/auth/oidc/login", nil)
-	oidcLoginHandler(&OIDCConfig{}, nil).ServeHTTP(w, r)
+	oidcLoginHandler(&OIDCConfig{}, nil, env.signer).ServeHTTP(w, r)
 	if w.Code != http.StatusServiceUnavailable {
 		t.Errorf("want 503 when verifier nil, got %d", w.Code)
+	}
+}
+
+func TestOIDCLoginRefusesWhenSignerMissing(t *testing.T) {
+	env := newOIDCTestEnv(t)
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodGet, "/auth/oidc/login", nil)
+	oidcLoginHandler(&OIDCConfig{}, env.verifier, nil).ServeHTTP(w, r)
+	if w.Code != http.StatusServiceUnavailable {
+		t.Errorf("want 503 when signer nil, got %d", w.Code)
 	}
 }
 
@@ -241,17 +241,18 @@ func TestOIDCLoginRefusesWhenAuthURLEmpty(t *testing.T) {
 	// Models the lazy-init failure path: the verifier's underlying
 	// oidc.Provider couldn't reach the IdP discovery endpoint, so
 	// AuthCodeURL returns "".
+	env := newOIDCTestEnv(t)
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodGet, "/auth/oidc/login", nil)
-	oidcLoginHandler(&OIDCConfig{}, authURLEmptyVerifier{}).ServeHTTP(w, r)
+	oidcLoginHandler(&OIDCConfig{}, authURLEmptyVerifier{}, env.signer).ServeHTTP(w, r)
 	if w.Code != http.StatusServiceUnavailable {
 		t.Errorf("want 503 when AuthCodeURL empty, got %d", w.Code)
 	}
 }
 
-// authURLEmptyVerifier always returns empty from AuthCodeURL. It models
-// the "lazy init failed to reach the IdP discovery endpoint" failure
-// mode that the lazyOIDCVerifier returns in production.
+// authURLEmptyVerifier always returns empty from AuthCodeURL. It
+// models the "lazy init failed to reach the IdP discovery endpoint"
+// failure mode that lazyOIDCVerifier returns in production.
 type authURLEmptyVerifier struct{}
 
 func (authURLEmptyVerifier) AuthCodeURL(string) string { return "" }
@@ -261,7 +262,7 @@ func (authURLEmptyVerifier) ExchangeAndVerify(_ context.Context, _ string) (*OID
 
 func TestOIDCCallbackHappyPathMintsSession(t *testing.T) {
 	env := newOIDCTestEnv(t)
-	stateCookie, _ := env.runLogin(t)
+	state, _ := env.runLogin(t)
 	env.verifier.claims = &OIDCClaims{
 		Subject:       "auth0|abc",
 		Email:         env.email,
@@ -271,9 +272,8 @@ func TestOIDCCallbackHappyPathMintsSession(t *testing.T) {
 
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodGet,
-		"/auth/oidc/callback?code=auth-code-1&state="+stateCookie, nil)
-	r.AddCookie(&http.Cookie{Name: oidcStateCookie, Value: stateCookie})
-	oidcCallbackHandler(env.store, env.cfg, env.verifier).ServeHTTP(w, r)
+		"/auth/oidc/callback?code=auth-code-1&state="+state, nil)
+	oidcCallbackHandler(env.store, env.cfg, env.verifier, env.signer).ServeHTTP(w, r)
 
 	resp := w.Result()
 	defer resp.Body.Close()
@@ -308,12 +308,11 @@ func TestOIDCCallbackHappyPathMintsSession(t *testing.T) {
 	}
 
 	// Re-logging in should rotate the session (delete-then-insert).
-	stateCookie2, _ := env.runLogin(t)
+	state2, _ := env.runLogin(t)
 	w2 := httptest.NewRecorder()
 	r2 := httptest.NewRequest(http.MethodGet,
-		"/auth/oidc/callback?code=auth-code-2&state="+stateCookie2, nil)
-	r2.AddCookie(&http.Cookie{Name: oidcStateCookie, Value: stateCookie2})
-	oidcCallbackHandler(env.store, env.cfg, env.verifier).ServeHTTP(w2, r2)
+		"/auth/oidc/callback?code=auth-code-2&state="+state2, nil)
+	oidcCallbackHandler(env.store, env.cfg, env.verifier, env.signer).ServeHTTP(w2, r2)
 	if err := env.store.DB().QueryRow(
 		`SELECT COUNT(*) FROM member_sessions WHERE team_id=? AND email=?`,
 		env.teamID, env.email).Scan(&n); err != nil {
@@ -324,39 +323,101 @@ func TestOIDCCallbackHappyPathMintsSession(t *testing.T) {
 	}
 }
 
+// Phase 17.A — concurrent tabs no longer fight over a cookie. Two
+// independent logins both produce verifiable states that the
+// callback accepts.
+func TestOIDCCallbackTwoConcurrentLoginsBothSucceed(t *testing.T) {
+	env := newOIDCTestEnv(t)
+	state1, _ := env.runLogin(t)
+	state2, _ := env.runLogin(t)
+	if state1 == state2 {
+		t.Fatal("two logins minted identical state — nonce broken")
+	}
+	env.verifier.claims = &OIDCClaims{Email: env.email, EmailVerified: true}
+
+	// Tab 1's callback first.
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodGet,
+		"/auth/oidc/callback?code=c1&state="+state1, nil)
+	oidcCallbackHandler(env.store, env.cfg, env.verifier, env.signer).ServeHTTP(w, r)
+	if w.Code != http.StatusFound {
+		t.Fatalf("tab 1 callback: want 302, got %d body=%s", w.Code, w.Body.String())
+	}
+
+	// Tab 2's callback should still work — the old cookie-based flow
+	// would have blown up here with "state mismatch" because tab 2's
+	// cookie was overwritten by the subsequent re-login, or vice
+	// versa.
+	w2 := httptest.NewRecorder()
+	r2 := httptest.NewRequest(http.MethodGet,
+		"/auth/oidc/callback?code=c2&state="+state2, nil)
+	oidcCallbackHandler(env.store, env.cfg, env.verifier, env.signer).ServeHTTP(w2, r2)
+	if w2.Code != http.StatusFound {
+		t.Errorf("tab 2 callback: want 302, got %d body=%s", w2.Code, w2.Body.String())
+	}
+}
+
 func TestOIDCCallbackRejectsMissingState(t *testing.T) {
 	env := newOIDCTestEnv(t)
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodGet, "/auth/oidc/callback?code=x", nil)
-	oidcCallbackHandler(env.store, env.cfg, env.verifier).ServeHTTP(w, r)
+	oidcCallbackHandler(env.store, env.cfg, env.verifier, env.signer).ServeHTTP(w, r)
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("want 400, got %d", w.Code)
 	}
 }
 
-func TestOIDCCallbackRejectsMissingCookie(t *testing.T) {
+// Phase 17.A — instead of "missing cookie" the new contract is
+// "state token doesn't pass HMAC". The test sends a plain string
+// that was never signed by us.
+func TestOIDCCallbackRejectsUnsignedState(t *testing.T) {
 	env := newOIDCTestEnv(t)
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodGet,
-		"/auth/oidc/callback?code=x&state=abc", nil)
-	oidcCallbackHandler(env.store, env.cfg, env.verifier).ServeHTTP(w, r)
+		"/auth/oidc/callback?code=x&state=just-a-plain-nonce", nil)
+	oidcCallbackHandler(env.store, env.cfg, env.verifier, env.signer).ServeHTTP(w, r)
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("want 400, got %d", w.Code)
+	}
+	if !strings.Contains(w.Body.String(), "invalid state") {
+		t.Errorf("expected invalid-state hint, got: %s", w.Body.String())
+	}
+}
+
+// Phase 17.A — a state signed by a different key (e.g. another
+// vault) must not be accepted.
+func TestOIDCCallbackRejectsForeignSignedState(t *testing.T) {
+	env := newOIDCTestEnv(t)
+	foreign := newSignedOIDCStateFromKey([]byte("different-key-32-bytes-long!!!!!"))
+	state, err := foreign.Mint()
+	if err != nil {
+		t.Fatal(err)
+	}
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodGet,
+		"/auth/oidc/callback?code=x&state="+state, nil)
+	oidcCallbackHandler(env.store, env.cfg, env.verifier, env.signer).ServeHTTP(w, r)
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("want 400, got %d", w.Code)
 	}
 }
 
-func TestOIDCCallbackRejectsStateMismatch(t *testing.T) {
+// Phase 17.A — a state signed >10min ago must not be accepted.
+func TestOIDCCallbackRejectsExpiredState(t *testing.T) {
 	env := newOIDCTestEnv(t)
+	// Mint with a clock that is 1h in the past, verify with real now.
+	pastSigner := newSignedOIDCStateFromKey(env.signer.key)
+	pastSigner.now = func() time.Time { return time.Now().Add(-1 * time.Hour) }
+	state, err := pastSigner.Mint()
+	if err != nil {
+		t.Fatal(err)
+	}
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodGet,
-		"/auth/oidc/callback?code=x&state=from-url", nil)
-	r.AddCookie(&http.Cookie{Name: oidcStateCookie, Value: "from-cookie"})
-	oidcCallbackHandler(env.store, env.cfg, env.verifier).ServeHTTP(w, r)
+		"/auth/oidc/callback?code=x&state="+state, nil)
+	oidcCallbackHandler(env.store, env.cfg, env.verifier, env.signer).ServeHTTP(w, r)
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("want 400, got %d", w.Code)
-	}
-	if !strings.Contains(w.Body.String(), "CSRF") {
-		t.Errorf("expected CSRF hint, got: %s", w.Body.String())
 	}
 }
 
@@ -365,7 +426,7 @@ func TestOIDCCallbackPropagatesIdPError(t *testing.T) {
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodGet,
 		"/auth/oidc/callback?error=access_denied&error_description=User+declined", nil)
-	oidcCallbackHandler(env.store, env.cfg, env.verifier).ServeHTTP(w, r)
+	oidcCallbackHandler(env.store, env.cfg, env.verifier, env.signer).ServeHTTP(w, r)
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("want 400, got %d", w.Code)
 	}
@@ -376,14 +437,13 @@ func TestOIDCCallbackPropagatesIdPError(t *testing.T) {
 
 func TestOIDCCallbackRejectsUnverifiedEmail(t *testing.T) {
 	env := newOIDCTestEnv(t)
-	stateCookie, _ := env.runLogin(t)
+	state, _ := env.runLogin(t)
 	env.verifier.claims = &OIDCClaims{Email: env.email, EmailVerified: false}
 
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodGet,
-		"/auth/oidc/callback?code=c&state="+stateCookie, nil)
-	r.AddCookie(&http.Cookie{Name: oidcStateCookie, Value: stateCookie})
-	oidcCallbackHandler(env.store, env.cfg, env.verifier).ServeHTTP(w, r)
+		"/auth/oidc/callback?code=c&state="+state, nil)
+	oidcCallbackHandler(env.store, env.cfg, env.verifier, env.signer).ServeHTTP(w, r)
 	if w.Code != http.StatusForbidden {
 		t.Errorf("want 403, got %d", w.Code)
 	}
@@ -391,14 +451,13 @@ func TestOIDCCallbackRejectsUnverifiedEmail(t *testing.T) {
 
 func TestOIDCCallbackRejectsEmptyEmail(t *testing.T) {
 	env := newOIDCTestEnv(t)
-	stateCookie, _ := env.runLogin(t)
+	state, _ := env.runLogin(t)
 	env.verifier.claims = &OIDCClaims{EmailVerified: true}
 
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodGet,
-		"/auth/oidc/callback?code=c&state="+stateCookie, nil)
-	r.AddCookie(&http.Cookie{Name: oidcStateCookie, Value: stateCookie})
-	oidcCallbackHandler(env.store, env.cfg, env.verifier).ServeHTTP(w, r)
+		"/auth/oidc/callback?code=c&state="+state, nil)
+	oidcCallbackHandler(env.store, env.cfg, env.verifier, env.signer).ServeHTTP(w, r)
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("want 400, got %d", w.Code)
 	}
@@ -407,16 +466,15 @@ func TestOIDCCallbackRejectsEmptyEmail(t *testing.T) {
 func TestOIDCCallbackRejectsDisallowedDomain(t *testing.T) {
 	env := newOIDCTestEnv(t)
 	env.cfg.AllowedDomains = []string{"acme.io"}
-	stateCookie, _ := env.runLogin(t)
+	state, _ := env.runLogin(t)
 	env.verifier.claims = &OIDCClaims{
 		Email: "intruder@evil.org", EmailVerified: true,
 	}
 
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodGet,
-		"/auth/oidc/callback?code=c&state="+stateCookie, nil)
-	r.AddCookie(&http.Cookie{Name: oidcStateCookie, Value: stateCookie})
-	oidcCallbackHandler(env.store, env.cfg, env.verifier).ServeHTTP(w, r)
+		"/auth/oidc/callback?code=c&state="+state, nil)
+	oidcCallbackHandler(env.store, env.cfg, env.verifier, env.signer).ServeHTTP(w, r)
 	if w.Code != http.StatusForbidden {
 		t.Errorf("want 403, got %d", w.Code)
 	}
@@ -424,16 +482,15 @@ func TestOIDCCallbackRejectsDisallowedDomain(t *testing.T) {
 
 func TestOIDCCallbackRejectsUnknownMember(t *testing.T) {
 	env := newOIDCTestEnv(t)
-	stateCookie, _ := env.runLogin(t)
+	state, _ := env.runLogin(t)
 	env.verifier.claims = &OIDCClaims{
 		Email: "stranger@oidc.co", EmailVerified: true,
 	}
 
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodGet,
-		"/auth/oidc/callback?code=c&state="+stateCookie, nil)
-	r.AddCookie(&http.Cookie{Name: oidcStateCookie, Value: stateCookie})
-	oidcCallbackHandler(env.store, env.cfg, env.verifier).ServeHTTP(w, r)
+		"/auth/oidc/callback?code=c&state="+state, nil)
+	oidcCallbackHandler(env.store, env.cfg, env.verifier, env.signer).ServeHTTP(w, r)
 	if w.Code != http.StatusForbidden {
 		t.Errorf("want 403, got %d", w.Code)
 	}
@@ -444,14 +501,13 @@ func TestOIDCCallbackRejectsUnknownMember(t *testing.T) {
 
 func TestOIDCCallbackPropagatesVerifyError(t *testing.T) {
 	env := newOIDCTestEnv(t)
-	stateCookie, _ := env.runLogin(t)
+	state, _ := env.runLogin(t)
 	env.verifier.exchErr = errors.New("id_token verification failed: signature invalid")
 
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodGet,
-		"/auth/oidc/callback?code=c&state="+stateCookie, nil)
-	r.AddCookie(&http.Cookie{Name: oidcStateCookie, Value: stateCookie})
-	oidcCallbackHandler(env.store, env.cfg, env.verifier).ServeHTTP(w, r)
+		"/auth/oidc/callback?code=c&state="+state, nil)
+	oidcCallbackHandler(env.store, env.cfg, env.verifier, env.signer).ServeHTTP(w, r)
 	if w.Code != http.StatusUnauthorized {
 		t.Errorf("want 401, got %d", w.Code)
 	}
@@ -460,30 +516,134 @@ func TestOIDCCallbackPropagatesVerifyError(t *testing.T) {
 	}
 }
 
-func TestOIDCCallbackClearsCookieAfterUse(t *testing.T) {
+// Phase 17.C — the callback's 4xx responses are padded so a network
+// observer can't tell the failure reason from response latency.
+// This test exercises four distinct rejection paths and asserts
+// every one took at least oidcCallbackMinDuration.
+func TestOIDCCallbackRejectionsArePaddedToConstantMinimum(t *testing.T) {
 	env := newOIDCTestEnv(t)
-	stateCookie, _ := env.runLogin(t)
-	env.verifier.claims = &OIDCClaims{
-		Email: env.email, EmailVerified: true,
+	state, _ := env.runLogin(t)
+
+	cases := []struct {
+		name  string
+		setup func()
+		req   func() *http.Request
+		want  int
+	}{
+		{
+			name: "bad state",
+			setup: func() {
+				env.verifier.claims = nil
+				env.verifier.exchErr = nil
+			},
+			req: func() *http.Request {
+				return httptest.NewRequest(http.MethodGet,
+					"/auth/oidc/callback?code=c&state=bad", nil)
+			},
+			want: http.StatusBadRequest,
+		},
+		{
+			name: "domain not allowlisted",
+			setup: func() {
+				env.cfg.AllowedDomains = []string{"acme.io"}
+				env.verifier.claims = &OIDCClaims{
+					Email: "alice@evil.org", EmailVerified: true,
+				}
+			},
+			req: func() *http.Request {
+				return httptest.NewRequest(http.MethodGet,
+					"/auth/oidc/callback?code=c&state="+state, nil)
+			},
+			want: http.StatusForbidden,
+		},
+		{
+			name: "unknown member",
+			setup: func() {
+				env.cfg.AllowedDomains = nil
+				env.verifier.claims = &OIDCClaims{
+					Email: "stranger@oidc.co", EmailVerified: true,
+				}
+			},
+			req: func() *http.Request {
+				return httptest.NewRequest(http.MethodGet,
+					"/auth/oidc/callback?code=c&state="+state, nil)
+			},
+			want: http.StatusForbidden,
+		},
+		{
+			name: "unverified email",
+			setup: func() {
+				env.verifier.claims = &OIDCClaims{
+					Email: env.email, EmailVerified: false,
+				}
+			},
+			req: func() *http.Request {
+				return httptest.NewRequest(http.MethodGet,
+					"/auth/oidc/callback?code=c&state="+state, nil)
+			},
+			want: http.StatusForbidden,
+		},
 	}
 
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			tc.setup()
+			w := httptest.NewRecorder()
+			start := time.Now()
+			oidcCallbackHandler(env.store, env.cfg, env.verifier, env.signer).ServeHTTP(w, tc.req())
+			elapsed := time.Since(start)
+			if w.Code != tc.want {
+				t.Errorf("status = %d, want %d", w.Code, tc.want)
+			}
+			// Allow a small fudge below the constant — tests run on
+			// shared CI hardware and time.Sleep is approximate.
+			minWant := oidcCallbackMinDuration - 5*time.Millisecond
+			if elapsed < minWant {
+				t.Errorf("rejection took %s, want >= %s (constant-time padding broken)",
+					elapsed, minWant)
+			}
+		})
+	}
+}
+
+// Phase 17.C — 503 responses (operator misconfiguration) are NOT
+// padded. They reveal no user info and should fail fast so the
+// operator notices the misconfig.
+func TestOIDCCallback503IsFast(t *testing.T) {
+	env := newOIDCTestEnv(t)
 	w := httptest.NewRecorder()
-	r := httptest.NewRequest(http.MethodGet,
-		"/auth/oidc/callback?code=c&state="+stateCookie, nil)
-	r.AddCookie(&http.Cookie{Name: oidcStateCookie, Value: stateCookie})
-	oidcCallbackHandler(env.store, env.cfg, env.verifier).ServeHTTP(w, r)
+	r := httptest.NewRequest(http.MethodGet, "/auth/oidc/callback?code=c&state=x", nil)
+	start := time.Now()
+	// nil verifier triggers the 503 branch.
+	oidcCallbackHandler(env.store, env.cfg, nil, env.signer).ServeHTTP(w, r)
+	elapsed := time.Since(start)
+	if w.Code != http.StatusServiceUnavailable {
+		t.Errorf("status = %d, want 503", w.Code)
+	}
+	// Generous upper bound — should be well under the 100ms padding.
+	if elapsed > 50*time.Millisecond {
+		t.Errorf("503 took %s; misconfig responses should not be padded", elapsed)
+	}
+}
 
-	resp := w.Result()
-	defer resp.Body.Close()
-	var cleared bool
-	for _, c := range resp.Cookies() {
-		if c.Name == oidcStateCookie && c.MaxAge < 0 {
-			cleared = true
+func TestPadToMinDuration(t *testing.T) {
+	t.Run("sleeps when elapsed < min", func(t *testing.T) {
+		start := time.Now()
+		padToMinDuration(start, 50*time.Millisecond)
+		elapsed := time.Since(start)
+		if elapsed < 45*time.Millisecond {
+			t.Errorf("elapsed=%s, want >= ~50ms", elapsed)
 		}
-	}
-	if !cleared {
-		t.Error("state cookie was not cleared after callback")
-	}
+	})
+	t.Run("no-op when elapsed > min", func(t *testing.T) {
+		start := time.Now().Add(-100 * time.Millisecond)
+		callStart := time.Now()
+		padToMinDuration(start, 50*time.Millisecond)
+		if d := time.Since(callStart); d > 10*time.Millisecond {
+			t.Errorf("should have returned immediately, took %s", d)
+		}
+	})
 }
 
 func TestMintSessionTokenHashesPlaintext(t *testing.T) {
@@ -499,33 +659,5 @@ func TestMintSessionTokenHashesPlaintext(t *testing.T) {
 	}
 	if plain == hash {
 		t.Error("plain must differ from hash")
-	}
-}
-
-func TestIsHTTPSRequest(t *testing.T) {
-	cases := []struct {
-		name string
-		mod  func(r *http.Request)
-		want bool
-	}{
-		{"plain http", func(_ *http.Request) {}, false},
-		{"X-Forwarded-Proto=https", func(r *http.Request) {
-			r.Header.Set("X-Forwarded-Proto", "https")
-		}, true},
-		{"X-Forwarded-Proto=HTTPS uppercase", func(r *http.Request) {
-			r.Header.Set("X-Forwarded-Proto", "HTTPS")
-		}, true},
-		{"X-Forwarded-Proto=http", func(r *http.Request) {
-			r.Header.Set("X-Forwarded-Proto", "http")
-		}, false},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			r := httptest.NewRequest(http.MethodGet, "/", nil)
-			tc.mod(r)
-			if got := isHTTPSRequest(r); got != tc.want {
-				t.Errorf("isHTTPSRequest = %v, want %v", got, tc.want)
-			}
-		})
 	}
 }
