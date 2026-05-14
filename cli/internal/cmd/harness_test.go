@@ -851,6 +851,192 @@ func TestParseEditorsFlag_RejectsUnknown(t *testing.T) {
 	}
 }
 
+// ───────────────────────── Phase 16.B — harness detect ─────────────────────
+
+func TestRunHarnessDetect_EmptyDirShowsFallback(t *testing.T) {
+	dir := t.TempDir()
+	harnessDetectOpts = harnessDetectFlags{Root: dir}
+	t.Cleanup(func() { harnessDetectOpts = harnessDetectFlags{} })
+
+	out := captureStdout(t, func() error { return runHarnessDetect(nil, nil) })
+	if !strings.Contains(out, "falling back to claude default") {
+		t.Errorf("missing fallback hint in:\n%s", out)
+	}
+	// The fallback branch still lists what init would install.
+	if !strings.Contains(out, "AGENTS.md") {
+		t.Errorf("output should preview AGENTS.md install:\n%s", out)
+	}
+}
+
+func TestRunHarnessDetect_TextEnumeratesHitsAndFiles(t *testing.T) {
+	dir := t.TempDir()
+	// Seed two markers: aider + codex.
+	if err := os.WriteFile(filepath.Join(dir, ".aider.conf.yml"), []byte("read: AGENTS.md\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(dir, ".codex"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	harnessDetectOpts = harnessDetectFlags{Root: dir}
+	t.Cleanup(func() { harnessDetectOpts = harnessDetectFlags{} })
+
+	out := captureStdout(t, func() error { return runHarnessDetect(nil, nil) })
+	for _, want := range []string{
+		"aider", "codex",
+		".aider.conf.yml",    // marker for aider
+		".codex",             // marker for codex
+		".codex/config.toml", // would-install path for codex
+		"AGENTS.md",          // common layer always listed
+		"feature_list.json",  // generated seed
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("output missing %q:\n%s", want, out)
+		}
+	}
+	// "fallback" must NOT appear when at least one marker matched.
+	if strings.Contains(out, "falling back") {
+		t.Errorf("non-empty detection should not show fallback hint:\n%s", out)
+	}
+}
+
+func TestRunHarnessDetect_JSONShape(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, ".cursorrules"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	harnessDetectOpts = harnessDetectFlags{Root: dir, JSON: true}
+	t.Cleanup(func() { harnessDetectOpts = harnessDetectFlags{} })
+
+	out := captureStdout(t, func() error { return runHarnessDetect(nil, nil) })
+
+	var payload struct {
+		Root        string `json:"root"`
+		SDD         bool   `json:"sdd"`
+		DefaultUsed bool   `json:"default_used"`
+		Hits        []struct {
+			Editor string `json:"editor"`
+			Marker string `json:"marker"`
+		} `json:"hits"`
+		CommonFiles []string `json:"common_files"`
+		Editors     []struct {
+			Editor string   `json:"editor"`
+			Files  []string `json:"files"`
+		} `json:"editors"`
+	}
+	if err := json.Unmarshal([]byte(out), &payload); err != nil {
+		t.Fatalf("invalid JSON: %v\n%s", err, out)
+	}
+	if payload.DefaultUsed {
+		t.Errorf("DefaultUsed should be false when a marker hit")
+	}
+	if len(payload.Hits) != 1 || payload.Hits[0].Editor != "cursor" {
+		t.Errorf("hits = %v, want [{cursor .cursorrules}]", payload.Hits)
+	}
+	if payload.Hits[0].Marker != ".cursorrules" {
+		t.Errorf("marker = %q, want .cursorrules", payload.Hits[0].Marker)
+	}
+	if len(payload.Editors) != 1 || payload.Editors[0].Editor != "cursor" {
+		t.Errorf("editors preview = %v", payload.Editors)
+	}
+	// Universal layer must always be listed regardless of editor.
+	var sawAgentsMd bool
+	for _, p := range payload.CommonFiles {
+		if p == "AGENTS.md" {
+			sawAgentsMd = true
+		}
+	}
+	if !sawAgentsMd {
+		t.Errorf("common_files missing AGENTS.md: %v", payload.CommonFiles)
+	}
+}
+
+func TestRunHarnessDetect_JSONFallbackBranch(t *testing.T) {
+	dir := t.TempDir()
+	harnessDetectOpts = harnessDetectFlags{Root: dir, JSON: true}
+	t.Cleanup(func() { harnessDetectOpts = harnessDetectFlags{} })
+
+	out := captureStdout(t, func() error { return runHarnessDetect(nil, nil) })
+
+	var payload struct {
+		DefaultUsed  bool   `json:"default_used"`
+		DefaultLabel string `json:"default_label"`
+		Hits         []any  `json:"hits"`
+		Editors      []struct {
+			Editor string `json:"editor"`
+		} `json:"editors"`
+	}
+	if err := json.Unmarshal([]byte(out), &payload); err != nil {
+		t.Fatalf("invalid JSON: %v\n%s", err, out)
+	}
+	if !payload.DefaultUsed {
+		t.Error("DefaultUsed should be true for empty dir")
+	}
+	if payload.DefaultLabel != "claude" {
+		t.Errorf("DefaultLabel = %q, want claude", payload.DefaultLabel)
+	}
+	if len(payload.Hits) != 0 {
+		t.Errorf("Hits should be empty in fallback, got %v", payload.Hits)
+	}
+	if len(payload.Editors) != 1 || payload.Editors[0].Editor != "claude" {
+		t.Errorf("fallback editors preview = %v, want [{claude ...}]", payload.Editors)
+	}
+}
+
+func TestRunHarnessDetect_SDDFlagAddsSpecAuthor(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, ".claude"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	harnessDetectOpts = harnessDetectFlags{Root: dir, SDD: true, JSON: true}
+	t.Cleanup(func() { harnessDetectOpts = harnessDetectFlags{} })
+
+	out := captureStdout(t, func() error { return runHarnessDetect(nil, nil) })
+
+	var payload struct {
+		Editors []struct {
+			Editor string   `json:"editor"`
+			Files  []string `json:"files"`
+		} `json:"editors"`
+	}
+	if err := json.Unmarshal([]byte(out), &payload); err != nil {
+		t.Fatalf("invalid JSON: %v\n%s", err, out)
+	}
+	if len(payload.Editors) != 1 {
+		t.Fatalf("editors = %v", payload.Editors)
+	}
+	var hasSpecAuthor bool
+	for _, p := range payload.Editors[0].Files {
+		if strings.Contains(p, "spec_author") {
+			hasSpecAuthor = true
+		}
+	}
+	if !hasSpecAuthor {
+		t.Errorf("--sdd should include spec_author file in preview, got %v",
+			payload.Editors[0].Files)
+	}
+}
+
+// TestDetectHelpListsAllEditors guards against drift between
+// allEditorSpecsForHelp() and harness.AllEditors: every editor in the
+// canonical list must appear in the help text the fallback branch
+// shows when nothing was detected.
+func TestDetectHelpListsAllEditors(t *testing.T) {
+	help := allEditorSpecsForHelp()
+	if len(help) != len(harness.AllEditors) {
+		t.Fatalf("allEditorSpecsForHelp has %d entries, harness.AllEditors has %d — keep them in sync",
+			len(help), len(harness.AllEditors))
+	}
+	seen := make(map[string]bool, len(help))
+	for _, h := range help {
+		seen[h.editor] = true
+	}
+	for _, e := range harness.AllEditors {
+		if !seen[string(e)] {
+			t.Errorf("editor %q missing from allEditorSpecsForHelp", e)
+		}
+	}
+}
+
 func TestRunHarnessInit_EditorsAutoDetectsCursor(t *testing.T) {
 	dir := t.TempDir()
 	t.Chdir(dir)

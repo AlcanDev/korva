@@ -1,0 +1,30 @@
+# Aider configuration — {{.Project}}
+#
+# `.aider.conf.yml` is read every time `aider` is launched from this
+# repo. The harness uses the agent-agnostic AGENTS.md (open standard,
+# https://agents.md) as the single source of truth, so we pre-load it
+# read-only on every Aider session — no `/read AGENTS.md` required.
+#
+# Aider's own docs:
+#   https://aider.chat/docs/usage/conventions.html
+#   https://aider.chat/docs/config/aider_conf.html
+
+# Preload the universal harness instructions before every chat. The
+# read-only flag means Aider will use prompt-caching for these files
+# (Anthropic and OpenAI), so the overhead is one-time per cache TTL.
+read:
+  - AGENTS.md
+  - CHECKPOINTS.md
+  - progress/current.md
+
+# `docs/conventions.md` carries the per-stack rules. Comment in to
+# include them on every chat; leaving commented out keeps the prompt
+# slim and lets the operator pull them in on demand with `/read`.
+# read:
+#   - docs/conventions.md
+
+# Aider treats files matched here as "do not modify" — handy for
+# protecting the feature_list state machine from accidental edits.
+# Uncomment if your team wants only `korva harness *` to mutate it.
+# read-only:
+#   - feature_list.json

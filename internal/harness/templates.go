@@ -2,6 +2,7 @@ package harness
 
 import (
 	"embed"
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -51,10 +52,20 @@ const (
 	EditorWindsurf Editor = "windsurf"
 	EditorContinue Editor = "continue"
 	EditorCopilot  Editor = "copilot"
+	EditorAider    Editor = "aider"
+	EditorCodex    Editor = "codex"
 )
 
 // AllEditors is the canonical list — also the menu the CLI prints in help.
-var AllEditors = []Editor{EditorClaude, EditorCursor, EditorWindsurf, EditorContinue, EditorCopilot}
+var AllEditors = []Editor{
+	EditorClaude,
+	EditorCursor,
+	EditorWindsurf,
+	EditorContinue,
+	EditorCopilot,
+	EditorAider,
+	EditorCodex,
+}
 
 // editorSpec describes one supported editor. `markers` are paths whose
 // presence in the target repo indicates the user already uses this editor
@@ -64,12 +75,19 @@ type editorSpec struct {
 	markers []string // anything matched here → editor is present
 }
 
+// editorSpecs is the detection table. Markers are repo-local paths
+// whose presence indicates the operator already uses that editor.
+// AGENTS.md is intentionally NOT a marker — it's the agent-agnostic
+// universal file that ships with every harness, so its presence
+// proves nothing about which editor materialized it.
 var editorSpecs = []editorSpec{
 	{id: EditorClaude, markers: []string{".claude", "CLAUDE.md"}},
 	{id: EditorCursor, markers: []string{".cursor", ".cursorrules"}},
 	{id: EditorWindsurf, markers: []string{".windsurf", ".windsurfrules"}},
 	{id: EditorContinue, markers: []string{".continue", ".continuerules"}},
 	{id: EditorCopilot, markers: []string{".github/copilot-instructions.md"}},
+	{id: EditorAider, markers: []string{".aider.conf.yml", ".aider.conf", ".aiderignore", "CONVENTIONS.md"}},
+	{id: EditorCodex, markers: []string{".codex", ".codex/config.toml"}},
 }
 
 // IsKnownEditor reports whether s names one of the editors we ship a
@@ -89,19 +107,105 @@ func IsKnownEditor(s Editor) bool {
 // and the safest fallback. Order matches AllEditors so the output is
 // stable across calls.
 func DetectEditors(root string) []Editor {
-	var hits []Editor
+	hits := DetectEditorsDetailed(root)
+	if len(hits) == 0 {
+		return []Editor{EditorClaude}
+	}
+	out := make([]Editor, len(hits))
+	for i, h := range hits {
+		out[i] = h.Editor
+	}
+	return out
+}
+
+// DetectionHit pairs an editor with the on-disk marker that triggered
+// its detection. `korva harness detect` surfaces the marker so the
+// operator can audit why each editor was picked.
+type DetectionHit struct {
+	Editor Editor
+	// Marker is the repo-relative path (slash-separated, the same form
+	// as in editorSpecs) whose existence proved the editor present.
+	Marker string
+}
+
+// DetectEditorsDetailed returns the same set of editors as
+// DetectEditors but also names which marker matched. Unlike
+// DetectEditors it does NOT inject EditorClaude as a fallback when
+// nothing matched — callers that want the fallback behavior should
+// use DetectEditors instead. This keeps the detect command honest:
+// "no markers found" surfaces clearly rather than masquerading as a
+// real Claude install.
+func DetectEditorsDetailed(root string) []DetectionHit {
+	var hits []DetectionHit
 	for _, spec := range editorSpecs {
 		for _, m := range spec.markers {
 			if exists(filepath.Join(root, filepath.FromSlash(m))) {
-				hits = append(hits, spec.id)
+				hits = append(hits, DetectionHit{Editor: spec.id, Marker: m})
 				break
 			}
 		}
 	}
-	if len(hits) == 0 {
-		return []Editor{EditorClaude}
-	}
 	return hits
+}
+
+// EditorFiles returns the slash-separated relative paths that
+// `Generate` would write for editor e (universal layer excluded —
+// AGENTS.md / CHECKPOINTS.md are returned by CommonFiles instead).
+// In SDD mode the optional spec_author files are included; pass
+// sdd=false to see the non-SDD install set.
+//
+// Returns nil + non-nil error when e is unknown. Returns an empty
+// slice (and nil error) for editors whose template tree is empty.
+func EditorFiles(e Editor, sdd bool) ([]string, error) {
+	if !IsKnownEditor(e) {
+		return nil, fmt.Errorf("unknown editor %q", e)
+	}
+	files, err := listTemplateTree("templates/editors/" + string(e))
+	if err != nil {
+		return nil, err
+	}
+	if sdd {
+		extra, err := listTemplateTree("templates/editors-sdd/" + string(e))
+		if err == nil {
+			files = append(files, extra...)
+		}
+	}
+	return files, nil
+}
+
+// CommonFiles returns the slash-separated relative paths every
+// harness installs regardless of editor (AGENTS.md, CHECKPOINTS.md,
+// progress/*). Useful for the detect command's "would install"
+// summary.
+func CommonFiles() ([]string, error) {
+	return listTemplateTree("templates/common")
+}
+
+// listTemplateTree walks the embedded template FS and returns the
+// destination paths (with .tmpl stripped) under fsDir. Returns an
+// empty slice (and nil error) when fsDir doesn't exist in the
+// embed, so callers can probe optional trees without a stat guard.
+// Any other read failure is surfaced as a real error.
+func listTemplateTree(fsDir string) ([]string, error) {
+	if _, err := templateFS.ReadDir(fsDir); err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	var out []string
+	err := fs.WalkDir(templateFS, fsDir, func(p string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			return nil
+		}
+		rel := strings.TrimPrefix(p, fsDir+"/")
+		out = append(out, strings.TrimSuffix(rel, ".tmpl"))
+		return nil
+	})
+	return out, err
 }
 
 // InitOptions controls what `korva harness init` produces.

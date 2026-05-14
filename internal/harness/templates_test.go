@@ -230,6 +230,8 @@ func TestGenerate_PerEditor_CreatesExpectedFile(t *testing.T) {
 		EditorWindsurf: {".windsurf/rules/korva-harness.md"},
 		EditorContinue: {".continuerules"},
 		EditorCopilot:  {".github/copilot-instructions.md"},
+		EditorAider:    {".aider.conf.yml"},
+		EditorCodex:    {".codex/config.toml"},
 	}
 	for editor, paths := range cases {
 		editor, paths := editor, paths
@@ -301,10 +303,165 @@ func TestIsKnownEditor(t *testing.T) {
 	}
 }
 
+// TestAllEditorsHasTemplateTree pins drift between AllEditors and the
+// embedded templates. Adding a new editor to AllEditors without
+// shipping a templates/editors/<id>/ tree is a silent failure (the
+// Generate walker returns early); failing fast here surfaces it
+// during refactors.
+func TestAllEditorsHasTemplateTree(t *testing.T) {
+	for _, e := range AllEditors {
+		e := e
+		t.Run(string(e), func(t *testing.T) {
+			files, err := EditorFiles(e, false)
+			if err != nil {
+				t.Fatalf("EditorFiles(%s): %v", e, err)
+			}
+			if len(files) == 0 {
+				t.Errorf("editor %q has no template files — did you add it to AllEditors without shipping templates/editors/%s/ ?", e, e)
+			}
+		})
+	}
+}
+
+// TestAllEditorsHasDetectionMarker pins the inverse: every editor in
+// AllEditors must have at least one entry in editorSpecs, otherwise
+// DetectEditors silently can't find it.
+func TestAllEditorsHasDetectionMarker(t *testing.T) {
+	have := make(map[Editor]bool, len(editorSpecs))
+	for _, s := range editorSpecs {
+		have[s.id] = true
+	}
+	for _, e := range AllEditors {
+		if !have[e] {
+			t.Errorf("editor %q in AllEditors has no entry in editorSpecs — DetectEditors can't recognize it", e)
+		}
+	}
+}
+
 func TestDetectEditors_EmptyDirDefaultsClaude(t *testing.T) {
 	got := DetectEditors(t.TempDir())
 	if len(got) != 1 || got[0] != EditorClaude {
 		t.Errorf("empty-dir detect = %v, want [claude]", got)
+	}
+}
+
+// DetectEditorsDetailed deliberately does NOT inject the Claude
+// fallback, so a brand-new repo can be distinguished from one that
+// genuinely uses Claude. The CLI's detect command surfaces this as
+// "(none — falling back to claude default)".
+func TestDetectEditorsDetailed_EmptyDirReturnsNoHits(t *testing.T) {
+	got := DetectEditorsDetailed(t.TempDir())
+	if len(got) != 0 {
+		t.Errorf("empty-dir detailed detect = %v, want []", got)
+	}
+}
+
+func TestDetectEditorsDetailed_ReturnsMarker(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, ".aider.conf.yml"), []byte("read: AGENTS.md\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	hits := DetectEditorsDetailed(dir)
+	if len(hits) != 1 {
+		t.Fatalf("want 1 hit, got %v", hits)
+	}
+	if hits[0].Editor != EditorAider {
+		t.Errorf("editor = %q, want aider", hits[0].Editor)
+	}
+	if hits[0].Marker != ".aider.conf.yml" {
+		t.Errorf("marker = %q, want .aider.conf.yml", hits[0].Marker)
+	}
+}
+
+func TestEditorFiles_ReturnsExpectedPaths(t *testing.T) {
+	cases := map[Editor][]string{
+		EditorClaude:   {".claude/agents/leader.md", ".claude/agents/implementer.md", ".claude/agents/reviewer.md"},
+		EditorCursor:   {".cursor/rules/korva-harness.mdc"},
+		EditorContinue: {".continuerules"},
+		EditorCopilot:  {".github/copilot-instructions.md"},
+		EditorAider:    {".aider.conf.yml"},
+		EditorCodex:    {".codex/config.toml"},
+	}
+	for editor, want := range cases {
+		editor, want := editor, want
+		t.Run(string(editor), func(t *testing.T) {
+			got, err := EditorFiles(editor, false)
+			if err != nil {
+				t.Fatalf("EditorFiles(%s): %v", editor, err)
+			}
+			if len(got) != len(want) {
+				t.Fatalf("got %d files, want %d (%v)", len(got), len(want), got)
+			}
+			// Order from WalkDir is alphabetical; compare as sets via map.
+			seen := make(map[string]bool, len(got))
+			for _, p := range got {
+				seen[p] = true
+			}
+			for _, w := range want {
+				if !seen[w] {
+					t.Errorf("missing %q in %v", w, got)
+				}
+			}
+		})
+	}
+}
+
+func TestEditorFiles_RejectsUnknownEditor(t *testing.T) {
+	_, err := EditorFiles(Editor("emacs"), false)
+	if err == nil {
+		t.Fatal("want error for unknown editor")
+	}
+	if !strings.Contains(err.Error(), "emacs") {
+		t.Errorf("error should name the editor, got %v", err)
+	}
+}
+
+func TestEditorFiles_SDDIncludesSpecAuthor(t *testing.T) {
+	got, err := EditorFiles(EditorClaude, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var found bool
+	for _, p := range got {
+		if strings.Contains(p, "spec_author") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("SDD mode should add a spec_author file, got %v", got)
+	}
+}
+
+func TestEditorFiles_SingleFileEditorsHaveNoSDDExtra(t *testing.T) {
+	// continue, copilot, aider, codex are all single-file editors —
+	// SDD mode should not add per-editor files.
+	for _, e := range []Editor{EditorContinue, EditorCopilot, EditorAider, EditorCodex} {
+		e := e
+		t.Run(string(e), func(t *testing.T) {
+			plain, _ := EditorFiles(e, false)
+			sdd, _ := EditorFiles(e, true)
+			if len(plain) != len(sdd) {
+				t.Errorf("%s: SDD added files (%v → %v) but shouldn't", e, plain, sdd)
+			}
+		})
+	}
+}
+
+func TestCommonFiles_IncludesUniversalLayer(t *testing.T) {
+	got, err := CommonFiles()
+	if err != nil {
+		t.Fatalf("CommonFiles: %v", err)
+	}
+	wantAtLeast := []string{"AGENTS.md", "CHECKPOINTS.md"}
+	seen := make(map[string]bool, len(got))
+	for _, p := range got {
+		seen[p] = true
+	}
+	for _, w := range wantAtLeast {
+		if !seen[w] {
+			t.Errorf("CommonFiles missing %q (got %v)", w, got)
+		}
 	}
 }
 
@@ -321,6 +478,15 @@ func TestDetectEditors_RecognizesMarkers(t *testing.T) {
 		{"copilot instructions", []string{".github/copilot-instructions.md"}, []Editor{EditorCopilot}},
 		{"claude md", []string{"CLAUDE.md"}, []Editor{EditorClaude}},
 		{"claude + cursor", []string{".claude", ".cursor"}, []Editor{EditorClaude, EditorCursor}},
+		{"aider conf", []string{".aider.conf.yml"}, []Editor{EditorAider}},
+		{"aider ignore", []string{".aiderignore"}, []Editor{EditorAider}},
+		{"aider conventions", []string{"CONVENTIONS.md"}, []Editor{EditorAider}},
+		{"codex dir", []string{".codex"}, []Editor{EditorCodex}},
+		{"codex config toml", []string{".codex/config.toml"}, []Editor{EditorCodex}},
+		// Detection is order-stable (matches AllEditors), so mixing
+		// claude + aider + codex preserves that ordering.
+		{"claude + aider + codex", []string{"CLAUDE.md", ".aider.conf.yml", ".codex"},
+			[]Editor{EditorClaude, EditorAider, EditorCodex}},
 	}
 	for _, tc := range cases {
 		tc := tc

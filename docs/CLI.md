@@ -19,6 +19,7 @@ Commands:
   sync       Force a Hive sync now
   lore       Manage knowledge scrolls
   sentinel   Run / install the architecture validator
+  harness    Bootstrap + manage the AI-agent harness (see HARNESS_EDITORS.md)
   admin      Server-side admin commands
   hive       Hive sync admin
   license    Activate / deactivate / status

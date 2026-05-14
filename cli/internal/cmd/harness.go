@@ -170,6 +170,177 @@ func joinEditors() string {
 	return strings.Join(parts, ", ")
 }
 
+// --- detect ----------------------------------------------------------------
+
+type harnessDetectFlags struct {
+	Root string
+	SDD  bool
+	JSON bool
+}
+
+var harnessDetectOpts harnessDetectFlags
+
+var harnessDetectCmd = &cobra.Command{
+	Use:   "detect",
+	Short: "Show which AI editors are wired in this repo + what `init` would install",
+	Long: `Inspect a repository for editor markers (.claude, .cursor, .codex, etc.)
+and print which editor templates 'korva harness init --editors auto' would
+materialize. Useful before running init, and as a debug aid when auto-
+detection picks the wrong editor.
+
+  korva harness detect              # human-readable
+  korva harness detect --json       # machine-readable (jq / CI scripts)
+  korva harness detect --sdd        # include SDD-only files in the preview`,
+	RunE: runHarnessDetect,
+}
+
+// detectionPayload is the wire shape for --json. The fields mirror the
+// human output one-to-one so a script that scrapes the text view and
+// one that reads JSON see the same facts.
+type detectionPayload struct {
+	Root         string                 `json:"root"`
+	SDD          bool                   `json:"sdd"`
+	Hits         []detectionHitWire     `json:"hits"`
+	DefaultUsed  bool                   `json:"default_used"`
+	DefaultLabel string                 `json:"default_label,omitempty"`
+	CommonFiles  []string               `json:"common_files"`
+	Editors      []editorPreviewPayload `json:"editors"`
+}
+
+type detectionHitWire struct {
+	Editor string `json:"editor"`
+	Marker string `json:"marker"`
+}
+
+type editorPreviewPayload struct {
+	Editor string   `json:"editor"`
+	Files  []string `json:"files"`
+}
+
+func runHarnessDetect(_ *cobra.Command, _ []string) error {
+	root := harnessDetectOpts.Root
+	if root == "" {
+		root = "."
+	}
+	abs, err := filepath.Abs(root)
+	if err != nil {
+		return fmt.Errorf("resolve root: %w", err)
+	}
+
+	hits := harness.DetectEditorsDetailed(abs)
+	defaultUsed := len(hits) == 0
+	editors := make([]harness.Editor, 0, len(hits))
+	for _, h := range hits {
+		editors = append(editors, h.Editor)
+	}
+	if defaultUsed {
+		// Mirror DetectEditors' fallback so `init --editors auto`
+		// produces the same set the preview promises.
+		editors = []harness.Editor{harness.EditorClaude}
+	}
+
+	commonFiles, err := harness.CommonFiles()
+	if err != nil {
+		return fmt.Errorf("list common files: %w", err)
+	}
+
+	previews := make([]editorPreviewPayload, 0, len(editors))
+	for _, e := range editors {
+		files, err := harness.EditorFiles(e, harnessDetectOpts.SDD)
+		if err != nil {
+			return fmt.Errorf("list files for %s: %w", e, err)
+		}
+		previews = append(previews, editorPreviewPayload{Editor: string(e), Files: files})
+	}
+
+	payload := detectionPayload{
+		Root:        abs,
+		SDD:         harnessDetectOpts.SDD,
+		Hits:        make([]detectionHitWire, 0, len(hits)),
+		DefaultUsed: defaultUsed,
+		CommonFiles: commonFiles,
+		Editors:     previews,
+	}
+	for _, h := range hits {
+		payload.Hits = append(payload.Hits, detectionHitWire{Editor: string(h.Editor), Marker: h.Marker})
+	}
+	if defaultUsed {
+		payload.DefaultLabel = string(harness.EditorClaude)
+	}
+
+	if harnessDetectOpts.JSON {
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		return enc.Encode(payload)
+	}
+
+	// Human-readable view.
+	fmt.Printf("Root:  %s\n", payload.Root)
+	if payload.SDD {
+		fmt.Println("Mode:  SDD preview (--sdd)")
+	}
+	fmt.Println()
+
+	if defaultUsed {
+		fmt.Println("Detected editors: (none — falling back to claude default)")
+		fmt.Println("                  No marker matched any of:")
+		for _, spec := range allEditorSpecsForHelp() {
+			fmt.Printf("                    %-9s %s\n", spec.editor+":", spec.markers)
+		}
+	} else {
+		fmt.Println("Detected editors:")
+		for _, h := range hits {
+			fmt.Printf("  %-9s ← %s\n", h.Editor, h.Marker)
+		}
+	}
+	fmt.Println()
+
+	fmt.Println("Would install (universal layer — every harness):")
+	for _, f := range commonFiles {
+		fmt.Printf("  + %s\n", f)
+	}
+	fmt.Println("  + feature_list.json")
+	for _, p := range previews {
+		fmt.Println()
+		fmt.Printf("Would install (editor: %s):\n", p.Editor)
+		if len(p.Files) == 0 {
+			fmt.Println("  (no editor-specific files)")
+			continue
+		}
+		for _, f := range p.Files {
+			fmt.Printf("  + %s\n", f)
+		}
+	}
+	fmt.Println()
+	fmt.Println("Run 'korva harness init' to materialize these files.")
+	return nil
+}
+
+// editorSpecForHelp is the local shape consumed by allEditorSpecsForHelp
+// so we don't have to expose internal state.
+type editorSpecForHelp struct {
+	editor  string
+	markers string
+}
+
+// allEditorSpecsForHelp returns a presentation-only view of the
+// detection table for the empty-result branch. We can't import the
+// unexported editorSpecs slice, so we hand-list the markers here. If
+// the harness package adds a new editor and forgets to update this
+// list, the help text falls out of sync — `TestDetectHelpListsAllEditors`
+// in the CLI tests pins it.
+func allEditorSpecsForHelp() []editorSpecForHelp {
+	return []editorSpecForHelp{
+		{string(harness.EditorClaude), ".claude/, CLAUDE.md"},
+		{string(harness.EditorCursor), ".cursor/, .cursorrules"},
+		{string(harness.EditorWindsurf), ".windsurf/, .windsurfrules"},
+		{string(harness.EditorContinue), ".continue/, .continuerules"},
+		{string(harness.EditorCopilot), ".github/copilot-instructions.md"},
+		{string(harness.EditorAider), ".aider.conf.yml, .aiderignore, CONVENTIONS.md"},
+		{string(harness.EditorCodex), ".codex/, .codex/config.toml"},
+	}
+}
+
 // --- status ----------------------------------------------------------------
 
 var harnessStatusJSON bool
@@ -818,7 +989,13 @@ func init() {
 		"replace an existing workflow file (operator edits lost)")
 	harnessCICmd.AddCommand(harnessCIInstallCmd)
 
+	// detect flags
+	harnessDetectCmd.Flags().StringVar(&harnessDetectOpts.Root, "root", ".", "target directory to inspect")
+	harnessDetectCmd.Flags().BoolVar(&harnessDetectOpts.SDD, "sdd", false, "include SDD-only files in the preview")
+	harnessDetectCmd.Flags().BoolVar(&harnessDetectOpts.JSON, "json", false, "emit machine-readable JSON")
+
 	harnessCmd.AddCommand(harnessInitCmd)
+	harnessCmd.AddCommand(harnessDetectCmd)
 	harnessCmd.AddCommand(harnessStatusCmd)
 	harnessCmd.AddCommand(harnessListCmd)
 	harnessCmd.AddCommand(harnessNextCmd)
