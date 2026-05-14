@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.32.0](https://github.com/AlcanDev/korva/compare/v1.31.0...v1.32.0) (2026-05-14)
+
+
+### 🚀 Features
+
+* **phase-18:** SDD reviewer subagent + multi-editor adoption telemetry ([#70](https://github.com/AlcanDev/korva/issues/70)) ([6c4e47b](https://github.com/AlcanDev/korva/commit/6c4e47b5decf6068f1f7a9a69341d898b91b0253))
+
 ## [1.31.0](https://github.com/AlcanDev/korva/compare/v1.30.0...v1.31.0) (2026-05-14)
 
 
