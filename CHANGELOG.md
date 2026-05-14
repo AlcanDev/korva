@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.28.0](https://github.com/AlcanDev/korva/compare/v1.27.0...v1.28.0) (2026-05-14)
+
+
+### 🚀 Features
+
+* **phase-14.3:** Beacon harness dashboard + detail page ([#62](https://github.com/AlcanDev/korva/issues/62)) ([cc84517](https://github.com/AlcanDev/korva/commit/cc84517622d4a371beeda7f81372fc4d35e019ac))
+
 ## [1.27.0](https://github.com/AlcanDev/korva/compare/v1.26.0...v1.27.0) (2026-05-14)
 
 
