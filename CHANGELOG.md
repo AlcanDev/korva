@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.29.0](https://github.com/AlcanDev/korva/compare/v1.28.0...v1.29.0) (2026-05-14)
+
+
+### 🚀 Features
+
+* **phase-15:** DX suite — CI templates, EARS spec review, mobile Beacon, OIDC SSO ([#64](https://github.com/AlcanDev/korva/issues/64)) ([501289b](https://github.com/AlcanDev/korva/commit/501289b69f946fa3859eaee5349da7d17c4fa7cb))
+
 ## [1.28.0](https://github.com/AlcanDev/korva/compare/v1.27.0...v1.28.0) (2026-05-14)
 
 
