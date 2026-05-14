@@ -35,18 +35,18 @@ export default function HarnessProjectDetail() {
   )
 
   return (
-    <div className="p-6 max-w-6xl">
+    <div className="p-4 sm:p-6 max-w-6xl">
       <header className="mb-6">
         <Link
           to="/app/harness"
-          className="text-xs text-[#8b949e] hover:text-[#e6edf3] inline-flex items-center gap-1 mb-2 transition-colors"
+          className="text-xs text-[#8b949e] hover:text-[#e6edf3] inline-flex items-center gap-1 mb-2 transition-colors h-6"
         >
           <ArrowLeft size={12} /> All projects
         </Link>
-        <h1 className="text-xl font-semibold text-[#e6edf3]" title={project}>
+        <h1 className="text-lg sm:text-xl font-semibold text-[#e6edf3] break-words" title={project}>
           {project}
         </h1>
-        <p className="text-xs text-[#6e7681] font-mono mt-0.5" title={root}>
+        <p className="text-xs text-[#6e7681] font-mono mt-0.5 break-all" title={root}>
           {root}
         </p>
         {parsed?.rules.require_approved_spec_to_implement && (
@@ -104,18 +104,17 @@ function CountsRow({
   return (
     <section
       aria-label="Backlog counts"
-      className="grid gap-3 mb-6"
-      style={{ gridTemplateColumns: `repeat(${cells.length}, minmax(0, 1fr))` }}
+      className="grid grid-cols-2 sm:grid-cols-3 md:flex md:flex-row gap-3 mb-6"
     >
       {cells.map(c => (
         <div
           key={c.key}
-          className="border border-[#21262d] rounded-lg p-3 text-center"
+          className="border border-[#21262d] rounded-lg p-3 text-center md:flex-1 md:min-w-0"
         >
-          <div className="text-2xl font-semibold" style={{ color: c.color }}>
+          <div className="text-xl sm:text-2xl font-semibold" style={{ color: c.color }}>
             {c.value}
           </div>
-          <div className="text-[11px] text-[#8b949e] uppercase tracking-wider mt-1">
+          <div className="text-[10px] sm:text-[11px] text-[#8b949e] uppercase tracking-wider mt-1">
             {c.label}
           </div>
         </div>
@@ -140,14 +139,14 @@ function FeaturesTable({ features }: { features: FeatureListFeature[] }) {
   return (
     <section aria-label="Features" className="mb-8">
       <h2 className="text-sm font-semibold text-[#8b949e] uppercase tracking-wider mb-3">Features</h2>
-      <div className="border border-[#21262d] rounded-lg overflow-hidden">
-        <table className="w-full text-sm">
+      <div className="border border-[#21262d] rounded-lg overflow-x-auto">
+        <table className="w-full text-sm min-w-[480px]">
           <thead className="bg-[#0d1117]">
             <tr className="text-left text-[11px] uppercase tracking-wider text-[#6e7681]">
               <th scope="col" className="px-3 py-2 w-12">#</th>
               <th scope="col" className="px-3 py-2">Title</th>
               <th scope="col" className="px-3 py-2 w-28">Status</th>
-              <th scope="col" className="px-3 py-2 w-20 text-right">SDD</th>
+              <th scope="col" className="px-3 py-2 w-16 text-right">SDD</th>
             </tr>
           </thead>
           <tbody>
@@ -156,7 +155,7 @@ function FeaturesTable({ features }: { features: FeatureListFeature[] }) {
                 <td className="px-3 py-2 text-[#6e7681] font-mono text-xs">#{f.id}</td>
                 <td className="px-3 py-2">
                   <div className="text-[#e6edf3]">{f.title || f.name}</div>
-                  <div className="text-[11px] text-[#6e7681] font-mono">{f.name}</div>
+                  <div className="text-[11px] text-[#6e7681] font-mono break-all">{f.name}</div>
                 </td>
                 <td className="px-3 py-2">
                   <StatusPill status={f.status} />
@@ -200,7 +199,10 @@ function Timeline({
       {transitions.length > 0 && (
         <div className="border border-[#21262d] rounded-lg divide-y divide-[#21262d]">
           {transitions.map(t => (
-            <div key={t.id} className="px-3 py-2 flex items-center gap-3 text-sm">
+            <div
+              key={t.id}
+              className="px-3 py-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-sm"
+            >
               <span className="text-xs text-[#6e7681] w-20 flex-shrink-0">
                 {formatRelative(t.occurred_at)}
               </span>
@@ -213,7 +215,7 @@ function Timeline({
                 <StatusPill status={t.to_status} />
               </div>
               {t.owner && (
-                <span className="text-xs text-[#8b949e] font-mono truncate" title={t.owner}>
+                <span className="text-xs text-[#8b949e] font-mono truncate sm:w-auto sm:max-w-[180px]" title={t.owner}>
                   {t.owner}
                 </span>
               )}
