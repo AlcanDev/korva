@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -235,6 +236,13 @@ func (s *Server) toolHarnessTransition(target harness.FeatureStatus) func(map[st
 		if err != nil {
 			return nil, err
 		}
+		// Snapshot the previous status before SetStatus mutates it —
+		// the transition log needs both sides.
+		prev := fl.FindByID(id)
+		var fromStatus harness.FeatureStatus
+		if prev != nil {
+			fromStatus = prev.Status
+		}
 		owner := s.agentName(args)
 		now := time.Now().UTC().Format(time.RFC3339)
 		if err := fl.SetStatus(id, target, owner, now); err != nil {
@@ -245,6 +253,8 @@ func (s *Server) toolHarnessTransition(target harness.FeatureStatus) func(map[st
 		}
 		f := fl.FindByID(id)
 		bridged := s.bridgeSDDPhase(args, target)
+		mirrored := s.persistHarnessSnapshot(args, root)
+		s.recordHarnessTransition(args, root, id, fromStatus, target, owner)
 		return map[string]any{
 			"root":             root,
 			"id":               id,
@@ -253,6 +263,7 @@ func (s *Server) toolHarnessTransition(target harness.FeatureStatus) func(map[st
 			"owner":            owner,
 			"updated":          now,
 			"sdd_phase_synced": bridged,
+			"snapshot_synced":  mirrored,
 		}, nil
 	}
 }
@@ -375,6 +386,7 @@ func (s *Server) toolHarnessReady(args map[string]any) (any, error) {
 	if !harness.SpecComplete(root, f.Name) {
 		return nil, fmt.Errorf("spec files missing for %s — call vault_harness_spec first, then draft them", f.Name)
 	}
+	fromStatus := f.Status
 	owner := s.agentName(args)
 	now := time.Now().UTC().Format(time.RFC3339)
 	if err := fl.SetStatus(id, harness.StatusSpecReady, owner, now); err != nil {
@@ -384,6 +396,8 @@ func (s *Server) toolHarnessReady(args map[string]any) (any, error) {
 		return nil, err
 	}
 	bridged := s.bridgeSDDPhase(args, harness.StatusSpecReady)
+	mirrored := s.persistHarnessSnapshot(args, root)
+	s.recordHarnessTransition(args, root, id, fromStatus, harness.StatusSpecReady, owner)
 	return map[string]any{
 		"root":             root,
 		"id":               id,
@@ -392,6 +406,7 @@ func (s *Server) toolHarnessReady(args map[string]any) (any, error) {
 		"owner":            owner,
 		"updated":          now,
 		"sdd_phase_synced": bridged,
+		"snapshot_synced":  mirrored,
 	}, nil
 }
 
@@ -453,6 +468,56 @@ func (s *Server) bridgeSDDPhase(args map[string]any, status harness.FeatureStatu
 	}
 	if err := s.store.SetSDDPhase(project, phase); err != nil {
 		log.Printf("harness→sdd_phase bridge failed for project=%q phase=%s: %v", project, phase, err)
+		return false
+	}
+	return true
+}
+
+// persistHarnessSnapshot is the Phase 14.1 sibling of bridgeSDDPhase:
+// when a harness MCP write tool fires with `project` set, the resulting
+// feature_list.json is also mirrored into the vault so Beacon's
+// dashboard can render it across projects without each operator
+// pushing snapshots manually.
+//
+// Best-effort like the bridge: missing project arg → skip; I/O errors
+// → log + skip. Returns true on a successful upsert.
+func (s *Server) persistHarnessSnapshot(args map[string]any, root string) bool {
+	project := strings.TrimSpace(stringArg(args, "project"))
+	if project == "" {
+		return false
+	}
+	payload, err := os.ReadFile(filepath.Join(root, harness.FeatureListPath))
+	if err != nil {
+		log.Printf("harness snapshot read failed for project=%q root=%q: %v", project, root, err)
+		return false
+	}
+	if err := s.store.SaveHarnessSnapshot(project, root, string(payload)); err != nil {
+		log.Printf("harness snapshot save failed for project=%q root=%q: %v", project, root, err)
+		return false
+	}
+	return true
+}
+
+// recordHarnessTransition appends one row to the harness_transitions
+// log when `project` is set. Caller passes the from/to statuses
+// explicitly because the in-memory feature_list before / after the
+// SetStatus call is the only place that knows them — saves an extra
+// query on the hot path.
+func (s *Server) recordHarnessTransition(args map[string]any, root string, featureID int, from, to harness.FeatureStatus, owner string) bool {
+	project := strings.TrimSpace(stringArg(args, "project"))
+	if project == "" {
+		return false
+	}
+	err := s.store.RecordHarnessTransition(store.HarnessTransition{
+		Project:    project,
+		Root:       root,
+		FeatureID:  featureID,
+		FromStatus: string(from),
+		ToStatus:   string(to),
+		Owner:      owner,
+	})
+	if err != nil {
+		log.Printf("harness transition log failed for project=%q feature=%d: %v", project, featureID, err)
 		return false
 	}
 	return true

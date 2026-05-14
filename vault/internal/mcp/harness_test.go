@@ -828,3 +828,171 @@ func TestDispatch_CheckToolRegistered(t *testing.T) {
 		t.Errorf("dispatch check: %v", err)
 	}
 }
+
+// ───────────────────────── Phase 14.1 — vault-side mirror ─────────────────────────
+
+func TestPersistHarnessSnapshot_SkipsWithoutProject(t *testing.T) {
+	srv := newHarnessTestServer(t)
+	root := initHarness(t)
+	if got := srv.persistHarnessSnapshot(map[string]any{}, root); got {
+		t.Error("missing project arg should skip")
+	}
+	rows, _ := srv.store.ListHarnessSnapshots()
+	if len(rows) != 0 {
+		t.Errorf("no snapshot should be written, got %d", len(rows))
+	}
+}
+
+func TestPersistHarnessSnapshot_WritesToStore(t *testing.T) {
+	srv := newHarnessTestServer(t)
+	root := initHarness(t)
+	if !srv.persistHarnessSnapshot(map[string]any{"project": "p"}, root) {
+		t.Fatal("expected successful persist")
+	}
+	snap, err := srv.store.GetHarnessSnapshot("p", root)
+	if err != nil {
+		t.Fatalf("get snapshot: %v", err)
+	}
+	if !strings.Contains(snap.Payload, "harness_smoke") {
+		t.Errorf("payload missing seed feature: %s", snap.Payload)
+	}
+}
+
+func TestRecordHarnessTransition_SkipsWithoutProject(t *testing.T) {
+	srv := newHarnessTestServer(t)
+	if got := srv.recordHarnessTransition(map[string]any{}, "/r", 1,
+		harness.StatusPending, harness.StatusInProgress, "alice"); got {
+		t.Error("missing project should skip")
+	}
+}
+
+func TestRecordHarnessTransition_LogsWhenProjectGiven(t *testing.T) {
+	srv := newHarnessTestServer(t)
+	if !srv.recordHarnessTransition(map[string]any{"project": "p"}, "/r", 1,
+		harness.StatusPending, harness.StatusInProgress, "alice") {
+		t.Fatal("expected log to succeed")
+	}
+	rows, _ := srv.store.ListHarnessTransitions("p", 10)
+	if len(rows) != 1 {
+		t.Fatalf("rows = %d, want 1", len(rows))
+	}
+	if rows[0].FromStatus != "pending" || rows[0].ToStatus != "in_progress" || rows[0].Owner != "alice" {
+		t.Errorf("row mismatch: %+v", rows[0])
+	}
+}
+
+func TestToolHarnessTransition_PersistsOnStartWithProject(t *testing.T) {
+	srv := newHarnessTestServer(t)
+	root := initHarness(t)
+	start := srv.toolHarnessTransition(harness.StatusInProgress)
+	res, err := start(map[string]any{
+		"root": root, "id": float64(1), "project": "team-x",
+	})
+	if err != nil {
+		t.Fatalf("start: %v", err)
+	}
+	resp := res.(map[string]any)
+	if resp["snapshot_synced"] != true {
+		t.Errorf("snapshot_synced = %v, want true", resp["snapshot_synced"])
+	}
+	// Snapshot landed.
+	if _, err := srv.store.GetHarnessSnapshot("team-x", root); err != nil {
+		t.Errorf("snapshot not persisted: %v", err)
+	}
+	// Transition logged.
+	rows, _ := srv.store.ListHarnessTransitions("team-x", 10)
+	if len(rows) != 1 {
+		t.Errorf("transitions logged = %d, want 1", len(rows))
+	}
+	if rows[0].FromStatus != "pending" || rows[0].ToStatus != "in_progress" {
+		t.Errorf("transition row wrong: %+v", rows[0])
+	}
+}
+
+func TestToolHarnessTransition_NoMirrorWithoutProject(t *testing.T) {
+	srv := newHarnessTestServer(t)
+	root := initHarness(t)
+	start := srv.toolHarnessTransition(harness.StatusInProgress)
+	res, err := start(map[string]any{"root": root, "id": float64(1)})
+	if err != nil {
+		t.Fatalf("start: %v", err)
+	}
+	if res.(map[string]any)["snapshot_synced"] != false {
+		t.Errorf("snapshot_synced should be false without project")
+	}
+	rows, _ := srv.store.ListHarnessSnapshots()
+	if len(rows) != 0 {
+		t.Errorf("no snapshot should land without project, got %d", len(rows))
+	}
+	transitions, _ := srv.store.ListHarnessTransitions("", 10)
+	if len(transitions) != 0 {
+		t.Errorf("no transition should log without project, got %d", len(transitions))
+	}
+}
+
+func TestToolHarnessReady_PersistsWithProject(t *testing.T) {
+	srv := newHarnessTestServer(t)
+	root := initSDDHarnessMCP(t)
+	_, _ = srv.toolHarnessSpec(map[string]any{"root": root, "id": float64(1)})
+
+	res, err := srv.toolHarnessReady(map[string]any{
+		"root": root, "id": float64(1), "project": "team-x",
+	})
+	if err != nil {
+		t.Fatalf("ready: %v", err)
+	}
+	if res.(map[string]any)["snapshot_synced"] != true {
+		t.Errorf("snapshot_synced = %v, want true", res.(map[string]any)["snapshot_synced"])
+	}
+	rows, _ := srv.store.ListHarnessTransitions("team-x", 10)
+	if len(rows) != 1 || rows[0].ToStatus != "spec_ready" {
+		t.Errorf("ready transition not logged: %+v", rows)
+	}
+}
+
+func TestToolHarnessTransition_DoneAfterStart_LogsBothTransitions(t *testing.T) {
+	// Round-trip: start → done with project arg should produce two rows
+	// in the transition log, with correct from/to chain.
+	srv := newHarnessTestServer(t)
+	root := initHarness(t)
+
+	start := srv.toolHarnessTransition(harness.StatusInProgress)
+	if _, err := start(map[string]any{"root": root, "id": float64(1), "project": "p"}); err != nil {
+		t.Fatalf("start: %v", err)
+	}
+	done := srv.toolHarnessTransition(harness.StatusDone)
+	if _, err := done(map[string]any{"root": root, "id": float64(1), "project": "p"}); err != nil {
+		t.Fatalf("done: %v", err)
+	}
+
+	rows, _ := srv.store.ListHarnessTransitions("p", 10)
+	if len(rows) != 2 {
+		t.Fatalf("rows = %d, want 2", len(rows))
+	}
+	// Newest first.
+	if rows[0].ToStatus != "done" || rows[0].FromStatus != "in_progress" {
+		t.Errorf("done row wrong: %+v", rows[0])
+	}
+	if rows[1].ToStatus != "in_progress" || rows[1].FromStatus != "pending" {
+		t.Errorf("start row wrong: %+v", rows[1])
+	}
+}
+
+func TestToolHarnessTransition_SnapshotIsLatestPayload(t *testing.T) {
+	// Two transitions on the same (project, root) — the snapshot must be
+	// the latest payload, not the first one.
+	srv := newHarnessTestServer(t)
+	root := initHarness(t)
+	start := srv.toolHarnessTransition(harness.StatusInProgress)
+	_, _ = start(map[string]any{"root": root, "id": float64(1), "project": "p"})
+	done := srv.toolHarnessTransition(harness.StatusDone)
+	_, _ = done(map[string]any{"root": root, "id": float64(1), "project": "p"})
+
+	snap, err := srv.store.GetHarnessSnapshot("p", root)
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if !strings.Contains(snap.Payload, `"status": "done"`) {
+		t.Errorf("snapshot should reflect latest status, got: %s", snap.Payload)
+	}
+}

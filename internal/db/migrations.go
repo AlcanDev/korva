@@ -225,6 +225,44 @@ var migrations = []string{
 	`CREATE INDEX IF NOT EXISTS idx_otp_pending    ON auth_otp_codes(email) WHERE consumed_at IS NULL`,
 	`CREATE INDEX IF NOT EXISTS idx_otp_created_at ON auth_otp_codes(created_at)`,
 
+	// --- harness_snapshots: most-recent feature_list.json per project ---
+	// Phase 14.1 — when a vault_harness_* MCP tool fires with the optional
+	// `project` arg, the resulting feature_list is also persisted here so
+	// Beacon can render a multi-project dashboard without each operator
+	// manually pushing snapshots. One row per (project, root) pair: a
+	// project is multi-repo when team members run different harnesses
+	// against different roots, and we want each root to land separately.
+	// payload is the marshaled FeatureList — read by Beacon's REST handler.
+	`CREATE TABLE IF NOT EXISTS harness_snapshots (
+		project    TEXT NOT NULL,
+		root       TEXT NOT NULL,
+		payload    TEXT NOT NULL,
+		updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+		PRIMARY KEY (project, root)
+	)`,
+	`CREATE INDEX IF NOT EXISTS idx_harness_snapshots_project ON harness_snapshots(project)`,
+	`CREATE INDEX IF NOT EXISTS idx_harness_snapshots_updated ON harness_snapshots(updated_at)`,
+
+	// --- harness_transitions: append-only state-change log ---
+	// Phase 14.1 — every harness state machine transition that flows
+	// through the MCP layer (with `project` set) is recorded here.
+	// Powers the Beacon timeline view + lead-time analytics.
+	// Status fields use the canonical names from the harness package
+	// (pending / spec_ready / in_progress / done / blocked).
+	`CREATE TABLE IF NOT EXISTS harness_transitions (
+		id          TEXT PRIMARY KEY,
+		project     TEXT NOT NULL,
+		root        TEXT NOT NULL,
+		feature_id  INTEGER NOT NULL,
+		from_status TEXT NOT NULL,
+		to_status   TEXT NOT NULL,
+		owner       TEXT NOT NULL DEFAULT '',
+		occurred_at TEXT NOT NULL DEFAULT (datetime('now'))
+	)`,
+	`CREATE INDEX IF NOT EXISTS idx_harness_trans_project       ON harness_transitions(project)`,
+	`CREATE INDEX IF NOT EXISTS idx_harness_trans_project_time  ON harness_transitions(project, occurred_at)`,
+	`CREATE INDEX IF NOT EXISTS idx_harness_trans_feature       ON harness_transitions(project, feature_id)`,
+
 	// --- private_scrolls: team-managed knowledge documents served via Beacon ---
 	// Scoped per-team via team_id ('' = global/admin-managed).
 	// name is unique within a (team_id, name) pair.
