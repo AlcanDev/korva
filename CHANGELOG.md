@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.26.0](https://github.com/AlcanDev/korva/compare/v1.25.0...v1.26.0) (2026-05-14)
+
+
+### 🚀 Features
+
+* **phase-14.1:** vault-side mirror for harness state + transition log ([#58](https://github.com/AlcanDev/korva/issues/58)) ([ceae1e3](https://github.com/AlcanDev/korva/commit/ceae1e3c0e7f38582673e771d7789282ea9af7d0))
+
 ## [1.25.0](https://github.com/AlcanDev/korva/compare/v1.24.0...v1.25.0) (2026-05-14)
 
 
