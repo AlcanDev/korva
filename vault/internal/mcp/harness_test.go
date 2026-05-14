@@ -829,7 +829,27 @@ func TestDispatch_CheckToolRegistered(t *testing.T) {
 	}
 }
 
-// ───────────────────────── Phase 14.1 — vault-side mirror ─────────────────────────
+// ───────────────────────── Phase 14.1 + 14.2 — vault-side mirror ─────────────────────────
+
+// withTestSession installs a fake authenticated session on the test
+// server so MCP write tools record snapshots/transitions under a known
+// team_id. Without this every helper writes with team_id="" (anonymous
+// MCP) and the team-scoped store reads return nothing.
+func withTestSession(srv *Server, teamID string) {
+	srv.session = &mcpSession{teamID: teamID, email: "test@x", role: "admin"}
+}
+
+// countRowsInTable is a direct-DB helper for assertions where we want
+// to verify "no rows landed at all" (the team-scoped store reads
+// suppress orphan rows by design).
+func countRowsInTable(t *testing.T, srv *Server, table string) int {
+	t.Helper()
+	var n int
+	if err := srv.store.DB().QueryRow(`SELECT COUNT(*) FROM ` + table).Scan(&n); err != nil {
+		t.Fatalf("count %s: %v", table, err)
+	}
+	return n
+}
 
 func TestPersistHarnessSnapshot_SkipsWithoutProject(t *testing.T) {
 	srv := newHarnessTestServer(t)
@@ -837,24 +857,53 @@ func TestPersistHarnessSnapshot_SkipsWithoutProject(t *testing.T) {
 	if got := srv.persistHarnessSnapshot(map[string]any{}, root); got {
 		t.Error("missing project arg should skip")
 	}
-	rows, _ := srv.store.ListHarnessSnapshots()
-	if len(rows) != 0 {
-		t.Errorf("no snapshot should be written, got %d", len(rows))
+	if n := countRowsInTable(t, srv, "harness_snapshots"); n != 0 {
+		t.Errorf("no snapshot should be written, got %d", n)
 	}
 }
 
 func TestPersistHarnessSnapshot_WritesToStore(t *testing.T) {
 	srv := newHarnessTestServer(t)
+	withTestSession(srv, "team-x")
 	root := initHarness(t)
 	if !srv.persistHarnessSnapshot(map[string]any{"project": "p"}, root) {
 		t.Fatal("expected successful persist")
 	}
-	snap, err := srv.store.GetHarnessSnapshot("p", root)
+	snap, err := srv.store.GetHarnessSnapshot("team-x", "p", root)
 	if err != nil {
 		t.Fatalf("get snapshot: %v", err)
 	}
 	if !strings.Contains(snap.Payload, "harness_smoke") {
 		t.Errorf("payload missing seed feature: %s", snap.Payload)
+	}
+	if snap.TeamID != "team-x" {
+		t.Errorf("team_id = %q, want team-x", snap.TeamID)
+	}
+}
+
+func TestPersistHarnessSnapshot_AnonymousSessionPersistsWithEmptyTeam(t *testing.T) {
+	// MCP without auth still persists, but the row is orphaned (invisible
+	// to team-scoped reads). The harness CLI works offline through this
+	// path.
+	srv := newHarnessTestServer(t)
+	root := initHarness(t)
+	if !srv.persistHarnessSnapshot(map[string]any{"project": "p"}, root) {
+		t.Fatal("anonymous persist should succeed")
+	}
+	// Direct DB read: row exists with team_id=''.
+	var team string
+	if err := srv.store.DB().QueryRow(
+		`SELECT team_id FROM harness_snapshots WHERE project='p' AND root=?`, root,
+	).Scan(&team); err != nil {
+		t.Fatalf("direct read: %v", err)
+	}
+	if team != "" {
+		t.Errorf("anonymous persist should land team_id='', got %q", team)
+	}
+	// Team-scoped read on the empty-team query returns nothing — orphan
+	// rows are invisible to the public API.
+	if snaps, _ := srv.store.ListHarnessSnapshotsForTeam(""); len(snaps) != 0 {
+		t.Errorf("anonymous list should return nothing, got %v", snaps)
 	}
 }
 
@@ -868,25 +917,30 @@ func TestRecordHarnessTransition_SkipsWithoutProject(t *testing.T) {
 
 func TestRecordHarnessTransition_LogsWhenProjectGiven(t *testing.T) {
 	srv := newHarnessTestServer(t)
+	withTestSession(srv, "team-x")
 	if !srv.recordHarnessTransition(map[string]any{"project": "p"}, "/r", 1,
 		harness.StatusPending, harness.StatusInProgress, "alice") {
 		t.Fatal("expected log to succeed")
 	}
-	rows, _ := srv.store.ListHarnessTransitions("p", 10)
+	rows, _ := srv.store.ListHarnessTransitionsForTeam("team-x", "p", 10)
 	if len(rows) != 1 {
 		t.Fatalf("rows = %d, want 1", len(rows))
 	}
 	if rows[0].FromStatus != "pending" || rows[0].ToStatus != "in_progress" || rows[0].Owner != "alice" {
 		t.Errorf("row mismatch: %+v", rows[0])
 	}
+	if rows[0].TeamID != "team-x" {
+		t.Errorf("team_id = %q", rows[0].TeamID)
+	}
 }
 
 func TestToolHarnessTransition_PersistsOnStartWithProject(t *testing.T) {
 	srv := newHarnessTestServer(t)
+	withTestSession(srv, "team-x")
 	root := initHarness(t)
 	start := srv.toolHarnessTransition(harness.StatusInProgress)
 	res, err := start(map[string]any{
-		"root": root, "id": float64(1), "project": "team-x",
+		"root": root, "id": float64(1), "project": "p",
 	})
 	if err != nil {
 		t.Fatalf("start: %v", err)
@@ -895,12 +949,10 @@ func TestToolHarnessTransition_PersistsOnStartWithProject(t *testing.T) {
 	if resp["snapshot_synced"] != true {
 		t.Errorf("snapshot_synced = %v, want true", resp["snapshot_synced"])
 	}
-	// Snapshot landed.
-	if _, err := srv.store.GetHarnessSnapshot("team-x", root); err != nil {
+	if _, err := srv.store.GetHarnessSnapshot("team-x", "p", root); err != nil {
 		t.Errorf("snapshot not persisted: %v", err)
 	}
-	// Transition logged.
-	rows, _ := srv.store.ListHarnessTransitions("team-x", 10)
+	rows, _ := srv.store.ListHarnessTransitionsForTeam("team-x", "p", 10)
 	if len(rows) != 1 {
 		t.Errorf("transitions logged = %d, want 1", len(rows))
 	}
@@ -911,6 +963,7 @@ func TestToolHarnessTransition_PersistsOnStartWithProject(t *testing.T) {
 
 func TestToolHarnessTransition_NoMirrorWithoutProject(t *testing.T) {
 	srv := newHarnessTestServer(t)
+	withTestSession(srv, "team-x")
 	root := initHarness(t)
 	start := srv.toolHarnessTransition(harness.StatusInProgress)
 	res, err := start(map[string]any{"root": root, "id": float64(1)})
@@ -920,23 +973,22 @@ func TestToolHarnessTransition_NoMirrorWithoutProject(t *testing.T) {
 	if res.(map[string]any)["snapshot_synced"] != false {
 		t.Errorf("snapshot_synced should be false without project")
 	}
-	rows, _ := srv.store.ListHarnessSnapshots()
-	if len(rows) != 0 {
-		t.Errorf("no snapshot should land without project, got %d", len(rows))
+	if n := countRowsInTable(t, srv, "harness_snapshots"); n != 0 {
+		t.Errorf("no snapshot should land without project, got %d", n)
 	}
-	transitions, _ := srv.store.ListHarnessTransitions("", 10)
-	if len(transitions) != 0 {
-		t.Errorf("no transition should log without project, got %d", len(transitions))
+	if n := countRowsInTable(t, srv, "harness_transitions"); n != 0 {
+		t.Errorf("no transition should log without project, got %d", n)
 	}
 }
 
 func TestToolHarnessReady_PersistsWithProject(t *testing.T) {
 	srv := newHarnessTestServer(t)
+	withTestSession(srv, "team-x")
 	root := initSDDHarnessMCP(t)
 	_, _ = srv.toolHarnessSpec(map[string]any{"root": root, "id": float64(1)})
 
 	res, err := srv.toolHarnessReady(map[string]any{
-		"root": root, "id": float64(1), "project": "team-x",
+		"root": root, "id": float64(1), "project": "p",
 	})
 	if err != nil {
 		t.Fatalf("ready: %v", err)
@@ -944,7 +996,7 @@ func TestToolHarnessReady_PersistsWithProject(t *testing.T) {
 	if res.(map[string]any)["snapshot_synced"] != true {
 		t.Errorf("snapshot_synced = %v, want true", res.(map[string]any)["snapshot_synced"])
 	}
-	rows, _ := srv.store.ListHarnessTransitions("team-x", 10)
+	rows, _ := srv.store.ListHarnessTransitionsForTeam("team-x", "p", 10)
 	if len(rows) != 1 || rows[0].ToStatus != "spec_ready" {
 		t.Errorf("ready transition not logged: %+v", rows)
 	}
@@ -954,6 +1006,7 @@ func TestToolHarnessTransition_DoneAfterStart_LogsBothTransitions(t *testing.T) 
 	// Round-trip: start → done with project arg should produce two rows
 	// in the transition log, with correct from/to chain.
 	srv := newHarnessTestServer(t)
+	withTestSession(srv, "team-x")
 	root := initHarness(t)
 
 	start := srv.toolHarnessTransition(harness.StatusInProgress)
@@ -965,11 +1018,10 @@ func TestToolHarnessTransition_DoneAfterStart_LogsBothTransitions(t *testing.T) 
 		t.Fatalf("done: %v", err)
 	}
 
-	rows, _ := srv.store.ListHarnessTransitions("p", 10)
+	rows, _ := srv.store.ListHarnessTransitionsForTeam("team-x", "p", 10)
 	if len(rows) != 2 {
 		t.Fatalf("rows = %d, want 2", len(rows))
 	}
-	// Newest first.
 	if rows[0].ToStatus != "done" || rows[0].FromStatus != "in_progress" {
 		t.Errorf("done row wrong: %+v", rows[0])
 	}
@@ -979,20 +1031,56 @@ func TestToolHarnessTransition_DoneAfterStart_LogsBothTransitions(t *testing.T) 
 }
 
 func TestToolHarnessTransition_SnapshotIsLatestPayload(t *testing.T) {
-	// Two transitions on the same (project, root) — the snapshot must be
-	// the latest payload, not the first one.
 	srv := newHarnessTestServer(t)
+	withTestSession(srv, "team-x")
 	root := initHarness(t)
 	start := srv.toolHarnessTransition(harness.StatusInProgress)
 	_, _ = start(map[string]any{"root": root, "id": float64(1), "project": "p"})
 	done := srv.toolHarnessTransition(harness.StatusDone)
 	_, _ = done(map[string]any{"root": root, "id": float64(1), "project": "p"})
 
-	snap, err := srv.store.GetHarnessSnapshot("p", root)
+	snap, err := srv.store.GetHarnessSnapshot("team-x", "p", root)
 	if err != nil {
 		t.Fatalf("get: %v", err)
 	}
 	if !strings.Contains(snap.Payload, `"status": "done"`) {
 		t.Errorf("snapshot should reflect latest status, got: %s", snap.Payload)
+	}
+}
+
+// Phase 14.2 specific: cross-team isolation through the MCP write path.
+func TestToolHarnessTransition_CrossTeamCannotSeeOtherSnapshot(t *testing.T) {
+	// Team A writes; team B reads — must look like the snapshot doesn't
+	// exist (sql.ErrNoRows surfaces as 404 in the REST layer).
+	srv := newHarnessTestServer(t)
+	withTestSession(srv, "team-A")
+	root := initHarness(t)
+	start := srv.toolHarnessTransition(harness.StatusInProgress)
+	if _, err := start(map[string]any{"root": root, "id": float64(1), "project": "p"}); err != nil {
+		t.Fatalf("start: %v", err)
+	}
+
+	// Team-A sees its own snapshot.
+	if _, err := srv.store.GetHarnessSnapshot("team-A", "p", root); err != nil {
+		t.Errorf("team-A should see its own snapshot: %v", err)
+	}
+	// Team-B sees nothing.
+	if _, err := srv.store.GetHarnessSnapshot("team-B", "p", root); err == nil {
+		t.Error("team-B should not see team-A's snapshot")
+	}
+}
+
+func TestCallerTeamID_ReturnsEmptyWhenNoSession(t *testing.T) {
+	srv := newHarnessTestServer(t)
+	if got := srv.callerTeamID(); got != "" {
+		t.Errorf("callerTeamID with no session = %q, want empty", got)
+	}
+}
+
+func TestCallerTeamID_ReturnsSessionTeam(t *testing.T) {
+	srv := newHarnessTestServer(t)
+	withTestSession(srv, "team-x")
+	if got := srv.callerTeamID(); got != "team-x" {
+		t.Errorf("callerTeamID = %q, want team-x", got)
 	}
 }

@@ -357,6 +357,14 @@ func Router(ctx context.Context, s *store.Store, cfg RouterConfig) http.Handler 
 	// Lore export — scoped to the authenticated team (session required)
 	mux.Handle("GET /team/lore/export", sessMW(withCORS(loreExportHandler(s))))
 
+	// Phase 14.2 — harness mirror read endpoints. All session-gated +
+	// team-scoped (cross-team access returns 404 indistinguishable from
+	// "doesn't exist"). Beacon's harness dashboard is the primary
+	// consumer.
+	mux.Handle("GET /api/v1/harness/projects", sessMW(withCORS(harnessListProjects(s))))
+	mux.Handle("GET /api/v1/harness/projects/{project}", sessMW(withCORS(harnessGetProject(s))))
+	mux.Handle("GET /api/v1/harness/transitions", sessMW(withCORS(harnessListTransitions(s))))
+
 	// Wrap the entire mux with a per-IP fixed-window rate limiter.
 	// 120 req/min is generous for AI editor usage; prevents runaway loops.
 	limiter := NewRateLimiter(120, time.Minute)
