@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.24.0](https://github.com/AlcanDev/korva/compare/v1.23.0...v1.24.0) (2026-05-14)
+
+
+### 🚀 Features
+
+* **phase-13.2:** SDD CLI + MCP surface + spec_author subagents ([#54](https://github.com/AlcanDev/korva/issues/54)) ([a8c4c00](https://github.com/AlcanDev/korva/commit/a8c4c0040119f5ef713a9fd6d5729ddf3352c48d))
+
 ## [1.23.0](https://github.com/AlcanDev/korva/compare/v1.22.0...v1.23.0) (2026-05-13)
 
 
