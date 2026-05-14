@@ -312,12 +312,15 @@ func walkAndWrite(fsDir string, opts InitOptions, written *[]string) error {
 }
 
 // templateVars feeds the text/template engine the variables every
-// template file may reference.
-func templateVars(opts InitOptions) map[string]string {
-	return map[string]string{
+// template file may reference. Returning `any` (rather than `string`)
+// lets templates use `{{if .SDDMode}}` for conditional sections without
+// the empty-string-is-falsy hack.
+func templateVars(opts InitOptions) map[string]any {
+	return map[string]any{
 		"Project":     opts.Project,
 		"Description": opts.Description,
 		"Stack":       string(opts.Stack),
+		"SDDMode":     opts.SDD,
 	}
 }
 

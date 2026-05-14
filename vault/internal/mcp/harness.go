@@ -2,12 +2,14 @@ package mcp
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/alcandev/korva/internal/harness"
+	"github.com/alcandev/korva/vault/internal/store"
 )
 
 // Phase 11 — Harness Engineering MCP tools.
@@ -242,13 +244,15 @@ func (s *Server) toolHarnessTransition(target harness.FeatureStatus) func(map[st
 			return nil, err
 		}
 		f := fl.FindByID(id)
+		bridged := s.bridgeSDDPhase(args, target)
 		return map[string]any{
-			"root":    root,
-			"id":      id,
-			"name":    f.Name,
-			"status":  string(target),
-			"owner":   owner,
-			"updated": now,
+			"root":             root,
+			"id":               id,
+			"name":             f.Name,
+			"status":           string(target),
+			"owner":            owner,
+			"updated":          now,
+			"sdd_phase_synced": bridged,
 		}, nil
 	}
 }
@@ -379,14 +383,79 @@ func (s *Server) toolHarnessReady(args map[string]any) (any, error) {
 	if err := harness.SaveFeatureList(root, fl); err != nil {
 		return nil, err
 	}
+	bridged := s.bridgeSDDPhase(args, harness.StatusSpecReady)
 	return map[string]any{
-		"root":    root,
-		"id":      id,
-		"name":    f.Name,
-		"status":  string(harness.StatusSpecReady),
-		"owner":   owner,
-		"updated": now,
+		"root":             root,
+		"id":               id,
+		"name":             f.Name,
+		"status":           string(harness.StatusSpecReady),
+		"owner":            owner,
+		"updated":          now,
+		"sdd_phase_synced": bridged,
 	}, nil
+}
+
+// ── vault_harness_check ──────────────────────────────────────────────────────
+//
+// Runs the same invariant suite as `korva harness check` but exposed
+// over MCP so an agent can ask "is this harness in a good state?"
+// without shelling out. Read-only.
+
+func (s *Server) toolHarnessCheck(args map[string]any) (any, error) {
+	root := resolveHarnessRoot(args)
+	report, err := harness.Check(root)
+	if err != nil {
+		return nil, err
+	}
+	return report, nil
+}
+
+// ── bridge: harness state → vault_sdd_phase ──────────────────────────────────
+//
+// When a harness MCP tool is called with an explicit `project` arg, the
+// resulting state transition is also pushed to the vault's per-project
+// SDD phase tracker so `vault_context` users see "this project is in
+// 'apply' phase" without parsing feature_list.json.
+//
+// The bridge is best-effort:
+//   - missing project arg → skip silently (return false)
+//   - unmappable status (pending / blocked) → skip silently (return false)
+//   - store error → log + skip (return false)
+// The harness state machine remains the source of truth either way.
+
+// harnessToSDDPhase maps a harness status to the equivalent vault SDD
+// phase. Pending and blocked don't map (the agent hasn't committed to a
+// phase yet); the others land on the phase the operator would expect to
+// see in the vault dashboard.
+func harnessToSDDPhase(status harness.FeatureStatus) (store.SDDPhase, bool) {
+	switch status {
+	case harness.StatusSpecReady:
+		return store.SDDSpec, true
+	case harness.StatusInProgress:
+		return store.SDDApply, true
+	case harness.StatusDone:
+		return store.SDDVerify, true
+	}
+	return "", false
+}
+
+// bridgeSDDPhase pushes the mapped phase to the vault when args carries
+// a non-empty `project`. Returns true on a successful push (so callers
+// can advertise the bridged state in their response payload).
+func (s *Server) bridgeSDDPhase(args map[string]any, status harness.FeatureStatus) bool {
+	project := strings.TrimSpace(stringArg(args, "project"))
+	if project == "" {
+		return false
+	}
+	phase, ok := harnessToSDDPhase(status)
+	if !ok {
+		return false
+	}
+	if err := s.store.SetSDDPhase(project, phase); err != nil {
+		log.Printf("harness→sdd_phase bridge failed for project=%q phase=%s: %v", project, phase, err)
+		return false
+	}
+	return true
 }
 
 // ── helpers ──────────────────────────────────────────────────────────────────

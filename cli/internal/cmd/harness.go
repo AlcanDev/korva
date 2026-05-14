@@ -543,6 +543,41 @@ func runHarnessReady(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
+// --- check -----------------------------------------------------------------
+// `korva harness check` runs every harness invariant and exits non-zero
+// when any error-severity issue is found. init.sh shells out to it; CI
+// scripts can pipe the JSON form into jq.
+
+var harnessCheckJSON bool
+
+var harnessCheckCmd = &cobra.Command{
+	Use:   "check",
+	Short: "Validate the harness against every invariant (schema + SDD + spec coverage)",
+	RunE:  runHarnessCheck,
+}
+
+func runHarnessCheck(_ *cobra.Command, _ []string) error {
+	report, err := harness.Check(".")
+	if err != nil {
+		return err
+	}
+	if harnessCheckJSON {
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		if err := enc.Encode(report); err != nil {
+			return err
+		}
+	} else {
+		fmt.Print(harness.FormatReport(report))
+	}
+	if !report.OK {
+		// Distinct sentinel error so callers (init.sh) can rely on the
+		// non-zero exit code without parsing stderr.
+		return fmt.Errorf("harness check failed — %d issue(s)", len(report.Issues))
+	}
+	return nil
+}
+
 // --- helpers ---------------------------------------------------------------
 
 // statusMarker returns a single-character status indicator used by `list`.
@@ -638,6 +673,9 @@ func init() {
 	// spec flags
 	harnessSpecCmd.Flags().BoolVarP(&harnessSpecOverwrite, "overwrite", "f", false, "replace existing spec files (operator content is lost)")
 
+	// check flags
+	harnessCheckCmd.Flags().BoolVar(&harnessCheckJSON, "json", false, "emit machine-readable JSON")
+
 	harnessCmd.AddCommand(harnessInitCmd)
 	harnessCmd.AddCommand(harnessStatusCmd)
 	harnessCmd.AddCommand(harnessListCmd)
@@ -649,4 +687,5 @@ func init() {
 	harnessCmd.AddCommand(harnessAddCmd)
 	harnessCmd.AddCommand(harnessSpecCmd)
 	harnessCmd.AddCommand(harnessReadyCmd)
+	harnessCmd.AddCommand(harnessCheckCmd)
 }

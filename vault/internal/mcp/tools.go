@@ -640,15 +640,29 @@ func tools() []Tool {
 			Name: "vault_harness_ready",
 			Description: "Mark an SDD feature's spec as ready for human review (pending → spec_ready). Refuses when the spec files " +
 				"(requirements/design/tasks.md) aren't all on disk — the spec_author subagent must call vault_harness_spec first and " +
-				"then draft the files before invoking this.",
+				"then draft the files before invoking this. When `project` is set, the equivalent vault_sdd_phase ('spec') is also " +
+				"pushed for that project.",
 			InputSchema: Schema{
 				Type: "object",
 				Properties: map[string]Property{
-					"root":  {Type: "string", Description: "Target directory"},
-					"id":    {Type: "number", Description: "Feature id"},
-					"agent": {Type: "string", Description: "Override the recorded owner"},
+					"root":    {Type: "string", Description: "Target directory"},
+					"id":      {Type: "number", Description: "Feature id"},
+					"agent":   {Type: "string", Description: "Override the recorded owner"},
+					"project": {Type: "string", Description: "Optional vault project name — bridges to vault_sdd_phase when set"},
 				},
 				Required: []string{"id"},
+			},
+		},
+		{
+			Name: "vault_harness_check",
+			Description: "Run every harness invariant (schema + SDD spec coverage) and return a structured report. " +
+				"Read-only. The CLI counterpart is `korva harness check`. Use this from the reviewer subagent " +
+				"to gate on `ok: true` before approving a session close.",
+			InputSchema: Schema{
+				Type: "object",
+				Properties: map[string]Property{
+					"root": {Type: "string", Description: "Target directory (defaults to $KORVA_HARNESS_ROOT or CWD)"},
+				},
 			},
 		},
 	}

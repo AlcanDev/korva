@@ -44,7 +44,25 @@ else
 fi
 
 echo ""
-echo "── 3. Test suite ──────────────────────────────────────"
+echo "── 3. Harness invariants (schema + SDD spec coverage) ─"
+
+# `korva harness check` exits 0 when the feature_list is internally
+# consistent AND every SDD-flagged feature past `pending` has its three
+# spec files on disk. Skipped silently when korva isn't installed (the
+# harness should still smoke without an external dep).
+if command -v korva >/dev/null 2>&1; then
+  if korva harness check; then
+    ok "korva harness check passed"
+  else
+    fail "korva harness check reported issues"
+    EXIT_CODE=1
+  fi
+else
+  warn "korva CLI not on PATH — skipping invariant check"
+fi
+
+echo ""
+echo "── 4. Test suite ──────────────────────────────────────"
 
 # The generic preset doesn't pre-pick a runner. Replace this block with
 # your project's test command (make test, pytest, npm test, etc.) and
@@ -53,7 +71,7 @@ warn "No test runner configured. Replace the block in init.sh with your"
 warn "project's test command, e.g. 'make test' or 'pytest -q'."
 
 echo ""
-echo "── 4. Summary ─────────────────────────────────────────"
+echo "── 5. Summary ─────────────────────────────────────────"
 
 if [ $EXIT_CODE -eq 0 ]; then
   ok "Harness ready. Proceed."
