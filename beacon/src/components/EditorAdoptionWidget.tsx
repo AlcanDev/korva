@@ -1,5 +1,5 @@
 import { Layers } from 'lucide-react'
-import { useEditorAdoption } from '@/api/editorAdoption'
+import { useEditorAdoption, type EditorAdoptionPayload } from '@/api/editorAdoption'
 
 // Phase 18.D — Editor adoption widget.
 //
@@ -57,10 +57,7 @@ export function EditorAdoptionWidget({ windowDays = 7 }: EditorAdoptionWidgetPro
 }
 
 interface AdoptionListProps {
-  payload: {
-    total: number
-    rows: { editor: string; count: number }[]
-  }
+  payload: EditorAdoptionPayload
 }
 
 function AdoptionList({ payload }: AdoptionListProps) {
