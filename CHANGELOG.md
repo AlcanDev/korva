@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.25.0](https://github.com/AlcanDev/korva/compare/v1.24.0...v1.25.0) (2026-05-14)
+
+
+### 🚀 Features
+
+* **phase-13.3:** harness check validator + SDD invariants + sdd_phase bridge ([#56](https://github.com/AlcanDev/korva/issues/56)) ([bfeb99b](https://github.com/AlcanDev/korva/commit/bfeb99b2e6fc5e9596de0cd8f4d50c892bc482ab))
+
 ## [1.24.0](https://github.com/AlcanDev/korva/compare/v1.23.0...v1.24.0) (2026-05-14)
 
 
