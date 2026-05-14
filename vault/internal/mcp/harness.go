@@ -425,6 +425,48 @@ func (s *Server) toolHarnessCheck(args map[string]any) (any, error) {
 	return report, nil
 }
 
+// ── vault_harness_spec_review ────────────────────────────────────────────────
+//
+// Phase 15.B — lints an SDD feature's spec (EARS validity + R↔T
+// coverage + traceability) and returns the structured report. The
+// reviewer subagent gates on `ok: true` before approving a feature
+// for transition to in_progress.
+
+func (s *Server) toolHarnessSpecReview(args map[string]any) (any, error) {
+	root := resolveHarnessRoot(args)
+	id, err := readIDArg(args)
+	if err != nil {
+		return nil, err
+	}
+	report, err := harness.ReviewSpec(root, id)
+	if err != nil {
+		return nil, err
+	}
+	return report, nil
+}
+
+// ── vault_harness_ci_install ─────────────────────────────────────────────────
+//
+// Materializes a CI workflow (Phase 15.A). Mirrors `korva harness ci
+// install --provider=<X>` so an agent inside an MCP-aware editor can
+// install the gate without dropping to a shell.
+
+func (s *Server) toolHarnessCIInstall(args map[string]any) (any, error) {
+	root := resolveHarnessRoot(args)
+	provider := harness.CIProvider(strings.ToLower(strings.TrimSpace(stringArg(args, "provider"))))
+	if provider == "" {
+		return nil, fmt.Errorf("provider is required (one of github-actions, gitlab-ci)")
+	}
+	if !harness.IsKnownCIProvider(provider) {
+		return nil, fmt.Errorf("unknown CI provider %q", provider)
+	}
+	res, err := harness.InstallCI(root, provider, boolArg(args, "overwrite"))
+	if err != nil {
+		return nil, err
+	}
+	return res, nil
+}
+
 // ── bridge: harness state → vault_sdd_phase ──────────────────────────────────
 //
 // When a harness MCP tool is called with an explicit `project` arg, the

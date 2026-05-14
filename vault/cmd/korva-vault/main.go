@@ -123,6 +123,19 @@ func main() {
 		}
 	}
 
+	// Phase 15.D — wire OIDC if the operator supplied env vars. Lazy
+	// verifier means vault startup never blocks on IdP availability;
+	// a misconfigured issuer surfaces as 503 on /auth/oidc/* rather
+	// than a crash loop.
+	oidcCfg := api.LoadOIDCConfigFromEnv()
+	var oidcVerifier api.OIDCVerifier
+	if oidcCfg != nil {
+		oidcVerifier = api.NewLazyOIDCVerifier(oidcCfg)
+		log.Printf("OIDC: enabled, issuer=%s redirect=%s", oidcCfg.IssuerURL, oidcCfg.RedirectURL)
+	} else {
+		log.Printf("OIDC: disabled (set KORVA_OIDC_ISSUER_URL + CLIENT_ID + CLIENT_SECRET + REDIRECT_URL to enable)")
+	}
+
 	routerCfg := api.RouterConfig{
 		AdminKeyPath:     paths.AdminKey,
 		AdminKeyOverride: os.Getenv("KORVA_ADMIN_KEY"),
@@ -141,6 +154,8 @@ func main() {
 		VaultVersion:     version.Version,
 		VaultPort:        *port,
 		ConfigPathLocal:  configPathLocal,
+		OIDCConfig:       oidcCfg,
+		OIDCVerifier:     oidcVerifier,
 	}
 
 	switch *mode {

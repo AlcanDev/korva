@@ -16,6 +16,7 @@ import {
 	Tabs,
 	ToastProvider,
 } from "@/components/ui";
+import { HarnessTour } from "@/components/HarnessTour";
 
 // Phase 10.1 — automated accessibility checks via axe-core.
 //
@@ -125,5 +126,12 @@ describe("a11y — UI primitives", () => {
 
 	it("ToastProvider mounts cleanly with no toasts", async () => {
 		await expectNoA11yViolations(<ToastProvider>nothing</ToastProvider>);
+	});
+
+	it("HarnessTour is WCAG-AA when open", async () => {
+		// The tour is a modal dialog; axe verifies aria-modal, the labelled
+		// region, focus targets, and contrast for the orange CTA on
+		// #161B22.
+		await expectNoA11yViolations(<HarnessTour open={true} onClose={() => undefined} />);
 	});
 });

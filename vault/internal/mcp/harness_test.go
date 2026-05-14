@@ -1084,3 +1084,118 @@ func TestCallerTeamID_ReturnsSessionTeam(t *testing.T) {
 		t.Errorf("callerTeamID = %q, want team-x", got)
 	}
 }
+
+// ───────────────────────── Phase 15.B — `vault_harness_spec_review` ─────────────────────────
+
+func TestToolHarnessSpecReview_FreshScaffoldFails(t *testing.T) {
+	srv := newHarnessTestServer(t)
+	root := initSDDHarnessMCP(t)
+	_, _ = srv.toolHarnessSpec(map[string]any{"root": root, "id": float64(1)})
+
+	res, err := srv.toolHarnessSpecReview(map[string]any{"root": root, "id": float64(1)})
+	if err != nil {
+		t.Fatalf("review: %v", err)
+	}
+	report := res.(*harness.SpecReviewReport)
+	if report.OK {
+		t.Errorf("fresh scaffold should fail the lint, got %+v", report.Issues)
+	}
+}
+
+func TestToolHarnessSpecReview_RejectsNonSDDFeature(t *testing.T) {
+	srv := newHarnessTestServer(t)
+	root := initHarness(t)
+	_, err := srv.toolHarnessSpecReview(map[string]any{"root": root, "id": float64(1)})
+	if err == nil || !strings.Contains(err.Error(), "not SDD-flagged") {
+		t.Errorf("expected non-SDD rejection, got %v", err)
+	}
+}
+
+func TestToolHarnessSpecReview_RegisteredInProfilesAndDispatch(t *testing.T) {
+	srv := newHarnessTestServer(t)
+	// Read-only → every profile including readonly.
+	for _, p := range []Profile{ProfileReadonly, ProfileAgent, ProfileAdmin} {
+		if !isAllowed(p, "vault_harness_spec_review") {
+			t.Errorf("spec_review should be in %s profile", p)
+		}
+	}
+	// Dispatch wiring.
+	root := initSDDHarnessMCP(t)
+	_, _ = srv.toolHarnessSpec(map[string]any{"root": root, "id": float64(1)})
+	if _, err := srv.dispatch("vault_harness_spec_review",
+		map[string]any{"root": root, "id": float64(1)}); err != nil {
+		t.Errorf("dispatch: %v", err)
+	}
+}
+
+// ───────────────────────── Phase 15.A — `vault_harness_ci_install` ─────────────────────────
+
+func TestToolHarnessCIInstall_GitHubActions(t *testing.T) {
+	srv := newHarnessTestServer(t)
+	dir := t.TempDir()
+	res, err := srv.toolHarnessCIInstall(map[string]any{
+		"root": dir, "provider": "github-actions",
+	})
+	if err != nil {
+		t.Fatalf("install: %v", err)
+	}
+	result := res.(*harness.InstallCIResult)
+	if result.Provider != harness.CIGitHubActions {
+		t.Errorf("provider = %q", result.Provider)
+	}
+	if len(result.Written) == 0 {
+		t.Errorf("expected files written, got %+v", result)
+	}
+	if _, err := os.Stat(filepath.Join(dir, ".github", "workflows", "harness.yml")); err != nil {
+		t.Errorf("workflow file missing: %v", err)
+	}
+}
+
+func TestToolHarnessCIInstall_GitLab(t *testing.T) {
+	srv := newHarnessTestServer(t)
+	dir := t.TempDir()
+	if _, err := srv.toolHarnessCIInstall(map[string]any{
+		"root": dir, "provider": "gitlab-ci",
+	}); err != nil {
+		t.Fatalf("install: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, ".gitlab-ci.harness.yml")); err != nil {
+		t.Errorf("gitlab yml missing: %v", err)
+	}
+}
+
+func TestToolHarnessCIInstall_RequiresProvider(t *testing.T) {
+	srv := newHarnessTestServer(t)
+	_, err := srv.toolHarnessCIInstall(map[string]any{"root": t.TempDir()})
+	if err == nil || !strings.Contains(err.Error(), "provider is required") {
+		t.Errorf("expected provider-required error, got %v", err)
+	}
+}
+
+func TestToolHarnessCIInstall_RejectsUnknownProvider(t *testing.T) {
+	srv := newHarnessTestServer(t)
+	_, err := srv.toolHarnessCIInstall(map[string]any{
+		"root": t.TempDir(), "provider": "circleci",
+	})
+	if err == nil || !strings.Contains(err.Error(), "unknown") {
+		t.Errorf("expected unknown-provider error, got %v", err)
+	}
+}
+
+func TestToolHarnessCIInstall_RegisteredInProfilesAndDispatch(t *testing.T) {
+	srv := newHarnessTestServer(t)
+	// Profile gating — only agent + admin (write op).
+	if !isAllowed(ProfileAgent, "vault_harness_ci_install") {
+		t.Error("ci_install should be in agent profile")
+	}
+	if isAllowed(ProfileReadonly, "vault_harness_ci_install") {
+		t.Error("ci_install should NOT be in readonly profile")
+	}
+	// Dispatch wiring.
+	dir := t.TempDir()
+	if _, err := srv.dispatch("vault_harness_ci_install", map[string]any{
+		"root": dir, "provider": "github-actions",
+	}); err != nil {
+		t.Errorf("dispatch: %v", err)
+	}
+}

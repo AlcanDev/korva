@@ -35,6 +35,20 @@ services:
       KORVA_VAULT_PORT: 7437
       KORVA_VAULT_HOST: 0.0.0.0
       KORVA_VAULT_MODE: http
+      # ── OIDC / SSO (Phase 15.D) ────────────────────────────────────────
+      # Leave the four required vars empty to keep OIDC disabled. Set all
+      # four to enable /auth/oidc/login + /auth/oidc/callback.
+      # See docs/SELF_HOSTING_OIDC.md for IdP-specific setup recipes
+      # (Okta, Azure AD, Google Workspace, Authentik, Keycloak).
+      KORVA_OIDC_ISSUER_URL:      "${KORVA_OIDC_ISSUER_URL:-}"
+      KORVA_OIDC_CLIENT_ID:       "${KORVA_OIDC_CLIENT_ID:-}"
+      KORVA_OIDC_CLIENT_SECRET:   "${KORVA_OIDC_CLIENT_SECRET:-}"
+      KORVA_OIDC_REDIRECT_URL:    "${KORVA_OIDC_REDIRECT_URL:-}"
+      # Optional — comma-separated email-domain allowlist (e.g.
+      # "acme.io,partner.dev"). Empty = no domain filter.
+      KORVA_OIDC_ALLOWED_DOMAINS: "${KORVA_OIDC_ALLOWED_DOMAINS:-}"
+      # Optional — override the default scope list (openid,email,profile).
+      KORVA_OIDC_SCOPES:          "${KORVA_OIDC_SCOPES:-}"
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:7437/healthz"]
       interval: 30s

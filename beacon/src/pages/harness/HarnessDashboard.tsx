@@ -1,5 +1,6 @@
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router'
-import { GitBranch, RefreshCw, AlertCircle } from 'lucide-react'
+import { GitBranch, RefreshCw, AlertCircle, HelpCircle } from 'lucide-react'
 import {
   useHarnessProjects,
   safeParseFeatureList,
@@ -7,6 +8,7 @@ import {
   type HarnessProjectSummary,
   type FeatureListPayload,
 } from '@/api/harness'
+import { HarnessTour, hasCompletedHarnessTour } from '@/components/HarnessTour'
 
 // HarnessDashboard — Phase 14.3.
 // Lists every harness-managed project the caller's team owns, with a
@@ -17,12 +19,22 @@ import {
 export default function HarnessDashboard() {
   const { data, isLoading, error, refetch } = useHarnessProjects()
   const projects = data?.projects ?? []
+  const [tourOpen, setTourOpen] = useState(false)
+
+  // Auto-open the tour on first visit. Detached from the data fetch so
+  // operators arriving on an empty / errored vault still see the
+  // explanation of what they're looking at.
+  useEffect(() => {
+    if (!hasCompletedHarnessTour()) {
+      setTourOpen(true)
+    }
+  }, [])
 
   return (
-    <div className="p-6 max-w-6xl">
-      <header className="mb-6 flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-semibold text-[#e6edf3] flex items-center gap-2">
+    <div className="p-4 sm:p-6 max-w-6xl">
+      <header className="mb-6 flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="text-lg sm:text-xl font-semibold text-[#e6edf3] flex items-center gap-2">
             <GitBranch size={18} className="text-[#f0883e]" />
             Harness
           </h1>
@@ -30,14 +42,24 @@ export default function HarnessDashboard() {
             Per-project state from <code className="text-[#58a6ff]">feature_list.json</code>, mirrored from the harness CLI / MCP layer.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => refetch()}
-          aria-label="Refresh harness projects"
-          className="text-[#8b949e] hover:text-[#e6edf3] p-1.5 rounded transition-colors"
-        >
-          <RefreshCw size={14} />
-        </button>
+        <div className="flex items-center gap-1 flex-shrink-0">
+          <button
+            type="button"
+            onClick={() => setTourOpen(true)}
+            aria-label="Open harness tour"
+            className="h-10 w-10 flex items-center justify-center text-[#8b949e] hover:text-[#e6edf3] rounded transition-colors hover:bg-white/5"
+          >
+            <HelpCircle size={14} />
+          </button>
+          <button
+            type="button"
+            onClick={() => refetch()}
+            aria-label="Refresh harness projects"
+            className="h-10 w-10 flex items-center justify-center text-[#8b949e] hover:text-[#e6edf3] rounded transition-colors hover:bg-white/5"
+          >
+            <RefreshCw size={14} />
+          </button>
+        </div>
       </header>
 
       {isLoading && <Skeleton />}
@@ -58,6 +80,8 @@ export default function HarnessDashboard() {
           ))}
         </div>
       )}
+
+      <HarnessTour open={tourOpen} onClose={() => setTourOpen(false)} />
     </div>
   )
 }

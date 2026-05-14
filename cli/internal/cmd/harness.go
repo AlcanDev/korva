@@ -629,6 +629,137 @@ func joinStacks() string {
 	return strings.Join(parts, ", ")
 }
 
+// --- review ---------------------------------------------------------------
+// `korva harness review <id>` lints the spec files for an SDD feature
+// against the EARS + traceability + R↔T coverage contract. Exits
+// non-zero when any error-severity issue is found so it can be wired
+// into CI or pre-merge hooks.
+
+var harnessReviewJSON bool
+
+var harnessReviewCmd = &cobra.Command{
+	Use:   "review <id>",
+	Short: "Lint an SDD feature's spec (EARS validity + R↔T traceability + acceptance coverage)",
+	Args:  cobra.ExactArgs(1),
+	RunE:  runHarnessReview,
+}
+
+func runHarnessReview(_ *cobra.Command, args []string) error {
+	id, err := strconv.Atoi(args[0])
+	if err != nil {
+		return fmt.Errorf("id must be an integer, got %q", args[0])
+	}
+	report, err := harness.ReviewSpec(".", id)
+	if err != nil {
+		return err
+	}
+	if harnessReviewJSON {
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		if err := enc.Encode(report); err != nil {
+			return err
+		}
+	} else {
+		fmt.Print(harness.FormatSpecReviewReport(report))
+	}
+	if !report.OK {
+		return fmt.Errorf("spec review failed — %d issue(s)", len(report.Issues))
+	}
+	return nil
+}
+
+// --- ci install ------------------------------------------------------------
+// `korva harness ci install --provider=<X>` materializes a ready-to-use
+// CI workflow that gates merges on `korva harness check`. Two providers
+// ship out of the box: github-actions and gitlab-ci.
+
+var harnessCICmd = &cobra.Command{
+	Use:   "ci",
+	Short: "Manage CI/CD integration for the harness",
+	Long: `CI integration drops a ready-to-use workflow into the repo that runs
+'korva harness check' on every PR / MR and posts the backlog summary as
+a comment. Use 'korva harness ci install --provider=<X>' to materialize
+the templates for your CI vendor.`,
+}
+
+type harnessCIInstallFlags struct {
+	Provider  string
+	Root      string
+	Overwrite bool
+}
+
+var harnessCIInstallOpts harnessCIInstallFlags
+
+var harnessCIInstallCmd = &cobra.Command{
+	Use:   "install",
+	Short: "Materialize a CI workflow that gates merges on `korva harness check`",
+	RunE:  runHarnessCIInstall,
+}
+
+func runHarnessCIInstall(_ *cobra.Command, _ []string) error {
+	provider := harness.CIProvider(strings.ToLower(strings.TrimSpace(harnessCIInstallOpts.Provider)))
+	if provider == "" {
+		// Auto-detect: prefer GitHub when a `.github/` dir exists, else
+		// GitLab when `.gitlab-ci.yml` is present, else fail with an
+		// actionable error.
+		root := harnessCIInstallOpts.Root
+		if root == "" {
+			root = "."
+		}
+		switch {
+		case fileExists(filepath.Join(root, ".github")):
+			provider = harness.CIGitHubActions
+		case fileExists(filepath.Join(root, ".gitlab-ci.yml")):
+			provider = harness.CIGitLab
+		default:
+			return fmt.Errorf("could not auto-detect CI provider — pass --provider with one of: %s", joinCIProviders())
+		}
+	}
+	if !harness.IsKnownCIProvider(provider) {
+		return fmt.Errorf("unknown provider %q — pick one of: %s", provider, joinCIProviders())
+	}
+	root := harnessCIInstallOpts.Root
+	if root == "" {
+		root = "."
+	}
+	abs, err := filepath.Abs(root)
+	if err != nil {
+		return fmt.Errorf("resolve root: %w", err)
+	}
+	res, err := harness.InstallCI(abs, provider, harnessCIInstallOpts.Overwrite)
+	if err != nil {
+		return err
+	}
+	if len(res.Written) > 0 {
+		printSuccess(fmt.Sprintf("CI installed for %q", provider))
+		for _, f := range res.Written {
+			fmt.Printf("    + %s\n", f)
+		}
+	}
+	for _, f := range res.Skipped {
+		printInfo(fmt.Sprintf("Kept existing %s (use --overwrite to replace)", f))
+	}
+	if len(res.Written) == 0 && len(res.Skipped) > 0 {
+		printInfo("Nothing to do — workflow already present.")
+	}
+	switch provider {
+	case harness.CIGitHubActions:
+		printInfo("Commit the workflow and push: GitHub will run it on the next PR.")
+	case harness.CIGitLab:
+		printInfo("Add `KORVA_GITLAB_TOKEN` (Maintainer scope, api) as a project CI/CD variable to enable MR comments.")
+	}
+	return nil
+}
+
+// joinCIProviders stringifies harness.AllCIProviders for help / errors.
+func joinCIProviders() string {
+	parts := make([]string, 0, len(harness.AllCIProviders))
+	for _, p := range harness.AllCIProviders {
+		parts = append(parts, string(p))
+	}
+	return strings.Join(parts, ", ")
+}
+
 // (fileExists lives in init.go — shared across the cmd package.)
 
 // defaultAgentName returns the value of $KORVA_AGENT, or "cli" when
@@ -676,6 +807,17 @@ func init() {
 	// check flags
 	harnessCheckCmd.Flags().BoolVar(&harnessCheckJSON, "json", false, "emit machine-readable JSON")
 
+	// review flags
+	harnessReviewCmd.Flags().BoolVar(&harnessReviewJSON, "json", false, "emit machine-readable JSON")
+
+	// ci install flags
+	harnessCIInstallCmd.Flags().StringVar(&harnessCIInstallOpts.Provider, "provider", "",
+		"CI vendor: "+joinCIProviders()+" (auto-detect when empty)")
+	harnessCIInstallCmd.Flags().StringVar(&harnessCIInstallOpts.Root, "root", ".", "target repository root")
+	harnessCIInstallCmd.Flags().BoolVarP(&harnessCIInstallOpts.Overwrite, "overwrite", "f", false,
+		"replace an existing workflow file (operator edits lost)")
+	harnessCICmd.AddCommand(harnessCIInstallCmd)
+
 	harnessCmd.AddCommand(harnessInitCmd)
 	harnessCmd.AddCommand(harnessStatusCmd)
 	harnessCmd.AddCommand(harnessListCmd)
@@ -688,4 +830,6 @@ func init() {
 	harnessCmd.AddCommand(harnessSpecCmd)
 	harnessCmd.AddCommand(harnessReadyCmd)
 	harnessCmd.AddCommand(harnessCheckCmd)
+	harnessCmd.AddCommand(harnessReviewCmd)
+	harnessCmd.AddCommand(harnessCICmd)
 }

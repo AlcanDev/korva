@@ -79,6 +79,13 @@ type RouterConfig struct {
 	// ConfigPathLocal is the project-local korva.config.json path used by
 	// /admin/system-status (and later by /admin/config). Empty = best-effort.
 	ConfigPathLocal string
+	// OIDCConfig is read from env vars by the entrypoint and is nil
+	// when the operator has not configured OIDC. Phase 15.D.
+	OIDCConfig *OIDCConfig
+	// OIDCVerifier is the testable abstraction over the OIDC dance.
+	// Production wires a lazy verifier so the IdP is contacted on
+	// first request rather than at startup. Nil disables OIDC routes.
+	OIDCVerifier OIDCVerifier
 }
 
 // EventBus is the package-level event bus used to fan out activity to the
@@ -168,6 +175,15 @@ func Router(ctx context.Context, s *store.Store, cfg RouterConfig) http.Handler 
 	// CLI persistence path is shared.
 	mux.HandleFunc("POST /auth/otp/request", withCORS(authOTPRequest(s, mailer)))
 	mux.HandleFunc("POST /auth/otp/verify", withCORS(authOTPVerify(s)))
+
+	// Phase 15.D — OIDC web flow. Routes are only registered when
+	// the operator supplied the four required env vars; otherwise
+	// callers hit 404 (rather than a hard-coded 503) so the surface
+	// area stays tight for default deployments.
+	if cfg.OIDCConfig != nil && cfg.OIDCVerifier != nil {
+		mux.HandleFunc("GET /auth/oidc/login", oidcLoginHandler(cfg.OIDCConfig, cfg.OIDCVerifier))
+		mux.HandleFunc("GET /auth/oidc/callback", oidcCallbackHandler(s, cfg.OIDCConfig, cfg.OIDCVerifier))
+	}
 
 	// --- Admin-protected endpoints (X-Admin-Key required) ---
 
