@@ -1,5 +1,6 @@
 import { useVaultStats } from '@/api/vault'
 import { Database, Clock, Bookmark, AlertTriangle } from 'lucide-react'
+import { EditorAdoptionWidget } from '@/components/EditorAdoptionWidget'
 
 export default function Overview() {
   const { data: stats, isLoading, isError } = useVaultStats()
@@ -43,6 +44,11 @@ export default function Overview() {
           value={stats?.total_prompts ?? 0}
           color="#9e6a03"
         />
+      </div>
+
+      {/* Phase 18.D — Editor adoption (multi-editor telemetry) */}
+      <div className="mb-8">
+        <EditorAdoptionWidget />
       </div>
 
       {/* By type */}
