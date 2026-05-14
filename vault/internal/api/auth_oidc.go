@@ -4,7 +4,6 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -70,9 +69,9 @@ func generateState() (string, error) {
 //  2. Redirect the browser to the IdP authorize endpoint.
 //
 // Failure modes (all 503 with a hint operator can act on):
-//  - verifier == nil (config missing at startup)
-//  - AuthCodeURL returns "" (discovery failed, lazy init couldn't
-//    contact the IdP)
+//   - verifier == nil (config missing at startup)
+//   - AuthCodeURL returns "" (discovery failed, lazy init couldn't
+//     contact the IdP)
 func oidcLoginHandler(_ *OIDCConfig, v OIDCVerifier) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if v == nil {
@@ -278,8 +277,3 @@ func isHTTPSRequest(r *http.Request) bool {
 	}
 	return false
 }
-
-// errOIDCDisabled is returned by registerOIDCRoutes when the config
-// was nil; exported so the entrypoint can log a one-line "OIDC: off"
-// message rather than silently doing nothing.
-var errOIDCDisabled = errors.New("oidc: not configured")

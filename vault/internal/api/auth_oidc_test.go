@@ -15,7 +15,7 @@ import (
 
 // fakeOIDCVerifier is a hand-crafted OIDCVerifier we plug into the
 // handler tests. It captures the state passed to AuthCodeURL so we can
-// re-use it on the callback request, and lets each test customise the
+// re-use it on the callback request, and lets each test customize the
 // claims returned from ExchangeAndVerify.
 type fakeOIDCVerifier struct {
 	authURLBase string // base authorize URL the test asserts on

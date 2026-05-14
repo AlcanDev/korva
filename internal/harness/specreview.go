@@ -293,8 +293,8 @@ type parsedTask struct {
 
 // taskLine matches a markdown checkbox row that introduces a task:
 //
-//	- [x] T1 — implement *(Covers: R1, R2)*
-//	- [ ] T3 — closure
+//   - [x] T1 — implement *(Covers: R1, R2)*
+//   - [ ] T3 — closure
 //
 // Greedy `.*$` swallows the rest of the line so the optional covers
 // annotation is parsed in a separate pass — combining them into one

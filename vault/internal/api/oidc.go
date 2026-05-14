@@ -222,7 +222,7 @@ func (l *lazyOIDCVerifier) ensure(ctx context.Context) (OIDCVerifier, error) {
 }
 
 func (l *lazyOIDCVerifier) AuthCodeURL(state string) string {
-	// The Auth URL needs the OAuth endpoint; if we haven't dialled yet,
+	// The Auth URL needs the OAuth endpoint; if we haven't dialed yet,
 	// dial with a background context (the caller doesn't have one in
 	// scope for the redirect-build step).
 	v, err := l.ensure(context.Background())
