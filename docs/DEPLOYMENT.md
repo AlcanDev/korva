@@ -322,4 +322,14 @@ target: 'https://tu-vault.railway.app'
 
 **Recomendación para empezar:** Railway — 10 minutos de setup, $5/mes, zero mantenimiento.
 
-*Last updated: 2026-04-30*
+---
+
+## SSO empresarial (OIDC)
+
+Para despliegues self-hosted que necesitan integración con un IdP
+corporativo (Okta, Azure AD, Google Workspace, Authentik, Keycloak…),
+consulta [SELF_HOSTING_OIDC.md](SELF_HOSTING_OIDC.md). El flujo OIDC
+se activa con cuatro variables de entorno y convive con los modos
+existentes (invite token + OTP).
+
+*Last updated: 2026-05-14*
