@@ -263,6 +263,22 @@ var migrations = []string{
 	`CREATE INDEX IF NOT EXISTS idx_harness_trans_project_time  ON harness_transitions(project, occurred_at)`,
 	`CREATE INDEX IF NOT EXISTS idx_harness_trans_feature       ON harness_transitions(project, feature_id)`,
 
+	// Phase 14.2 — multi-tenant isolation: every harness row owned by a team.
+	// Existing rows (from 14.1, before this migration) get team_id='' and are
+	// invisible to team-scoped REST queries — they're effectively orphaned
+	// data the operator can clean up via direct DB access. The MCP layer fills
+	// team_id from the authenticated session; anonymous MCP calls still
+	// persist (with empty team_id) so the harness CLI doesn't break, but
+	// nobody can read them through Beacon.
+	// ALTER tries are silently ignored on re-run via the duplicate-column
+	// detector in Migrate().
+	`ALTER TABLE harness_snapshots   ADD COLUMN team_id TEXT NOT NULL DEFAULT ''`,
+	`ALTER TABLE harness_transitions ADD COLUMN team_id TEXT NOT NULL DEFAULT ''`,
+	`CREATE INDEX IF NOT EXISTS idx_harness_snapshots_team ON harness_snapshots(team_id)`,
+	`CREATE INDEX IF NOT EXISTS idx_harness_trans_team     ON harness_transitions(team_id)`,
+	`CREATE INDEX IF NOT EXISTS idx_harness_snapshots_team_proj ON harness_snapshots(team_id, project)`,
+	`CREATE INDEX IF NOT EXISTS idx_harness_trans_team_time     ON harness_transitions(team_id, occurred_at)`,
+
 	// --- private_scrolls: team-managed knowledge documents served via Beacon ---
 	// Scoped per-team via team_id ('' = global/admin-managed).
 	// name is unique within a (team_id, name) pair.

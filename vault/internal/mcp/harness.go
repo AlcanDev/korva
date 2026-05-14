@@ -491,11 +491,24 @@ func (s *Server) persistHarnessSnapshot(args map[string]any, root string) bool {
 		log.Printf("harness snapshot read failed for project=%q root=%q: %v", project, root, err)
 		return false
 	}
-	if err := s.store.SaveHarnessSnapshot(project, root, string(payload)); err != nil {
+	if err := s.store.SaveHarnessSnapshot(s.callerTeamID(), project, root, string(payload)); err != nil {
 		log.Printf("harness snapshot save failed for project=%q root=%q: %v", project, root, err)
 		return false
 	}
 	return true
+}
+
+// callerTeamID extracts the team_id from the MCP session, or returns ""
+// for anonymous callers. The harness CLI doesn't authenticate to the
+// vault, so empty is the common case in offline use; team-scoped REST
+// queries treat empty rows as orphans (invisible). Beacon-driven flows
+// always come through an authenticated session and produce non-empty
+// team_id.
+func (s *Server) callerTeamID() string {
+	if s.session == nil {
+		return ""
+	}
+	return s.session.teamID
 }
 
 // recordHarnessTransition appends one row to the harness_transitions
@@ -509,6 +522,7 @@ func (s *Server) recordHarnessTransition(args map[string]any, root string, featu
 		return false
 	}
 	err := s.store.RecordHarnessTransition(store.HarnessTransition{
+		TeamID:     s.callerTeamID(),
 		Project:    project,
 		Root:       root,
 		FeatureID:  featureID,
