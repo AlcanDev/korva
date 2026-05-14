@@ -87,7 +87,7 @@ jobs:
 
   # ─── Beacon (React + TypeScript) ────────────────────────────────────────────
   beacon:
-    name: Beacon build + type-check
+    name: Beacon build + test
     runs-on: ubuntu-latest
 
     steps:
@@ -108,6 +108,13 @@ jobs:
       # No separate tsc --noEmit step — it's redundant and can diverge
       - name: Build
         run: npm run build
+        working-directory: beacon
+
+      # Vitest suite (RTL + a11y axe + helpers). Phase 14.3 added the
+      # harness dashboard tests here; making them blocking prevents UI
+      # regressions from sneaking through on Go-only PRs too.
+      - name: Test
+        run: npm test -- --run
         working-directory: beacon
 
   # ─── Sentinel self-check ────────────────────────────────────────────────────
