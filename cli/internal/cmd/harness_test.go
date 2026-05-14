@@ -273,6 +273,54 @@ func initSDDHarnessForTest(t *testing.T) string {
 	return dir
 }
 
+func TestRunHarnessInit_RequireApprovedReviewFlag(t *testing.T) {
+	// Phase 19.C — passing --require-approved-review on init must
+	// land `rules.require_approved_review: true` in the bootstrapped
+	// feature_list.json, so the state machine enforces the gate on
+	// every subsequent transition.
+	dir := t.TempDir()
+	t.Chdir(dir)
+	harnessInitOpts = harnessInitFlags{
+		Root: ".", Project: "p", Stack: "generic", Editors: "none",
+		SDD: true, RequireApprovedReview: true,
+	}
+	t.Cleanup(func() { harnessInitOpts = harnessInitFlags{} })
+
+	_ = captureStdout(t, func() error { return runHarnessInit(nil, nil) })
+
+	fl, err := harness.LoadFeatureList(dir)
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if !fl.Rules.RequireApprovedReview {
+		t.Error("--require-approved-review should set rules.require_approved_review")
+	}
+	// Sanity: the gate should now actually block a transition.
+	if err := fl.SetStatus(1, harness.StatusSpecReady, "x", "now"); err != nil {
+		t.Fatalf("setup pending → spec_ready: %v", err)
+	}
+	if err := fl.SetStatus(1, harness.StatusInProgress, "x", "now"); err == nil {
+		t.Error("spec_ready → in_progress should be blocked without a verdict")
+	}
+}
+
+func TestRunHarnessInit_RequireApprovedReviewDefault(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	harnessInitOpts = harnessInitFlags{
+		Root: ".", Project: "p", Stack: "generic", Editors: "none",
+		SDD: true,
+	}
+	t.Cleanup(func() { harnessInitOpts = harnessInitFlags{} })
+
+	_ = captureStdout(t, func() error { return runHarnessInit(nil, nil) })
+
+	fl, _ := harness.LoadFeatureList(dir)
+	if fl.Rules.RequireApprovedReview {
+		t.Error("default should NOT enable the review gate (backward-compat)")
+	}
+}
+
 func TestRunHarnessInit_SDDFlagSetsRule(t *testing.T) {
 	dir := t.TempDir()
 	t.Chdir(dir)

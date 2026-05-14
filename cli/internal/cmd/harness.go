@@ -40,13 +40,14 @@ autonomously and verifiably.
 // --- init ------------------------------------------------------------------
 
 type harnessInitFlags struct {
-	Root        string
-	Project     string
-	Description string
-	Stack       string
-	Editors     string // CSV or "auto" / "none"
-	SDD         bool
-	Overwrite   bool
+	Root                  string
+	Project               string
+	Description           string
+	Stack                 string
+	Editors               string // CSV or "auto" / "none"
+	SDD                   bool
+	RequireApprovedReview bool
+	Overwrite             bool
 }
 
 var harnessInitOpts harnessInitFlags
@@ -86,11 +87,12 @@ func runHarnessInit(_ *cobra.Command, _ []string) error {
 	}
 
 	written, err := harness.Generate(harness.InitOptions{
-		Root:        abs,
-		Project:     project,
-		Description: harnessInitOpts.Description,
-		Stack:       stack,
-		Editors:     editors,
+		Root:                  abs,
+		Project:               project,
+		Description:           harnessInitOpts.Description,
+		Stack:                 stack,
+		Editors:               editors,
+		RequireApprovedReview: harnessInitOpts.RequireApprovedReview,
 		SDD:         harnessInitOpts.SDD,
 		Overwrite:   harnessInitOpts.Overwrite,
 	})
@@ -1023,6 +1025,8 @@ func init() {
 		"editor rule files to install: comma-separated list ("+joinEditors()+"), 'auto' to detect, or 'none'")
 	harnessInitCmd.Flags().BoolVar(&harnessInitOpts.SDD, "sdd", false,
 		"enable Spec-Driven Development mode: features must be drafted as specs/<name>/* and approved before implementation")
+	harnessInitCmd.Flags().BoolVar(&harnessInitOpts.RequireApprovedReview, "require-approved-review", false,
+		"opt-in (Phase 19.C): block spec_ready → in_progress unless `korva harness review <id> --record` has an approved verdict on file")
 	harnessInitCmd.Flags().BoolVarP(&harnessInitOpts.Overwrite, "overwrite", "f", false, "replace existing harness files")
 
 	// shared transition flag — the ready command joins the start/done/block/reopen
