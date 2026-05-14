@@ -108,6 +108,13 @@ Key invariants:
   `/auth/oidc/*` request, not at boot. If the IdP is unreachable,
   `/healthz` still returns 200 and the Vault keeps serving the rest of
   its surface area.
+- **Constant-time rejection (Phase 17.C)**: every 4xx response from
+  `/auth/oidc/callback` is padded to a 100ms floor. The DB lookup
+  for the email in `team_members` is naturally slower than checking
+  a domain allowlist; without padding, a network observer could tell
+  "this email is invited (just not approved)" from "this email isn't
+  invited at all" by response latency. The padding flattens that
+  curve. Successful redirects (302) are not padded.
 
 ---
 

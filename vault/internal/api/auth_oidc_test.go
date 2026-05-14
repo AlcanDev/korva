@@ -516,6 +516,136 @@ func TestOIDCCallbackPropagatesVerifyError(t *testing.T) {
 	}
 }
 
+// Phase 17.C — the callback's 4xx responses are padded so a network
+// observer can't tell the failure reason from response latency.
+// This test exercises four distinct rejection paths and asserts
+// every one took at least oidcCallbackMinDuration.
+func TestOIDCCallbackRejectionsArePaddedToConstantMinimum(t *testing.T) {
+	env := newOIDCTestEnv(t)
+	state, _ := env.runLogin(t)
+
+	cases := []struct {
+		name  string
+		setup func()
+		req   func() *http.Request
+		want  int
+	}{
+		{
+			name: "bad state",
+			setup: func() {
+				env.verifier.claims = nil
+				env.verifier.exchErr = nil
+			},
+			req: func() *http.Request {
+				return httptest.NewRequest(http.MethodGet,
+					"/auth/oidc/callback?code=c&state=bad", nil)
+			},
+			want: http.StatusBadRequest,
+		},
+		{
+			name: "domain not allowlisted",
+			setup: func() {
+				env.cfg.AllowedDomains = []string{"acme.io"}
+				env.verifier.claims = &OIDCClaims{
+					Email: "alice@evil.org", EmailVerified: true,
+				}
+			},
+			req: func() *http.Request {
+				return httptest.NewRequest(http.MethodGet,
+					"/auth/oidc/callback?code=c&state="+state, nil)
+			},
+			want: http.StatusForbidden,
+		},
+		{
+			name: "unknown member",
+			setup: func() {
+				env.cfg.AllowedDomains = nil
+				env.verifier.claims = &OIDCClaims{
+					Email: "stranger@oidc.co", EmailVerified: true,
+				}
+			},
+			req: func() *http.Request {
+				return httptest.NewRequest(http.MethodGet,
+					"/auth/oidc/callback?code=c&state="+state, nil)
+			},
+			want: http.StatusForbidden,
+		},
+		{
+			name: "unverified email",
+			setup: func() {
+				env.verifier.claims = &OIDCClaims{
+					Email: env.email, EmailVerified: false,
+				}
+			},
+			req: func() *http.Request {
+				return httptest.NewRequest(http.MethodGet,
+					"/auth/oidc/callback?code=c&state="+state, nil)
+			},
+			want: http.StatusForbidden,
+		},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			tc.setup()
+			w := httptest.NewRecorder()
+			start := time.Now()
+			oidcCallbackHandler(env.store, env.cfg, env.verifier, env.signer).ServeHTTP(w, tc.req())
+			elapsed := time.Since(start)
+			if w.Code != tc.want {
+				t.Errorf("status = %d, want %d", w.Code, tc.want)
+			}
+			// Allow a small fudge below the constant — tests run on
+			// shared CI hardware and time.Sleep is approximate.
+			minWant := oidcCallbackMinDuration - 5*time.Millisecond
+			if elapsed < minWant {
+				t.Errorf("rejection took %s, want >= %s (constant-time padding broken)",
+					elapsed, minWant)
+			}
+		})
+	}
+}
+
+// Phase 17.C — 503 responses (operator misconfiguration) are NOT
+// padded. They reveal no user info and should fail fast so the
+// operator notices the misconfig.
+func TestOIDCCallback503IsFast(t *testing.T) {
+	env := newOIDCTestEnv(t)
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodGet, "/auth/oidc/callback?code=c&state=x", nil)
+	start := time.Now()
+	// nil verifier triggers the 503 branch.
+	oidcCallbackHandler(env.store, env.cfg, nil, env.signer).ServeHTTP(w, r)
+	elapsed := time.Since(start)
+	if w.Code != http.StatusServiceUnavailable {
+		t.Errorf("status = %d, want 503", w.Code)
+	}
+	// Generous upper bound — should be well under the 100ms padding.
+	if elapsed > 50*time.Millisecond {
+		t.Errorf("503 took %s; misconfig responses should not be padded", elapsed)
+	}
+}
+
+func TestPadToMinDuration(t *testing.T) {
+	t.Run("sleeps when elapsed < min", func(t *testing.T) {
+		start := time.Now()
+		padToMinDuration(start, 50*time.Millisecond)
+		elapsed := time.Since(start)
+		if elapsed < 45*time.Millisecond {
+			t.Errorf("elapsed=%s, want >= ~50ms", elapsed)
+		}
+	})
+	t.Run("no-op when elapsed > min", func(t *testing.T) {
+		start := time.Now().Add(-100 * time.Millisecond)
+		callStart := time.Now()
+		padToMinDuration(start, 50*time.Millisecond)
+		if d := time.Since(callStart); d > 10*time.Millisecond {
+			t.Errorf("should have returned immediately, took %s", d)
+		}
+	})
+}
+
 func TestMintSessionTokenHashesPlaintext(t *testing.T) {
 	plain, hash, err := mintSessionToken()
 	if err != nil {

@@ -59,6 +59,27 @@ import (
 // rejected at the callback step — typical IdP flows take seconds.
 const oidcStateTTL = 10 * time.Minute
 
+// oidcCallbackMinDuration is the floor for every error response out
+// of the callback. Phase 17.C — even if the underlying check (state
+// verify vs. domain reject vs. team_members SELECT) takes wildly
+// different real time, the response time is padded up to this
+// minimum so a network observer can't tell from latency whether the
+// email was already invited, just that the login failed.
+//
+// 100ms is well above typical SQLite read latency (low ms on warm
+// cache) and imperceptible to human users.
+const oidcCallbackMinDuration = 100 * time.Millisecond
+
+// padToMinDuration sleeps until `start + min` has elapsed. No-op
+// when the elapsed time already exceeds min. Cheap to call from
+// every error branch; keeps the timing-flattening logic in one
+// place.
+func padToMinDuration(start time.Time, min time.Duration) {
+	if d := min - time.Since(start); d > 0 {
+		time.Sleep(d)
+	}
+}
+
 // oidcLoginHandler starts the OAuth dance.
 //
 // Steps:
@@ -109,10 +130,26 @@ func oidcLoginHandler(_ *OIDCConfig, v OIDCVerifier, signer *signedOIDCState) ht
 //     pluck it from window.location.hash.
 //
 // All failure modes return 4xx with a clear hint so operators can
-// debug from logs without leaking IdP internals.
+// debug from logs without leaking IdP internals. Phase 17.C —
+// every 4xx response goes through `reject`, which pads the
+// response time to oidcCallbackMinDuration so the latency between
+// "domain not allowlisted" (fast) and "email not in team_members"
+// (DB lookup) becomes indistinguishable.
 func oidcCallbackHandler(s *store.Store, cfg *OIDCConfig, v OIDCVerifier, signer *signedOIDCState) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+		// reject is the single funnel for every 4xx out of this
+		// handler. It pads the response time up to a constant
+		// minimum so the rejection reason can't be inferred from
+		// latency.
+		reject := func(status int, msg string) {
+			padToMinDuration(start, oidcCallbackMinDuration)
+			writeError(w, status, msg)
+		}
+
 		if v == nil || cfg == nil || signer == nil {
+			// 503 — operator misconfiguration, not user enumeration;
+			// no padding needed.
 			writeError(w, http.StatusServiceUnavailable,
 				"OIDC is not configured on this vault")
 			return
@@ -123,7 +160,7 @@ func oidcCallbackHandler(s *store.Store, cfg *OIDCConfig, v OIDCVerifier, signer
 		// already user-facing strings.
 		if e := r.URL.Query().Get("error"); e != "" {
 			desc := r.URL.Query().Get("error_description")
-			writeError(w, http.StatusBadRequest,
+			reject(http.StatusBadRequest,
 				fmt.Sprintf("IdP returned error: %s — %s", e, desc))
 			return
 		}
@@ -131,7 +168,7 @@ func oidcCallbackHandler(s *store.Store, cfg *OIDCConfig, v OIDCVerifier, signer
 		stateParam := r.URL.Query().Get("state")
 		code := r.URL.Query().Get("code")
 		if stateParam == "" || code == "" {
-			writeError(w, http.StatusBadRequest,
+			reject(http.StatusBadRequest,
 				"missing state or code in callback — restart the login")
 			return
 		}
@@ -139,27 +176,27 @@ func oidcCallbackHandler(s *store.Store, cfg *OIDCConfig, v OIDCVerifier, signer
 		// Verify the state HMAC + TTL. A stateless check means
 		// concurrent tabs no longer fight over a single cookie value.
 		if _, err := signer.Verify(stateParam, oidcStateTTL); err != nil {
-			writeError(w, http.StatusBadRequest,
+			reject(http.StatusBadRequest,
 				"invalid state — possible CSRF or expired token, restart the login")
 			return
 		}
 
 		claims, err := v.ExchangeAndVerify(r.Context(), code)
 		if err != nil {
-			writeError(w, http.StatusUnauthorized, err.Error())
+			reject(http.StatusUnauthorized, err.Error())
 			return
 		}
 		if claims.Email == "" {
-			writeError(w, http.StatusBadRequest, "id_token has no email claim — check IdP scope settings")
+			reject(http.StatusBadRequest, "id_token has no email claim — check IdP scope settings")
 			return
 		}
 		if !claims.EmailVerified {
-			writeError(w, http.StatusForbidden, "email is not verified at the IdP — contact your admin")
+			reject(http.StatusForbidden, "email is not verified at the IdP — contact your admin")
 			return
 		}
 		email := strings.ToLower(strings.TrimSpace(claims.Email))
 		if !cfg.EmailDomainAllowed(email) {
-			writeError(w, http.StatusForbidden,
+			reject(http.StatusForbidden,
 				"email domain is not in KORVA_OIDC_ALLOWED_DOMAINS — contact your admin")
 			return
 		}
@@ -171,7 +208,7 @@ func oidcCallbackHandler(s *store.Store, cfg *OIDCConfig, v OIDCVerifier, signer
 			`SELECT id, team_id FROM team_members WHERE lower(email)=? LIMIT 1`,
 			email).Scan(&memberID, &teamID)
 		if err != nil {
-			writeError(w, http.StatusForbidden,
+			reject(http.StatusForbidden,
 				"no team membership found for this email — ask your admin to invite you first")
 			return
 		}
