@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.31.0](https://github.com/AlcanDev/korva/compare/v1.30.0...v1.31.0) (2026-05-14)
+
+
+### 🚀 Features
+
+* **phase-17:** OIDC hardenings — signed state, dead-code removal, constant-time reject ([#68](https://github.com/AlcanDev/korva/issues/68)) ([0124b8b](https://github.com/AlcanDev/korva/commit/0124b8beb8ecbfcd8d55903dc43d69fe570f294d))
+
 ## [1.30.0](https://github.com/AlcanDev/korva/compare/v1.29.0...v1.30.0) (2026-05-14)
 
 
