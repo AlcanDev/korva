@@ -605,8 +605,8 @@ func TestRunHarnessReview_JSONShape(t *testing.T) {
 	_ = initSDDHarnessForTest(t)
 	_ = captureStdout(t, func() error { return runHarnessSpec(nil, []string{"1"}) })
 
-	harnessReviewJSON = true
-	t.Cleanup(func() { harnessReviewJSON = false })
+	harnessReviewOpts = harnessReviewFlags{JSON: true}
+	t.Cleanup(func() { harnessReviewOpts = harnessReviewFlags{} })
 
 	out := captureStdout(t, func() error {
 		// Errors return non-nil but stdout has the JSON anyway.
@@ -632,6 +632,144 @@ func TestRunHarnessReview_RejectsBadID(t *testing.T) {
 	}
 	if err := runHarnessReview(nil, []string{"999"}); err == nil {
 		t.Error("expected not-found error")
+	}
+}
+
+// ──────────────────────── Phase 18.A — `harness review --record` ─────────────
+
+func TestRunHarnessReview_RecordPersistsApproveVerdict(t *testing.T) {
+	dir := initSDDHarnessForTest(t)
+	_ = captureStdout(t, func() error { return runHarnessSpec(nil, []string{"1"}) })
+
+	// Write a clean spec so the verdict derives to "approve".
+	specDir := filepath.Join(dir, "specs", "harness_smoke")
+	if err := os.WriteFile(filepath.Join(specDir, "requirements.md"), []byte(`# Requirements
+## R1
+WHEN init.sh runs THE SYSTEM SHALL exit 0.
+## R2
+WHEN feature_list.json loads THE SYSTEM SHALL validate.
+## R3
+WHEN the harness starts THE SYSTEM SHALL render progress/current.md.
+## R4
+WHEN the SDD harness initializes THE SYSTEM SHALL materialize the three spec files.
+
+## Traceability
+| acceptance | Covered by |
+|---|---|
+| `+"`./init.sh` exits with code 0"+` | R1 |
+| `+"`feature_list.json` validates"+` | R2 |
+| `+"`progress/current.md` exists"+` | R3 |
+| `+"`specs/harness_smoke/{requirements,design,tasks}.md` exist"+` | R4 |
+`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(specDir, "tasks.md"), []byte(`# Tasks
+- [x] T1 — init.sh exits 0 *(Covers: R1)*
+- [x] T2 — feature_list validates *(Covers: R2)*
+- [x] T3 — progress exists *(Covers: R3)*
+- [x] T4 — specs materialized *(Covers: R4)*
+`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Promote pending → spec_ready so the assertion below pins
+	// "review doesn't mutate state" against the realistic state.
+	_ = captureStdout(t, func() error { return runHarnessReady(harnessReadyCmd, []string{"1"}) })
+
+	harnessReviewOpts = harnessReviewFlags{Record: true, Reviewer: "alice"}
+	t.Cleanup(func() { harnessReviewOpts = harnessReviewFlags{} })
+
+	out := captureStdout(t, func() error { return runHarnessReview(nil, []string{"1"}) })
+	if !strings.Contains(out, "Recorded verdict: approve") {
+		t.Errorf("output missing recorded-verdict hint:\n%s", out)
+	}
+
+	fl, err := harness.LoadFeatureList(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rv := fl.Features[0].Review
+	if rv == nil {
+		t.Fatal("Review not persisted")
+	}
+	if rv.Verdict != harness.VerdictApprove {
+		t.Errorf("verdict = %q, want approve", rv.Verdict)
+	}
+	if rv.Reviewer != "alice" {
+		t.Errorf("reviewer = %q, want alice", rv.Reviewer)
+	}
+	if rv.IssueCount != 0 || rv.ErrorCount != 0 {
+		t.Errorf("counts wrong: %+v", rv)
+	}
+	// Status must NOT change (state machine retains authority).
+	if fl.Features[0].Status != harness.StatusSpecReady {
+		t.Errorf("recording approve should not change status, got %q", fl.Features[0].Status)
+	}
+}
+
+func TestRunHarnessReview_RecordOnFailingSpecStillExitsZero(t *testing.T) {
+	// Without --record, a failing spec exits non-zero (CI gate). With
+	// --record the reviewer is taking responsibility, so we record the
+	// "reject" verdict and exit 0 so the operator's "review and
+	// record" script doesn't trip CI.
+	_ = initSDDHarnessForTest(t)
+	_ = captureStdout(t, func() error { return runHarnessSpec(nil, []string{"1"}) })
+
+	harnessReviewOpts = harnessReviewFlags{Record: true}
+	t.Cleanup(func() { harnessReviewOpts = harnessReviewFlags{} })
+
+	out := captureStdout(t, func() error { return runHarnessReview(nil, []string{"1"}) })
+	if !strings.Contains(out, "Recorded verdict: reject") {
+		t.Errorf("failing spec should record reject, got:\n%s", out)
+	}
+}
+
+func TestRunHarnessReview_VerdictOverrideTakesPrecedence(t *testing.T) {
+	_ = initSDDHarnessForTest(t)
+	_ = captureStdout(t, func() error { return runHarnessSpec(nil, []string{"1"}) })
+
+	// Fresh scaffold has errors → derived verdict = reject. Override
+	// it to needs_fixes (e.g. a reviewer judged the issues fixable).
+	harnessReviewOpts = harnessReviewFlags{Record: true, Verdict: "needs_fixes", Note: "stub commit-back"}
+	t.Cleanup(func() { harnessReviewOpts = harnessReviewFlags{} })
+
+	out := captureStdout(t, func() error { return runHarnessReview(nil, []string{"1"}) })
+	if !strings.Contains(out, "Recorded verdict: needs_fixes") {
+		t.Errorf("override failed: %s", out)
+	}
+	fl, _ := harness.LoadFeatureList(".")
+	if fl.Features[0].Review.Note != "stub commit-back" {
+		t.Errorf("note not persisted: %q", fl.Features[0].Review.Note)
+	}
+}
+
+func TestRunHarnessReview_RecordRejectsUnknownVerdict(t *testing.T) {
+	_ = initSDDHarnessForTest(t)
+	_ = captureStdout(t, func() error { return runHarnessSpec(nil, []string{"1"}) })
+
+	harnessReviewOpts = harnessReviewFlags{Record: true, Verdict: "lgtm"}
+	t.Cleanup(func() { harnessReviewOpts = harnessReviewFlags{} })
+
+	err := runHarnessReview(nil, []string{"1"})
+	if err == nil || !strings.Contains(err.Error(), "unknown verdict") {
+		t.Errorf("expected unknown-verdict error, got %v", err)
+	}
+}
+
+func TestRunHarnessReview_RecordReviewerFallsBackToAgent(t *testing.T) {
+	_ = initSDDHarnessForTest(t)
+	_ = captureStdout(t, func() error { return runHarnessSpec(nil, []string{"1"}) })
+
+	t.Setenv("KORVA_AGENT", "claude-reviewer-agent")
+	harnessReviewOpts = harnessReviewFlags{Record: true}
+	t.Cleanup(func() { harnessReviewOpts = harnessReviewFlags{} })
+
+	_ = captureStdout(t, func() error { return runHarnessReview(nil, []string{"1"}) })
+
+	fl, _ := harness.LoadFeatureList(".")
+	if fl.Features[0].Review.Reviewer != "claude-reviewer-agent" {
+		t.Errorf("expected reviewer to fall back to $KORVA_AGENT, got %q",
+			fl.Features[0].Review.Reviewer)
 	}
 }
 

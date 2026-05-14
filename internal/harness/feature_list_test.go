@@ -7,6 +7,140 @@ import (
 	"testing"
 )
 
+// ─────────────────────────── Phase 18.A — review decisions ───────────────────
+
+func TestRecordReview_AttachesDecision(t *testing.T) {
+	fl := &FeatureList{
+		Project: "x", Rules: DefaultRules(),
+		Features: []Feature{
+			{ID: 1, Name: "a", Status: StatusSpecReady, SDD: true},
+		},
+	}
+	dec := ReviewDecision{Verdict: VerdictApprove, At: "2026-05-14T10:00:00Z", IssueCount: 0, ErrorCount: 0}
+	if err := fl.RecordReview(1, dec); err != nil {
+		t.Fatalf("RecordReview: %v", err)
+	}
+	got := fl.Features[0].Review
+	if got == nil {
+		t.Fatal("Review nil after record")
+	}
+	if got.Verdict != VerdictApprove {
+		t.Errorf("verdict = %q", got.Verdict)
+	}
+	if got.At != "2026-05-14T10:00:00Z" {
+		t.Errorf("at = %q", got.At)
+	}
+}
+
+func TestRecordReview_OverwritesPrevious(t *testing.T) {
+	fl := &FeatureList{
+		Project: "x", Rules: DefaultRules(),
+		Features: []Feature{
+			{ID: 1, Name: "a", Status: StatusSpecReady, SDD: true,
+				Review: &ReviewDecision{Verdict: VerdictReject, At: "2026-05-13T10:00:00Z"}},
+		},
+	}
+	newDec := ReviewDecision{Verdict: VerdictApprove, At: "2026-05-14T10:00:00Z"}
+	if err := fl.RecordReview(1, newDec); err != nil {
+		t.Fatal(err)
+	}
+	if fl.Features[0].Review.Verdict != VerdictApprove {
+		t.Errorf("overwrite failed: %+v", fl.Features[0].Review)
+	}
+	if fl.Features[0].Review.At != "2026-05-14T10:00:00Z" {
+		t.Errorf("timestamp not updated: %+v", fl.Features[0].Review)
+	}
+}
+
+func TestRecordReview_RejectsUnknownVerdict(t *testing.T) {
+	fl := &FeatureList{
+		Project: "x", Rules: DefaultRules(),
+		Features: []Feature{{ID: 1, Name: "a", Status: StatusPending}},
+	}
+	if err := fl.RecordReview(1, ReviewDecision{Verdict: "lgtm", At: "now"}); err == nil {
+		t.Error("expected error for unknown verdict")
+	}
+}
+
+func TestRecordReview_RejectsMissingTimestamp(t *testing.T) {
+	fl := &FeatureList{
+		Project: "x", Rules: DefaultRules(),
+		Features: []Feature{{ID: 1, Name: "a", Status: StatusPending}},
+	}
+	if err := fl.RecordReview(1, ReviewDecision{Verdict: VerdictApprove}); err == nil {
+		t.Error("expected error for missing At")
+	}
+}
+
+func TestRecordReview_RejectsUnknownID(t *testing.T) {
+	fl := &FeatureList{
+		Project: "x", Rules: DefaultRules(),
+		Features: []Feature{{ID: 1, Name: "a", Status: StatusPending}},
+	}
+	err := fl.RecordReview(99, ReviewDecision{Verdict: VerdictApprove, At: "2026-05-14T10:00:00Z"})
+	if err == nil {
+		t.Error("expected error for unknown id")
+	}
+}
+
+func TestRecordReview_DoesNotMutateState(t *testing.T) {
+	// 18.A invariant: recording a review never changes the feature's
+	// status — the state machine retains full authority.
+	fl := &FeatureList{
+		Project: "x", Rules: SDDRules(),
+		Features: []Feature{{ID: 1, Name: "a", Status: StatusSpecReady, SDD: true}},
+	}
+	if err := fl.RecordReview(1, ReviewDecision{Verdict: VerdictApprove, At: "2026-05-14T10:00:00Z"}); err != nil {
+		t.Fatal(err)
+	}
+	if fl.Features[0].Status != StatusSpecReady {
+		t.Errorf("status changed after approve: %q", fl.Features[0].Status)
+	}
+}
+
+func TestIsKnownReviewVerdict(t *testing.T) {
+	for _, v := range ValidReviewVerdicts {
+		if !IsKnownReviewVerdict(v) {
+			t.Errorf("IsKnownReviewVerdict(%q) = false", v)
+		}
+	}
+	if IsKnownReviewVerdict("lgtm") {
+		t.Error("unknown verdict accepted")
+	}
+}
+
+func TestSaveAndLoadRoundtrip_PreservesReviewDecision(t *testing.T) {
+	dir := t.TempDir()
+	fl := &FeatureList{
+		Project: "x", Rules: SDDRules(),
+		Features: []Feature{
+			{
+				ID: 1, Name: "a", Status: StatusSpecReady, SDD: true,
+				Review: &ReviewDecision{
+					Verdict: VerdictNeedsFixes, Reviewer: "alice@acme.io",
+					At: "2026-05-14T10:00:00Z", IssueCount: 3, ErrorCount: 0,
+					Note: "designs section thin on retry semantics",
+				},
+			},
+		},
+	}
+	if err := SaveFeatureList(dir, fl); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+	loaded, err := LoadFeatureList(dir)
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	got := loaded.Features[0].Review
+	if got == nil {
+		t.Fatal("Review dropped on roundtrip")
+	}
+	if got.Verdict != VerdictNeedsFixes || got.Reviewer != "alice@acme.io" ||
+		got.IssueCount != 3 || got.Note != "designs section thin on retry semantics" {
+		t.Errorf("review roundtrip mangled: %+v", got)
+	}
+}
+
 func TestValidate_RejectsDuplicateIDs(t *testing.T) {
 	fl := &FeatureList{
 		Project: "x",

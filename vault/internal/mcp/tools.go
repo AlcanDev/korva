@@ -668,12 +668,19 @@ func tools() []Tool {
 		{
 			Name: "vault_harness_spec_review",
 			Description: "Lint an SDD feature's spec — EARS validity in requirements.md, R-id coverage by tasks.md, traceability of feature_list acceptance bullets to R-ids. " +
-				"Read-only. Available under every profile. The reviewer subagent gates on `ok: true` before approving a transition to in_progress.",
+				"Read-only by default. " +
+				"Phase 18.A: pass record=true to persist the verdict to feature_list.json under the feature's `review` field. " +
+				"The verdict defaults to: clean→approve, warnings→needs_fixes, errors→reject; override with `verdict`. " +
+				"Recording NEVER changes the feature's status — the state machine retains authority.",
 			InputSchema: Schema{
 				Type: "object",
 				Properties: map[string]Property{
-					"root": {Type: "string", Description: "Target directory (defaults to $KORVA_HARNESS_ROOT or CWD)"},
-					"id":   {Type: "number", Description: "Feature id"},
+					"root":     {Type: "string", Description: "Target directory (defaults to $KORVA_HARNESS_ROOT or CWD)"},
+					"id":       {Type: "number", Description: "Feature id"},
+					"record":   {Type: "boolean", Description: "Persist the verdict to feature_list.json (Phase 18.A)"},
+					"verdict":  {Type: "string", Description: "Override the derived verdict (requires record=true)", Enum: []string{"approve", "needs_fixes", "reject"}},
+					"reviewer": {Type: "string", Description: "Identifier recorded with the verdict (defaults to \"mcp\")"},
+					"note":     {Type: "string", Description: "Optional one-line note shown in the dashboard"},
 				},
 				Required: []string{"id"},
 			},

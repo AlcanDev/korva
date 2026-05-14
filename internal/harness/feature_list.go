@@ -56,16 +56,67 @@ var ValidStatuses = []FeatureStatus{StatusPending, StatusSpecReady, StatusInProg
 // drafts specs/<name>/{requirements,design,tasks}.md before the
 // implementer is allowed to touch code. A human approves the spec by
 // transitioning the feature to in_progress.
+//
+// Phase 18.A — `Review` is set when a reviewer (human or agent) runs
+// `korva harness review <id> --record` against the spec. The
+// state-machine does NOT gate `start` on a passing review (operator
+// keeps discretion), but the dashboard and the reviewer subagent
+// surface it.
 type Feature struct {
-	ID          int           `json:"id"`
-	Name        string        `json:"name"`
-	Title       string        `json:"title"`
-	Description string        `json:"description,omitempty"`
-	Acceptance  []string      `json:"acceptance,omitempty"`
-	Status      FeatureStatus `json:"status"`
-	SDD         bool          `json:"sdd,omitempty"`         // spec-driven feature?
-	OwnerAgent  string        `json:"owner_agent,omitempty"` // who claimed it
-	UpdatedAt   string        `json:"updated_at,omitempty"`  // ISO 8601 — set on every state change
+	ID          int             `json:"id"`
+	Name        string          `json:"name"`
+	Title       string          `json:"title"`
+	Description string          `json:"description,omitempty"`
+	Acceptance  []string        `json:"acceptance,omitempty"`
+	Status      FeatureStatus   `json:"status"`
+	SDD         bool            `json:"sdd,omitempty"`         // spec-driven feature?
+	OwnerAgent  string          `json:"owner_agent,omitempty"` // who claimed it
+	UpdatedAt   string          `json:"updated_at,omitempty"`  // ISO 8601 — set on every state change
+	Review      *ReviewDecision `json:"review,omitempty"`      // last persisted review verdict (Phase 18.A)
+}
+
+// ReviewVerdict is the high-level outcome a reviewer attaches to a
+// spec. Three values keep the contract simple — the issue list still
+// carries the granular detail.
+type ReviewVerdict string
+
+const (
+	// VerdictApprove — the spec passed the linter with no
+	// error-severity issues (warnings allowed). A human/reviewer-agent
+	// can transition the feature to in_progress with confidence.
+	VerdictApprove ReviewVerdict = "approve"
+	// VerdictNeedsFixes — the linter surfaced warnings the reviewer
+	// considers fixable but not blocking. The author should iterate
+	// before approval.
+	VerdictNeedsFixes ReviewVerdict = "needs_fixes"
+	// VerdictReject — the linter surfaced error-severity issues OR
+	// the reviewer judged the spec unfit. The author must rewrite.
+	VerdictReject ReviewVerdict = "reject"
+)
+
+// ValidReviewVerdicts is the canonical list (also used by the CLI
+// argument validator).
+var ValidReviewVerdicts = []ReviewVerdict{VerdictApprove, VerdictNeedsFixes, VerdictReject}
+
+// IsKnownReviewVerdict reports whether s is one of the recognized
+// verdict strings.
+func IsKnownReviewVerdict(s ReviewVerdict) bool {
+	return slices.Contains(ValidReviewVerdicts, s)
+}
+
+// ReviewDecision is the persisted record of a single review pass.
+// Stored under Feature.Review; only the most-recent decision is kept
+// (re-running review overwrites). The transition log captures the
+// historical audit trail.
+type ReviewDecision struct {
+	Verdict    ReviewVerdict `json:"verdict"`
+	Reviewer   string        `json:"reviewer,omitempty"` // free-form (e.g. "alice@acme.io" or "claude-reviewer")
+	At         string        `json:"at"`                 // RFC3339
+	IssueCount int           `json:"issue_count"`
+	ErrorCount int           `json:"error_count"`
+	// Note is an optional one-line summary for the dashboard; the
+	// full report lives in the linter output, not here.
+	Note string `json:"note,omitempty"`
 }
 
 // FeatureList is the wire shape of feature_list.json.
@@ -245,6 +296,32 @@ func (fl *FeatureList) FindByID(id int) *Feature {
 			return &fl.Features[i]
 		}
 	}
+	return nil
+}
+
+// RecordReview attaches a review decision to a feature. Only the
+// most recent decision is kept; the full audit trail lives in the
+// transition log (Vault-side, Phase 14.2). Returns an error when the
+// id is unknown or the verdict isn't recognized.
+//
+// Phase 18.A. The state machine does NOT consult the decision —
+// approve doesn't auto-promote, reject doesn't lock the feature. The
+// operator keeps discretion; the verdict is informational signal
+// surfaced in the dashboard and consumed by the reviewer subagent
+// prompt.
+func (fl *FeatureList) RecordReview(id int, decision ReviewDecision) error {
+	if !IsKnownReviewVerdict(decision.Verdict) {
+		return fmt.Errorf("unknown review verdict %q (want one of: approve, needs_fixes, reject)", decision.Verdict)
+	}
+	if strings.TrimSpace(decision.At) == "" {
+		return fmt.Errorf("review decision requires `at` (RFC3339 timestamp)")
+	}
+	f := fl.FindByID(id)
+	if f == nil {
+		return fmt.Errorf("feature %d not found", id)
+	}
+	cp := decision
+	f.Review = &cp
 	return nil
 }
 

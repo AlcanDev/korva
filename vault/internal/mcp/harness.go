@@ -431,6 +431,12 @@ func (s *Server) toolHarnessCheck(args map[string]any) (any, error) {
 // coverage + traceability) and returns the structured report. The
 // reviewer subagent gates on `ok: true` before approving a feature
 // for transition to in_progress.
+//
+// Phase 18.A — optional `record` arg persists the verdict to
+// feature_list.json under the feature's `review` field. `verdict`
+// overrides the derived outcome; `reviewer` and `note` are
+// free-form metadata. The state machine never auto-transitions on
+// the verdict — recording is purely informational.
 
 func (s *Server) toolHarnessSpecReview(args map[string]any) (any, error) {
 	root := resolveHarnessRoot(args)
@@ -442,7 +448,45 @@ func (s *Server) toolHarnessSpecReview(args map[string]any) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	return report, nil
+	if !boolArg(args, "record") {
+		return report, nil
+	}
+
+	// Record path — derive the verdict, optionally overridden, and
+	// persist. Return the report plus the recorded decision so the
+	// caller doesn't need a second round-trip.
+	verdict := report.Verdict()
+	if override := strings.TrimSpace(stringArg(args, "verdict")); override != "" {
+		v := harness.ReviewVerdict(strings.ToLower(override))
+		if !harness.IsKnownReviewVerdict(v) {
+			return nil, fmt.Errorf("unknown verdict %q — pick approve | needs_fixes | reject", override)
+		}
+		verdict = v
+	}
+	reviewer := strings.TrimSpace(stringArg(args, "reviewer"))
+	if reviewer == "" {
+		reviewer = "mcp"
+	}
+	errs, _ := report.CountBySeverity()
+	dec := harness.ReviewDecision{
+		Verdict:    verdict,
+		Reviewer:   reviewer,
+		At:         time.Now().UTC().Format(time.RFC3339),
+		IssueCount: len(report.Issues),
+		ErrorCount: errs,
+		Note:       strings.TrimSpace(stringArg(args, "note")),
+	}
+	fl, err := harness.LoadFeatureList(root)
+	if err != nil {
+		return nil, err
+	}
+	if err := fl.RecordReview(id, dec); err != nil {
+		return nil, err
+	}
+	if err := harness.SaveFeatureList(root, fl); err != nil {
+		return nil, err
+	}
+	return map[string]any{"report": report, "decision": dec}, nil
 }
 
 // ── vault_harness_ci_install ─────────────────────────────────────────────────
