@@ -883,11 +883,11 @@ func TestRunHarnessDetect_TextEnumeratesHitsAndFiles(t *testing.T) {
 	out := captureStdout(t, func() error { return runHarnessDetect(nil, nil) })
 	for _, want := range []string{
 		"aider", "codex",
-		".aider.conf.yml",     // marker for aider
-		".codex",              // marker for codex
-		".codex/config.toml",  // would-install path for codex
-		"AGENTS.md",           // common layer always listed
-		"feature_list.json",   // generated seed
+		".aider.conf.yml",    // marker for aider
+		".codex",             // marker for codex
+		".codex/config.toml", // would-install path for codex
+		"AGENTS.md",          // common layer always listed
+		"feature_list.json",  // generated seed
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("output missing %q:\n%s", want, out)
