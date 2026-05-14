@@ -67,6 +67,112 @@ func TestIngestInteraction_HappyPath(t *testing.T) {
 	}
 }
 
+// ───────────────────────── Phase 18.C — editor telemetry header ─────────────
+
+func TestIngestInteraction_RecordsEditorHeader(t *testing.T) {
+	s := newAPITestStore(t)
+	h := ingestInteraction(s)
+
+	body := `{"project":"p","agent":"a","model":"m","prompt":"x","response":"y","duration_ms":1}`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/interactions", strings.NewReader(body))
+	req.Header.Set("X-Korva-Editor", "cursor")
+	rec := httptest.NewRecorder()
+	h(rec, req)
+
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	var resp struct {
+		ID string `json:"id"`
+	}
+	_ = json.Unmarshal(rec.Body.Bytes(), &resp)
+	got, _ := s.GetInteraction(resp.ID)
+	if got == nil {
+		t.Fatal("not stored")
+	}
+	if got.Editor != "cursor" {
+		t.Errorf("editor = %q, want cursor", got.Editor)
+	}
+}
+
+func TestIngestInteraction_NormalizesEditorCase(t *testing.T) {
+	s := newAPITestStore(t)
+	h := ingestInteraction(s)
+
+	body := `{"project":"p","agent":"a","model":"m","prompt":"x","response":"y","duration_ms":1}`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/interactions", strings.NewReader(body))
+	req.Header.Set("X-Korva-Editor", "  CURSOR  ")
+	rec := httptest.NewRecorder()
+	h(rec, req)
+
+	var resp struct{ ID string }
+	_ = json.Unmarshal(rec.Body.Bytes(), &resp)
+	got, _ := s.GetInteraction(resp.ID)
+	if got.Editor != "cursor" {
+		t.Errorf("editor = %q, want lowercased+trimmed", got.Editor)
+	}
+}
+
+func TestIngestInteraction_RejectsUnknownEditor(t *testing.T) {
+	s := newAPITestStore(t)
+	h := ingestInteraction(s)
+
+	// "neovim" isn't in harness.AllEditors → header should be ignored
+	// (empty string stored). We do NOT 400 — being strict here would
+	// break ingest for future editors that haven't been added yet.
+	body := `{"project":"p","agent":"a","model":"m","prompt":"x","response":"y","duration_ms":1}`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/interactions", strings.NewReader(body))
+	req.Header.Set("X-Korva-Editor", "neovim")
+	rec := httptest.NewRecorder()
+	h(rec, req)
+
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("status = %d", rec.Code)
+	}
+	var resp struct{ ID string }
+	_ = json.Unmarshal(rec.Body.Bytes(), &resp)
+	got, _ := s.GetInteraction(resp.ID)
+	if got.Editor != "" {
+		t.Errorf("editor = %q, want empty (unknown should be ignored)", got.Editor)
+	}
+}
+
+func TestIngestInteraction_OmittedEditorIsAnonymous(t *testing.T) {
+	s := newAPITestStore(t)
+	h := ingestInteraction(s)
+
+	body := `{"project":"p","agent":"a","model":"m","prompt":"x","response":"y","duration_ms":1}`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/interactions", strings.NewReader(body))
+	rec := httptest.NewRecorder()
+	h(rec, req)
+
+	var resp struct{ ID string }
+	_ = json.Unmarshal(rec.Body.Bytes(), &resp)
+	got, _ := s.GetInteraction(resp.ID)
+	if got.Editor != "" {
+		t.Errorf("editor = %q, want empty when header absent", got.Editor)
+	}
+}
+
+func TestIngestInteraction_DisabledEnvIgnoresHeader(t *testing.T) {
+	t.Setenv(editorTelemetryDisabledEnv, "1")
+	s := newAPITestStore(t)
+	h := ingestInteraction(s)
+
+	body := `{"project":"p","agent":"a","model":"m","prompt":"x","response":"y","duration_ms":1}`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/interactions", strings.NewReader(body))
+	req.Header.Set("X-Korva-Editor", "cursor")
+	rec := httptest.NewRecorder()
+	h(rec, req)
+
+	var resp struct{ ID string }
+	_ = json.Unmarshal(rec.Body.Bytes(), &resp)
+	got, _ := s.GetInteraction(resp.ID)
+	if got.Editor != "" {
+		t.Errorf("editor = %q, want empty when telemetry is disabled", got.Editor)
+	}
+}
+
 func TestIngestInteraction_RequiresProjectAndAgent(t *testing.T) {
 	s := newAPITestStore(t)
 	h := ingestInteraction(s)

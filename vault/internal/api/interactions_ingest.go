@@ -3,9 +3,43 @@ package api
 import (
 	"encoding/json"
 	"net/http"
+	"os"
+	"strings"
 
+	"github.com/alcandev/korva/internal/harness"
 	"github.com/alcandev/korva/vault/internal/store"
 )
+
+// editorHeader is the opt-in HTTP header any caller can set to
+// identify which AI editor produced the interaction. The Beacon
+// dashboard aggregates over it (Phase 18.C). Reading from header
+// instead of request body keeps the JSON wire shape unchanged for
+// existing clients.
+const editorHeader = "X-Korva-Editor"
+
+// editorTelemetryDisabledEnv is the operator escape hatch: when set
+// to "1" the vault ignores the header and stores empty strings, so a
+// self-host can opt out of the adoption signal without per-editor
+// config changes.
+const editorTelemetryDisabledEnv = "KORVA_EDITOR_TELEMETRY_DISABLE"
+
+// resolveEditorHeader reads and validates the X-Korva-Editor value.
+// Unknown editor ids are treated as if no header had been sent — we
+// don't want a typo to land arbitrary strings in the analytics
+// store. Empty string is the "did not identify" sentinel.
+func resolveEditorHeader(r *http.Request) string {
+	if os.Getenv(editorTelemetryDisabledEnv) == "1" {
+		return ""
+	}
+	raw := strings.ToLower(strings.TrimSpace(r.Header.Get(editorHeader)))
+	if raw == "" {
+		return ""
+	}
+	if !harness.IsKnownEditor(harness.Editor(raw)) {
+		return ""
+	}
+	return raw
+}
 
 // ingestInteractionRequest is the wire shape for POST /api/v1/interactions.
 //
@@ -59,6 +93,7 @@ func ingestInteraction(s *store.Store) http.HandlerFunc {
 			Project:         req.Project,
 			Team:            req.Team,
 			Agent:           req.Agent,
+			Editor:          resolveEditorHeader(r),
 			Model:           req.Model,
 			PromptExcerpt:   req.Prompt,
 			ResponseExcerpt: req.Response,

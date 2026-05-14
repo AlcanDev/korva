@@ -20,12 +20,16 @@ const excerptMaxBytes = 8 * 1024
 const estimatedTokensDivisor = 4
 
 // Interaction is one prompt round-trip recorded for Observatory analytics.
+// Phase 18.C — `Editor` is the optional X-Korva-Editor opt-in tag that
+// drives the Beacon adoption widget. Empty when the caller did not
+// identify itself; otherwise one of harness.AllEditors.
 type Interaction struct {
 	ID              string          `json:"id"`
 	SessionID       string          `json:"session_id,omitempty"`
 	Project         string          `json:"project"`
 	Team            string          `json:"team,omitempty"`
 	Agent           string          `json:"agent"`
+	Editor          string          `json:"editor,omitempty"`
 	Model           string          `json:"model"`
 	PromptExcerpt   string          `json:"prompt_excerpt"`
 	ResponseExcerpt string          `json:"response_excerpt,omitempty"`
@@ -46,6 +50,7 @@ type InteractionFilters struct {
 	Project string
 	Model   string
 	Agent   string
+	Editor  string // Phase 18.C — filter by harness editor id
 	Status  string
 	Query   string // FTS5 query against prompt_excerpt + response_excerpt
 	Since   time.Time
@@ -114,13 +119,13 @@ func (s *Store) SaveInteraction(in Interaction) (string, error) {
 
 	_, err := s.db.Exec(
 		`INSERT INTO interactions (
-			id, session_id, project, team, agent, model,
+			id, session_id, project, team, agent, editor, model,
 			prompt_excerpt, response_excerpt,
 			input_tokens, output_tokens, cache_read, cache_creation,
 			duration_ms, tool_calls, status, error_msg, estimated,
 			created_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		in.ID, nullableString(in.SessionID), in.Project, in.Team, in.Agent, in.Model,
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		in.ID, nullableString(in.SessionID), in.Project, in.Team, in.Agent, in.Editor, in.Model,
 		in.PromptExcerpt, in.ResponseExcerpt,
 		in.InputTokens, in.OutputTokens, in.CacheRead, in.CacheCreation,
 		in.DurationMs, string(toolCallsBytes), in.Status, in.ErrorMsg, estimatedFlag,
@@ -135,7 +140,7 @@ func (s *Store) SaveInteraction(in Interaction) (string, error) {
 // GetInteraction returns one interaction by ID, or nil if not found.
 func (s *Store) GetInteraction(id string) (*Interaction, error) {
 	row := s.db.QueryRow(
-		`SELECT id, COALESCE(session_id,''), project, team, agent, model,
+		`SELECT id, COALESCE(session_id,''), project, team, agent, editor, model,
 		        prompt_excerpt, response_excerpt,
 		        input_tokens, output_tokens, cache_read, cache_creation,
 		        duration_ms, tool_calls, status, error_msg, estimated,
@@ -167,7 +172,7 @@ func (s *Store) ListInteractions(f InteractionFilters) ([]Interaction, error) {
 	)
 
 	if strings.TrimSpace(f.Query) != "" {
-		query.WriteString(`SELECT i.id, COALESCE(i.session_id,''), i.project, i.team, i.agent, i.model,
+		query.WriteString(`SELECT i.id, COALESCE(i.session_id,''), i.project, i.team, i.agent, i.editor, i.model,
 		                          i.prompt_excerpt, i.response_excerpt,
 		                          i.input_tokens, i.output_tokens, i.cache_read, i.cache_creation,
 		                          i.duration_ms, i.tool_calls, i.status, i.error_msg, i.estimated,
@@ -177,7 +182,7 @@ func (s *Store) ListInteractions(f InteractionFilters) ([]Interaction, error) {
 		                    WHERE interactions_fts MATCH ?`)
 		args = append(args, f.Query)
 	} else {
-		query.WriteString(`SELECT id, COALESCE(session_id,''), project, team, agent, model,
+		query.WriteString(`SELECT id, COALESCE(session_id,''), project, team, agent, editor, model,
 		                          prompt_excerpt, response_excerpt,
 		                          input_tokens, output_tokens, cache_read, cache_creation,
 		                          duration_ms, tool_calls, status, error_msg, estimated,
@@ -196,6 +201,10 @@ func (s *Store) ListInteractions(f InteractionFilters) ([]Interaction, error) {
 	if f.Agent != "" {
 		query.WriteString(" AND agent = ?")
 		args = append(args, f.Agent)
+	}
+	if f.Editor != "" {
+		query.WriteString(" AND editor = ?")
+		args = append(args, f.Editor)
 	}
 	if f.Status != "" {
 		query.WriteString(" AND status = ?")
@@ -254,6 +263,10 @@ func (s *Store) CountInteractions(f InteractionFilters) (int, error) {
 	if f.Agent != "" {
 		query.WriteString(" AND agent = ?")
 		args = append(args, f.Agent)
+	}
+	if f.Editor != "" {
+		query.WriteString(" AND editor = ?")
+		args = append(args, f.Editor)
 	}
 	if f.Status != "" {
 		query.WriteString(" AND status = ?")
@@ -449,7 +462,7 @@ func scanInteraction(scan func(...any) error) (*Interaction, error) {
 		estimated int
 	)
 	err := scan(
-		&in.ID, &in.SessionID, &in.Project, &in.Team, &in.Agent, &in.Model,
+		&in.ID, &in.SessionID, &in.Project, &in.Team, &in.Agent, &in.Editor, &in.Model,
 		&in.PromptExcerpt, &in.ResponseExcerpt,
 		&in.InputTokens, &in.OutputTokens, &in.CacheRead, &in.CacheCreation,
 		&in.DurationMs, &toolCalls, &in.Status, &in.ErrorMsg, &estimated,
@@ -462,6 +475,58 @@ func scanInteraction(scan func(...any) error) (*Interaction, error) {
 	in.Estimated = estimated == 1
 	in.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", createdAt)
 	return &in, nil
+}
+
+// EditorAdoptionRow is one row of the Phase 18.C adoption aggregation:
+// editor id + count of interactions in the requested window. Rows with
+// `Editor == ""` represent interactions that did not opt in to the
+// telemetry header.
+type EditorAdoptionRow struct {
+	Editor string `json:"editor"`
+	Count  int    `json:"count"`
+}
+
+// EditorAdoption returns one row per distinct editor (including the
+// empty-string anonymous bucket) over the last `since` window.
+// Ordered by descending count; small enough to return verbatim.
+//
+// Drives the Beacon "Editor adoption" widget.
+func (s *Store) EditorAdoption(since time.Time) ([]EditorAdoptionRow, error) {
+	var sinceStr string
+	if !since.IsZero() {
+		sinceStr = since.UTC().Format("2006-01-02 15:04:05")
+	}
+	var (
+		rows *sql.Rows
+		err  error
+	)
+	if sinceStr != "" {
+		rows, err = s.db.Query(`
+			SELECT editor, COUNT(*) AS n
+			  FROM interactions
+			 WHERE created_at >= ?
+			 GROUP BY editor
+			 ORDER BY n DESC, editor ASC`, sinceStr)
+	} else {
+		rows, err = s.db.Query(`
+			SELECT editor, COUNT(*) AS n
+			  FROM interactions
+			 GROUP BY editor
+			 ORDER BY n DESC, editor ASC`)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("editor adoption: %w", err)
+	}
+	defer rows.Close()
+	var out []EditorAdoptionRow
+	for rows.Next() {
+		var r EditorAdoptionRow
+		if err := rows.Scan(&r.Editor, &r.Count); err != nil {
+			return nil, err
+		}
+		out = append(out, r)
+	}
+	return out, rows.Err()
 }
 
 func nullableString(v string) any {
