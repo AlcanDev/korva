@@ -2,7 +2,7 @@
 
 > Every Korva command, every flag, with examples.
 
-*Last updated: 2026-04-30*
+*Last updated: 2026-05-15*
 
 ---
 
@@ -230,6 +230,20 @@ korva license refresh                         # force a heartbeat now
 ```
 
 The license is RS256-signed JWS. Verification happens locally — no network round-trip required for normal use. Heartbeat is a soft check that runs every 24h.
+
+---
+
+## `korva connect` (Teams)
+
+Connect this workstation to an organization's Korva Teams portal. Stores the portal endpoint and authenticates with the provided license key. Once connected, the vault pulls shared skills, private scrolls, and team analytics from the portal on each sync.
+
+```bash
+korva connect https://portal.korva.dev K0RVA-XXXX-XXXX-XXXX-XXXX   # connect
+korva connect --status                                               # show connection state
+korva connect --disconnect                                           # remove connection
+```
+
+The portal URL and authentication token are stored in `~/.korva/connect.json` (mode `0600`). Disconnect removes the file but leaves local vault data intact.
 
 ---
 

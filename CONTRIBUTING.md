@@ -15,7 +15,7 @@ Thank you for your interest in contributing! Korva is MIT licensed and welcomes 
 
 ### Prerequisites
 
-- Go 1.22+
+- Go 1.26+
 - Git
 - (Optional) Node.js 20+ for Beacon dashboard
 
