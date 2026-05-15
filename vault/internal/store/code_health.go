@@ -22,6 +22,14 @@ type ProjectHealthScore struct {
 //   - 50% avg QA score (quality_checkpoints.score, normalized 0-100)
 //   - 30% gate pass rate (fraction of checkpoints where gate_passed = 1)
 //   - 20% pattern signal (patterns / (patterns + bugfixes), capped)
+//
+// Phase 20.A — earlier versions made nested QueryRow calls inside
+// the rows.Next() loop. Combined with `SetMaxOpenConns(1)` from
+// internal/db/sqlite.go, that deadlocked in production: the
+// iterator owned the connection while the inner query waited for
+// one. The fix is to drain the outer rows into a slice first, then
+// run the per-project enrichment queries against a freed
+// connection.
 func (s *Store) CodeHealthSummary() ([]ProjectHealthScore, error) {
 	rows, err := s.db.Query(`
 		SELECT
@@ -38,23 +46,33 @@ func (s *Store) CodeHealthSummary() ([]ProjectHealthScore, error) {
 	if err != nil {
 		return nil, fmt.Errorf("code health query: %w", err)
 	}
-	defer rows.Close()
 
+	// Drain all rows into the result slice WITHOUT making any
+	// nested queries — releases the connection.
 	var scores []ProjectHealthScore
 	for rows.Next() {
 		var p ProjectHealthScore
 		if err := rows.Scan(&p.Project, &p.SDDPhase, &p.AvgQAScore, &p.GatePassRate, &p.RecentCheckpoints); err != nil {
+			rows.Close()
 			return nil, err
 		}
+		scores = append(scores, p)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 
-		// Fetch observation counts
+	// Now safe to make per-project enrichment queries.
+	for i := range scores {
+		p := &scores[i]
 		s.db.QueryRow(`SELECT COUNT(*) FROM observations WHERE project = ? AND type = 'bugfix'`, p.Project).Scan(&p.BugfixCount)   //nolint:errcheck
 		s.db.QueryRow(`SELECT COUNT(*) FROM observations WHERE project = ? AND type = 'pattern'`, p.Project).Scan(&p.PatternCount) //nolint:errcheck
 
-		// Trend: compare last 3 scores vs previous 3 scores
 		p.Trend = computeTrend(s, p.Project)
 
-		// Composite score
 		patternSignal := 0.5
 		if total := p.PatternCount + p.BugfixCount; total > 0 {
 			patternSignal = float64(p.PatternCount) / float64(total)
@@ -65,13 +83,12 @@ func (s *Store) CodeHealthSummary() ([]ProjectHealthScore, error) {
 		}
 		p.Score = int(raw)
 		p.Grade = scoreGrade(p.Score)
-
-		scores = append(scores, p)
 	}
+
 	if scores == nil {
 		scores = []ProjectHealthScore{}
 	}
-	return scores, rows.Err()
+	return scores, nil
 }
 
 // computeTrend compares the average of the last 3 QA scores vs the 3 before that.

@@ -15,6 +15,7 @@ import (
 	"github.com/alcandev/korva/internal/hive"
 	"github.com/alcandev/korva/internal/license"
 	"github.com/alcandev/korva/internal/privacy/cloud"
+	"github.com/alcandev/korva/internal/version"
 	"github.com/alcandev/korva/vault/internal/email"
 	"github.com/alcandev/korva/vault/internal/store"
 )
@@ -118,6 +119,14 @@ func Router(ctx context.Context, s *store.Store, cfg RouterConfig) http.Handler 
 	// --- Public endpoints ---
 
 	mux.HandleFunc("GET /healthz", healthz)
+	// Phase 20.B — /readyz is the readiness counterpart of /healthz.
+	// Liveness ("the process is up") stays cheap and dependency-
+	// free at /healthz so the docker-compose healthcheck contract
+	// (`grep '"status":"ok"'`) keeps working. Readiness pings the DB
+	// + reports the active license tier so a load balancer can pull
+	// this instance out of rotation when the SQLite file is locked
+	// or a restart hasn't finished migrations.
+	mux.HandleFunc("GET /readyz", readyz(s, lic))
 	mux.HandleFunc("GET /api/v1/status", withCORS(statusHandler(s, lic)))
 	mux.HandleFunc("GET /api/v1/metrics", withCORS(metricsHandler(s)))
 
@@ -400,8 +409,17 @@ func Router(ctx context.Context, s *store.Store, cfg RouterConfig) http.Handler 
 
 // --- handlers ---
 
-func healthz(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]string{"status": "ok", "service": "korva-vault"})
+func healthz(w http.ResponseWriter, _ *http.Request) {
+	// Phase 20.B — liveness stays dependency-free. We add `version`
+	// so operators can correlate with their deployed image, but we
+	// do NOT touch the DB here (that's /readyz). The legacy
+	// `"status":"ok"` field is preserved for the docker-compose
+	// healthcheck grep.
+	writeJSON(w, http.StatusOK, map[string]any{
+		"status":  "ok",
+		"service": "korva-vault",
+		"version": version.Version,
+	})
 }
 
 func saveObservation(s *store.Store, webhookURL string) http.HandlerFunc {
