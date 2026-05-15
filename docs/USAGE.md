@@ -48,7 +48,7 @@ iwr -useb https://raw.githubusercontent.com/AlcanDev/korva/main/scripts/install.
 ### Verify the installation
 
 ```bash
-korva --version
+korva version
 # Expected output: 0.1.0 (abc1234) built 2026-04-15
 
 korva-vault --help
