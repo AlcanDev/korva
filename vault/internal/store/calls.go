@@ -35,9 +35,9 @@ type CallFilters struct {
 type CallStats struct {
 	Total      int64
 	ErrorCount int64
-	AvgLatency float64            // milliseconds
-	ByTool     map[string]int64   // call count per tool
-	ByStatus   map[string]int64   // "ok" / "error" counts
+	AvgLatency float64          // milliseconds
+	ByTool     map[string]int64 // call count per tool
+	ByStatus   map[string]int64 // "ok" / "error" counts
 }
 
 // LogCall persists a single MCP call record. Failures are silently ignored

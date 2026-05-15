@@ -2,6 +2,9 @@ name: Release
 
 # Triggered automatically when release-please creates a vX.Y.Z tag.
 # Also triggered if you push a tag manually: git tag v1.2.3 && git push --tags
+#
+# CI is NOT re-run here — it already passed on the PR that was merged before
+# this tag was created. Branch protection on main enforces that.
 on:
   push:
     tags:
@@ -18,27 +21,9 @@ permissions:
   packages: write
 
 jobs:
-  # ─── Wait for CI to be green on the tagged commit ───────────────────────────
-  # The release job only starts once all CI checks on the same SHA pass.
-  # This prevents shipping a broken release if tests were flaky on main.
-  wait-ci:
-    name: Wait for CI
-    runs-on: ubuntu-latest
-    steps:
-      - name: Check CI status on tagged commit
-        uses: lewagon/wait-on-check-action@v1.3.4
-        with:
-          ref: ${{ github.sha }}
-          check-name: "Go build + test"
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-          wait-interval: 20
-          allowed-conclusions: success,skipped
-
-  # ─── Build & publish release ─────────────────────────────────────────────────
   release:
     name: GoReleaser
     runs-on: ubuntu-latest
-    needs: wait-ci
 
     steps:
       - name: Checkout (full history for changelog)
@@ -88,19 +73,19 @@ jobs:
       # still ships binaries and a GitHub Release without them.
       - name: Compute GoReleaser flags
         id: flags
-        env:
-          HAS_GPG: ${{ secrets.GPG_PRIVATE_KEY != '' }}
-          HAS_HOMEBREW: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN != '' }}
         run: |
           args="release --clean"
-          if [ "$HAS_HOMEBREW" != "true" ]; then
+          if [ -z "$HOMEBREW_TAP_TOKEN" ]; then
             args="$args --skip=homebrew"
           fi
-          if [ "$HAS_GPG" != "true" ]; then
+          if [ -z "$GPG_KEY" ]; then
             args="$args --skip=sign"
           fi
           echo "args=$args" >> "$GITHUB_OUTPUT"
           echo "Resolved args: $args"
+        env:
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
+          GPG_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
 
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v6
@@ -117,7 +102,7 @@ jobs:
       # release version immediately. Requires KORVA_UI_DEPLOY_TOKEN secret:
       # a fine-grained PAT with Actions: write scope on the AlcanDev/korva-ui repo.
       - name: Trigger korva-ui rebuild
-        if: ${{ secrets.KORVA_UI_DEPLOY_TOKEN != '' }}
+        if: ${{ env.KORVA_UI_TOKEN != '' }}
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.KORVA_UI_DEPLOY_TOKEN }}
@@ -129,3 +114,5 @@ jobs:
               ref: 'main',
             })
             core.info('korva-ui rebuild triggered')
+        env:
+          KORVA_UI_TOKEN: ${{ secrets.KORVA_UI_DEPLOY_TOKEN }}

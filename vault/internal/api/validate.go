@@ -10,8 +10,8 @@ import (
 // Field length limits. Values are chosen to be generous for all legitimate
 // vault payloads while still providing a meaningful guard against abuse.
 const (
-	maxShortField  = 500    // project, team, country, agent, author, name, tags
-	maxMediumField = 5_000  // goal, title
+	maxShortField  = 500     // project, team, country, agent, author, name, tags
+	maxMediumField = 5_000   // goal, title
 	maxContentLen  = 1 << 19 // 512 KiB — half the body limit, safe for all prompts/observations
 	maxTagsCount   = 50
 	maxTagLen      = 200
