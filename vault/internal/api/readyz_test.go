@@ -133,20 +133,20 @@ func TestReadyz_IncludesLicenseTierWhenSet(t *testing.T) {
 func TestReadyz_HonorsRequestContextDeadline(t *testing.T) {
 	// The handler ANDs its 2s timeout with the request context. We
 	// can't easily simulate a slow PingContext, but we can verify
-	// that an already-cancelled request context propagates into
+	// that an already-canceled request context propagates into
 	// the check.
 	s := newAPITestStore(t)
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodGet, "/readyz", nil)
 	ctx, cancel := newDeadlineContext()
-	cancel() // already cancelled
+	cancel() // already canceled
 	r = r.WithContext(ctx)
 
 	readyz(s, nil)(w, r)
-	// Behavior on cancelled context: PingContext returns the
+	// Behavior on canceled context: PingContext returns the
 	// cancellation error → check fails → 503.
 	if w.Code != http.StatusServiceUnavailable {
-		t.Errorf("cancelled context should fail readiness, got %d", w.Code)
+		t.Errorf("canceled context should fail readiness, got %d", w.Code)
 	}
 }
 

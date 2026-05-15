@@ -35,7 +35,7 @@ func TestNotifyWebhook_NoOpOnEmptyURL(t *testing.T) {
 
 func TestNotifyWebhook_PostsObservationPayload(t *testing.T) {
 	var (
-		gotBody []byte
+		gotBody   []byte
 		gotMethod string
 		gotCT     string
 		gotUA     string

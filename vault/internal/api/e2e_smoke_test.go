@@ -214,7 +214,9 @@ func TestE2E_Smoke_SessionLifecycle(t *testing.T) {
 	if startResp.StatusCode != http.StatusCreated {
 		t.Fatalf("session start status = %d", startResp.StatusCode)
 	}
-	var started struct{ SessionID string `json:"session_id"` }
+	var started struct {
+		SessionID string `json:"session_id"`
+	}
 	env.decodeBody(startResp, &started)
 	if started.SessionID == "" {
 		t.Fatal("session start returned empty id")
