@@ -101,7 +101,14 @@ func (s *Store) ListInteractionsBySession(sessionID string) ([]Interaction, erro
 		}
 		in.ToolCalls = toolCalls
 		in.Estimated = estimated == 1
-		in.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
+		// interactions.created_at is stored as `YYYY-MM-DD HH:MM:SS`
+		// (via SQLite's `datetime('now')` default + the explicit
+		// format used in SaveInteraction). The earlier code parsed
+		// with time.RFC3339, which silently failed and left the
+		// field at the zero time — meaning every interaction in a
+		// replay timeline showed January 1, year 1. Phase 20.A
+		// fix.
+		in.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", createdAt)
 		out = append(out, in)
 	}
 	return out, rows.Err()
