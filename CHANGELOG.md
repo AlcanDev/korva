@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.35.3](https://github.com/AlcanDev/korva/compare/v1.35.2...v1.35.3) (2026-05-15)
+
+
+### 🐛 Bug Fixes
+
+* **mcp:** add items to all array-typed tool parameters ([1e4e16b](https://github.com/AlcanDev/korva/commit/1e4e16bd90e9bd9a0e47fff7667df180ca1b42bc))
+* **release:** remove wait-ci job + fix vault lint errors ([#82](https://github.com/AlcanDev/korva/issues/82)) ([845088a](https://github.com/AlcanDev/korva/commit/845088ae55e017645b1ec9eb07921e7178445db8))
+* **setup:** parse VS Code settings as JSONC to preserve user config ([72556d1](https://github.com/AlcanDev/korva/commit/72556d1f20475afcc30c2925ccfa6ecb355722c1))
+* **vault/mcp:** wire session_id through vault_save and vault_bulk_save ([#81](https://github.com/AlcanDev/korva/issues/81)) ([0746816](https://github.com/AlcanDev/korva/commit/0746816700b8f6b759553932a1585dec8d2ae846))
+
 ## [1.35.2](https://github.com/AlcanDev/korva/compare/v1.35.1...v1.35.2) (2026-05-15)
 
 
