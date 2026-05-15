@@ -33,9 +33,10 @@ type PlaygroundToolSchema struct {
 
 // PlaygroundToolProp matches Property.
 type PlaygroundToolProp struct {
-	Type        string   `json:"type"`
-	Description string   `json:"description,omitempty"`
-	Enum        []string `json:"enum,omitempty"`
+	Type        string     `json:"type"`
+	Description string     `json:"description,omitempty"`
+	Enum        []string   `json:"enum,omitempty"`
+	Items       *ItemsSpec `json:"items,omitempty"`
 }
 
 // PlaygroundTools returns the subset of MCP tools allowed by the Readonly

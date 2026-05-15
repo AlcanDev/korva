@@ -20,7 +20,7 @@ func tools() []Tool {
 					"content": {Type: "string", Description: "Full content of the observation"},
 					"type": {Type: "string", Description: "Observation type",
 						Enum: obsTypeEnum},
-					"tags":                  {Type: "array", Description: "List of relevant tags"},
+					"tags":                  {Type: "array", Description: "List of relevant tags", Items: &ItemsSpec{Type: "string"}},
 					"project":               {Type: "string", Description: "Project name (e.g., 'home-api')"},
 					"team":                  {Type: "string", Description: "Team name (e.g., 'backend-seguros')"},
 					"country":               {Type: "string", Description: "Country code: CL, PE, CO, or ALL"},
@@ -47,7 +47,7 @@ func tools() []Tool {
 					"content": {Type: "string", Description: "New content (omit to keep current)"},
 					"type": {Type: "string", Description: "New observation type (omit to keep current)",
 						Enum: obsTypeEnum},
-					"tags": {Type: "array", Description: "Replacement tag list (omit to keep current)"},
+					"tags": {Type: "array", Description: "Replacement tag list (omit to keep current)", Items: &ItemsSpec{Type: "string"}},
 				},
 				Required: []string{"id"},
 			},
@@ -180,7 +180,7 @@ func tools() []Tool {
 			InputSchema: Schema{
 				Type: "object",
 				Properties: map[string]Property{
-					"sources":   {Type: "array", Description: "List of project name variants to merge (e.g. [\"home-api\", \"homeapi\"])"},
+					"sources":   {Type: "array", Description: "List of project name variants to merge (e.g. [\"home-api\", \"homeapi\"])", Items: &ItemsSpec{Type: "string"}},
 					"canonical": {Type: "string", Description: "The single canonical project name to keep"},
 				},
 				Required: []string{"sources", "canonical"},
@@ -219,7 +219,7 @@ func tools() []Tool {
 					"budget_tokens": {Type: "number", Description: "Soft cap on response size in tokens (~4 chars/token). Content is truncated to fit. Default: 0 (unlimited)."},
 					"delta":         {Type: "boolean", Description: "Return only observations added since the last vault_context call for this project. Saves tokens on repeated calls."},
 					"prompt":        {Type: "string", Description: "Developer's current prompt or task description — used to auto-match team skills. Optional."},
-					"file_paths":    {Type: "array", Description: "Currently relevant file paths (optional) — used to auto-match team skills."},
+					"file_paths":    {Type: "array", Description: "Currently relevant file paths (optional) — used to auto-match team skills.", Items: &ItemsSpec{Type: "string"}},
 					"skill_limit":   {Type: "number", Description: "Max auto-matched skills to include (default: 5)"},
 				},
 			},
@@ -291,7 +291,7 @@ func tools() []Tool {
 				Properties: map[string]Property{
 					"name":    {Type: "string", Description: "Unique prompt name"},
 					"content": {Type: "string", Description: "Prompt content"},
-					"tags":    {Type: "array", Description: "Tags for categorization"},
+					"tags":    {Type: "array", Description: "Tags for categorization", Items: &ItemsSpec{Type: "string"}},
 				},
 				Required: []string{"name", "content"},
 			},
@@ -324,6 +324,7 @@ func tools() []Tool {
 					"observations": {
 						Type:        "array",
 						Description: "Array of observation objects. Each must have title, content, and type. Optional fields: project, team, country, author, tags, session_id.",
+						Items:       &ItemsSpec{Type: "object"},
 					},
 				},
 				Required: []string{"observations"},
@@ -393,7 +394,7 @@ func tools() []Tool {
 					"status": {Type: "string", Description: "Overall assessment status",
 						Enum: []string{"pass", "fail", "partial", "skip"}},
 					"score":       {Type: "number", Description: "Quality score 0–100. gate_passed=true requires score ≥ 70"},
-					"findings":    {Type: "array", Description: "Array of {rule, status, notes} objects — one per criterion evaluated. rule = criterion ID (e.g. APP-001)"},
+					"findings":    {Type: "array", Description: "Array of {rule, status, notes} objects — one per criterion evaluated. rule = criterion ID (e.g. APP-001)", Items: &ItemsSpec{Type: "object"}},
 					"notes":       {Type: "string", Description: "General notes about the checkpoint (optional)"},
 					"gate_passed": {Type: "boolean", Description: "true when ALL required criteria pass and score ≥ 70. Unlocks gated phase transitions."},
 					"session_id":  {Type: "string", Description: "Active session ID (optional)"},
@@ -450,7 +451,7 @@ func tools() []Tool {
 				Properties: map[string]Property{
 					"prompt":     {Type: "string", Description: "Developer's prompt or task description"},
 					"project":    {Type: "string", Description: "Active project name"},
-					"file_paths": {Type: "array", Description: "Currently relevant file paths (optional)"},
+					"file_paths": {Type: "array", Description: "Currently relevant file paths (optional)", Items: &ItemsSpec{Type: "string"}},
 					"limit":      {Type: "number", Description: "Max skills to return (default: 5)"},
 				},
 			},
@@ -516,7 +517,7 @@ func tools() []Tool {
 					"stack":       {Type: "string", Description: "Stack preset", Enum: []string{"go", "typescript", "python", "generic"}},
 					"editors": {Type: "array", Description: "Editor rule files to install. Each value picks one of: " +
 						"claude, cursor, windsurf, continue, copilot. Use the string 'auto' (default) to auto-detect from the repo, " +
-						"or 'none' to skip editor-specific files entirely."},
+						"or 'none' to skip editor-specific files entirely.", Items: &ItemsSpec{Type: "string"}},
 					"sdd":       {Type: "boolean", Description: "Enable Spec-Driven Development mode (specs/SPEC-TEMPLATE scaffolding + spec_ready gate)"},
 					"overwrite": {Type: "boolean", Description: "Replace existing harness files"},
 				},
@@ -616,7 +617,7 @@ func tools() []Tool {
 					"name":        {Type: "string", Description: "Short slug (required)"},
 					"title":       {Type: "string", Description: "Human-readable title (defaults to name)"},
 					"description": {Type: "string", Description: "Longer description"},
-					"acceptance":  {Type: "array", Description: "Acceptance criteria — one bullet per item"},
+					"acceptance":  {Type: "array", Description: "Acceptance criteria — one bullet per item", Items: &ItemsSpec{Type: "string"}},
 					"sdd":         {Type: "boolean", Description: "Flag as SDD-gated (requires specs/<name>/* drafting + ready approval before implementation)"},
 				},
 				Required: []string{"name"},
