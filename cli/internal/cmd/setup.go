@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -374,10 +375,15 @@ func upsertClaudeMCP(path, bin string) error {
 // ── VS Code user settings (global MCP config) ─────────────────────────────────
 
 func upsertMCPSettings(path, bin, editor string) error {
-	// Read existing settings (may not exist)
+	// Read existing settings (may not exist). VS Code writes JSONC (JSON with
+	// comments and trailing commas), so we strip those before unmarshalling to
+	// avoid silently discarding the user's entire config on parse failure.
 	var settings map[string]any
 	if data, err := os.ReadFile(path); err == nil {
-		_ = json.Unmarshal(data, &settings)
+		clean := stripJSONC(data)
+		if err := json.Unmarshal(clean, &settings); err != nil {
+			return fmt.Errorf("cannot parse %s: %w\n\nBack up the file and remove comments/trailing commas, then retry", path, err)
+		}
 	}
 	if settings == nil {
 		settings = map[string]any{}
@@ -662,4 +668,81 @@ func upsertMCPServersFile(path, bin string) error {
 func isInstalled(name string) bool {
 	_, err := exec.LookPath(name)
 	return err == nil
+}
+
+// stripJSONC converts JSONC (JSON with Comments) to plain JSON so
+// standard encoding/json can parse VS Code settings files safely.
+// Handles // line comments, /* block comments */, and trailing commas.
+func stripJSONC(src []byte) []byte {
+	var b bytes.Buffer
+	b.Grow(len(src))
+	inStr := false
+	escaped := false
+	i := 0
+	for i < len(src) {
+		c := src[i]
+		if escaped {
+			b.WriteByte(c)
+			escaped = false
+			i++
+			continue
+		}
+		if inStr {
+			if c == '\\' {
+				escaped = true
+			} else if c == '"' {
+				inStr = false
+			}
+			b.WriteByte(c)
+			i++
+			continue
+		}
+		if c == '"' {
+			inStr = true
+			b.WriteByte(c)
+			i++
+			continue
+		}
+		// Line comment: skip to end of line.
+		if c == '/' && i+1 < len(src) && src[i+1] == '/' {
+			for i < len(src) && src[i] != '\n' {
+				i++
+			}
+			continue
+		}
+		// Block comment: skip to closing */.
+		if c == '/' && i+1 < len(src) && src[i+1] == '*' {
+			i += 2
+			for i+1 < len(src) && !(src[i] == '*' && src[i+1] == '/') {
+				i++
+			}
+			i += 2
+			continue
+		}
+		b.WriteByte(c)
+		i++
+	}
+	return removeTrailingCommas(b.Bytes())
+}
+
+// removeTrailingCommas removes commas immediately before } or ] so that
+// the resulting JSON is valid for encoding/json.
+func removeTrailingCommas(src []byte) []byte {
+	var b bytes.Buffer
+	b.Grow(len(src))
+	for i := 0; i < len(src); i++ {
+		if src[i] == ',' {
+			// Look ahead past whitespace for a closing bracket.
+			j := i + 1
+			for j < len(src) && (src[j] == ' ' || src[j] == '\t' || src[j] == '\r' || src[j] == '\n') {
+				j++
+			}
+			if j < len(src) && (src[j] == '}' || src[j] == ']') {
+				// Skip the trailing comma.
+				continue
+			}
+		}
+		b.WriteByte(src[i])
+	}
+	return b.Bytes()
 }
