@@ -58,9 +58,9 @@ describe('EditorAdoptionWidget', () => {
           window_days: 7,
           total: 100,
           rows: [
-            { editor: 'cursor', count: 60 },
-            { editor: 'claude', count: 30 },
-            { editor: '', count: 10 },
+            { editor: 'cursor', count: 60, by_channel: { http: 40, mcp: 20 } },
+            { editor: 'claude', count: 30, by_channel: { http: 0, mcp: 30 } },
+            { editor: '', count: 10, by_channel: { http: 10, mcp: 0 } },
           ],
         }),
         { status: 200, headers: { 'Content-Type': 'application/json' } },
@@ -77,6 +77,36 @@ describe('EditorAdoptionWidget', () => {
     expect(screen.getByText(/10 · 10\.0%/)).toBeInTheDocument()
     // Total headline.
     expect(screen.getByText('100')).toBeInTheDocument()
+  })
+
+  // Phase 19.D — the per-row tooltip + aria-label encode the
+  // channel split so an operator scanning the widget can tell
+  // "this editor only shows up via MCP" without leaving the page.
+  it('surfaces the http/mcp channel split via tooltip + aria-label', async () => {
+    stubFetch(() =>
+      new Response(
+        JSON.stringify({
+          window_days: 7,
+          total: 30,
+          rows: [
+            { editor: 'cursor', count: 15, by_channel: { http: 5, mcp: 10 } },
+            { editor: 'claude', count: 10, by_channel: { http: 0, mcp: 10 } },
+            { editor: 'aider', count: 5, by_channel: { http: 5, mcp: 0 } },
+          ],
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      ),
+    )
+    renderWithProviders(<EditorAdoptionWidget />)
+    await waitFor(() => expect(screen.getByText('cursor')).toBeInTheDocument())
+
+    // Mixed: "http N · mcp M".
+    const cursorLabel = screen.getByLabelText(/cursor.*http 5.*mcp 10/i)
+    expect(cursorLabel).toBeInTheDocument()
+    // MCP-only label.
+    expect(screen.getByLabelText(/claude.*mcp only/i)).toBeInTheDocument()
+    // HTTP-only label.
+    expect(screen.getByLabelText(/aider.*http only/i)).toBeInTheDocument()
   })
 
   it('renders the error hint on a non-2xx', async () => {

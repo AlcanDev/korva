@@ -68,6 +68,7 @@ type Server struct {
 	lic          *license.License              // nil = community tier; set via WithLicense()
 	profile      Profile                       // controls which tools are exposed; set once in New()
 	contextCache map[string]*contextCacheEntry // key=project; session fingerprint cache
+	editor       string                        // resolved from initialize.params.clientInfo.name (Phase 19.A); "" = anonymous
 }
 
 // WithCloudSearch attaches an optional cloud searcher for hybrid context.
@@ -189,12 +190,27 @@ func (s *Server) handleInitialize(req Request) {
 	// Attempt to resolve an optional session token from the initialize params.
 	// Clients that have a ~/.korva/session.token should pass it here so that
 	// MCP tools automatically carry team context.
+	//
+	// Phase 19.A — also read `clientInfo.name` from the spec-defined
+	// initialize params and normalize it to a harness editor id so the
+	// per-call log can attribute MCP usage. Unknown names are silently
+	// kept as "" (anonymous) — same forward-compat policy as the HTTP
+	// X-Korva-Editor header.
 	if req.Params != nil {
 		var params struct {
 			SessionToken string `json:"session_token"`
+			ClientInfo   struct {
+				Name    string `json:"name"`
+				Version string `json:"version"`
+			} `json:"clientInfo"`
 		}
-		if json.Unmarshal(req.Params, &params) == nil && params.SessionToken != "" {
-			s.resolveSession(params.SessionToken)
+		if json.Unmarshal(req.Params, &params) == nil {
+			if params.SessionToken != "" {
+				s.resolveSession(params.SessionToken)
+			}
+			if e := resolveMCPClientEditor(params.ClientInfo.Name); e != "" {
+				s.editor = e
+			}
 		}
 	}
 
@@ -375,7 +391,7 @@ func (s *Server) dispatch(tool string, args map[string]any) (any, error) {
 		errMsg = err.Error()
 	}
 	_ = s.store.LogCall(store.CallLog{
-		Tool: tool, Project: project, Author: author,
+		Tool: tool, Project: project, Author: author, Editor: s.editor,
 		Status: status, LatencyMs: latency, ErrorMsg: errMsg,
 	})
 	return result, err

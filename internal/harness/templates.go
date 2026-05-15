@@ -216,7 +216,13 @@ type InitOptions struct {
 	Stack       Stack    // chosen preset; empty falls back to Generic
 	Editors     []Editor // editor rule templates to install; empty installs none
 	SDD         bool     // enable Spec-Driven Development mode (Phase 13)
-	Overwrite   bool     // when false (default) we refuse to overwrite existing files
+	// RequireApprovedReview is the opt-in Phase 19.C tightening of
+	// SDD: an SDD feature can't transition spec_ready → in_progress
+	// without an approved review on record. Only consulted when SDD
+	// is true; harmless otherwise. The rule is persisted to
+	// feature_list.json so it survives `korva harness check`.
+	RequireApprovedReview bool
+	Overwrite             bool // when false (default) we refuse to overwrite existing files
 }
 
 // Generate materializes every template file under opts.Root.
@@ -324,6 +330,14 @@ func buildSeedFeatureList(opts InitOptions) *FeatureList {
 		smokeDescription += " In SDD mode this feature also exercises the spec workflow — " +
 			"draft the three spec files, run `korva harness ready 1`, and a human approves " +
 			"the spec by transitioning to in_progress."
+	}
+	// Phase 19.C — flip on the review-gated transition when the
+	// operator opts in. Independent of SDD-vs-not because it's a
+	// stricter version of the same workflow; we still gate it on
+	// `f.SDD == true` at the state-machine level so non-SDD
+	// features are unaffected.
+	if opts.RequireApprovedReview {
+		rules.RequireApprovedReview = true
 	}
 
 	return &FeatureList{

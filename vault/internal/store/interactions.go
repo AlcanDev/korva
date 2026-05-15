@@ -477,43 +477,75 @@ func scanInteraction(scan func(...any) error) (*Interaction, error) {
 	return &in, nil
 }
 
-// EditorAdoptionRow is one row of the Phase 18.C adoption aggregation:
-// editor id + count of interactions in the requested window. Rows with
-// `Editor == ""` represent interactions that did not opt in to the
-// telemetry header.
+// EditorAdoptionRow is one row of the adoption aggregation: editor id
+// + count of vault touches in the requested window. Rows with
+// `Editor == ""` represent traffic that did not opt in (no
+// X-Korva-Editor header on HTTP and no clientInfo.name on MCP).
+//
+// Phase 18.C introduced this for HTTP interactions; Phase 19.D
+// extends Count to include MCP calls too. ByChannel exposes the
+// HTTP / MCP split so the Beacon dashboard (or a future operator
+// query) can answer "is Cursor used mostly through MCP or via the
+// SDK wrapper?".
 type EditorAdoptionRow struct {
-	Editor string `json:"editor"`
-	Count  int    `json:"count"`
+	Editor    string `json:"editor"`
+	Count     int    `json:"count"`
+	ByChannel struct {
+		HTTP int `json:"http"`
+		MCP  int `json:"mcp"`
+	} `json:"by_channel"`
 }
 
 // EditorAdoption returns one row per distinct editor (including the
 // empty-string anonymous bucket) over the last `since` window.
-// Ordered by descending count; small enough to return verbatim.
+// Ordered by descending total count; small enough to return verbatim.
 //
-// Drives the Beacon "Editor adoption" widget.
+// Phase 19.D — counts UNION across both telemetry channels:
+//   - HTTP `POST /api/v1/interactions` rows from the `interactions`
+//     table, where the editor was set from the X-Korva-Editor header.
+//   - MCP tool invocations from `mcp_calls`, where the editor was
+//     resolved from clientInfo.name at initialize time.
+//
+// Empty-editor rows from both tables collapse into the same
+// "anonymous" bucket — the channel breakdown still distinguishes
+// them so an operator can tell "all my unidentified traffic is on
+// MCP" from "all on HTTP".
 func (s *Store) EditorAdoption(since time.Time) ([]EditorAdoptionRow, error) {
 	var sinceStr string
 	if !since.IsZero() {
 		sinceStr = since.UTC().Format("2006-01-02 15:04:05")
 	}
-	var (
-		rows *sql.Rows
-		err  error
-	)
+	// UNION ALL keeps both tables' rows distinct (so the GROUP BY
+	// downstream sees them properly aggregated). The `channel`
+	// tag is a synthetic literal so we can pivot by it later.
+	query := `
+		WITH src AS (
+			SELECT editor, 'http' AS channel FROM interactions WHERE editor IS NOT NULL
+	`
+	args := []any{}
 	if sinceStr != "" {
-		rows, err = s.db.Query(`
-			SELECT editor, COUNT(*) AS n
-			  FROM interactions
-			 WHERE created_at >= ?
-			 GROUP BY editor
-			 ORDER BY n DESC, editor ASC`, sinceStr)
-	} else {
-		rows, err = s.db.Query(`
-			SELECT editor, COUNT(*) AS n
-			  FROM interactions
-			 GROUP BY editor
-			 ORDER BY n DESC, editor ASC`)
+		query += " AND created_at >= ?"
+		args = append(args, sinceStr)
 	}
+	query += `
+			UNION ALL
+			SELECT editor, 'mcp'  AS channel FROM mcp_calls    WHERE editor IS NOT NULL
+	`
+	if sinceStr != "" {
+		query += " AND created_at >= ?"
+		args = append(args, sinceStr)
+	}
+	query += `
+		)
+		SELECT editor,
+		       SUM(CASE WHEN channel = 'http' THEN 1 ELSE 0 END) AS http,
+		       SUM(CASE WHEN channel = 'mcp'  THEN 1 ELSE 0 END) AS mcp,
+		       COUNT(*) AS total
+		  FROM src
+		 GROUP BY editor
+		 ORDER BY total DESC, editor ASC
+	`
+	rows, err := s.db.Query(query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("editor adoption: %w", err)
 	}
@@ -521,7 +553,7 @@ func (s *Store) EditorAdoption(since time.Time) ([]EditorAdoptionRow, error) {
 	var out []EditorAdoptionRow
 	for rows.Next() {
 		var r EditorAdoptionRow
-		if err := rows.Scan(&r.Editor, &r.Count); err != nil {
+		if err := rows.Scan(&r.Editor, &r.ByChannel.HTTP, &r.ByChannel.MCP, &r.Count); err != nil {
 			return nil, err
 		}
 		out = append(out, r)

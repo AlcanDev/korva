@@ -98,6 +98,118 @@ func TestRecordReview_DoesNotMutateState(t *testing.T) {
 	}
 }
 
+// ─────────────────────── Phase 19.C — require_approved_review gate ─────────
+
+func TestSetStatus_RequireApprovedReview_BlocksWithoutReview(t *testing.T) {
+	fl := &FeatureList{
+		Project: "x", Rules: Rules{
+			OneFeatureAtATime: true, ValidStatuses: ValidStatuses,
+			RequireApprovedSpecToImplement: true,
+			RequireApprovedReview:          true,
+		},
+		Features: []Feature{{ID: 1, Name: "a", Status: StatusSpecReady, SDD: true}},
+	}
+	err := fl.SetStatus(1, StatusInProgress, "claude", "2026-05-14T10:00:00Z")
+	if err == nil {
+		t.Fatal("expected gate to block transition")
+	}
+	if !strings.Contains(err.Error(), "requires an approved review") {
+		t.Errorf("error message should hint at the gate: %v", err)
+	}
+}
+
+func TestSetStatus_RequireApprovedReview_BlocksOnRejectVerdict(t *testing.T) {
+	fl := &FeatureList{
+		Project: "x", Rules: Rules{
+			OneFeatureAtATime: true, ValidStatuses: ValidStatuses,
+			RequireApprovedSpecToImplement: true,
+			RequireApprovedReview:          true,
+		},
+		Features: []Feature{
+			{
+				ID: 1, Name: "a", Status: StatusSpecReady, SDD: true,
+				Review: &ReviewDecision{Verdict: VerdictReject, At: "2026-05-14T10:00:00Z"},
+			},
+		},
+	}
+	err := fl.SetStatus(1, StatusInProgress, "claude", "now")
+	if err == nil {
+		t.Fatal("expected gate to block on reject verdict")
+	}
+	if !strings.Contains(err.Error(), `"reject"`) {
+		t.Errorf("error should name the bad verdict: %v", err)
+	}
+}
+
+func TestSetStatus_RequireApprovedReview_BlocksOnNeedsFixesVerdict(t *testing.T) {
+	fl := &FeatureList{
+		Project: "x", Rules: Rules{
+			OneFeatureAtATime: true, ValidStatuses: ValidStatuses,
+			RequireApprovedSpecToImplement: true,
+			RequireApprovedReview:          true,
+		},
+		Features: []Feature{
+			{
+				ID: 1, Name: "a", Status: StatusSpecReady, SDD: true,
+				Review: &ReviewDecision{Verdict: VerdictNeedsFixes, At: "2026-05-14T10:00:00Z"},
+			},
+		},
+	}
+	if err := fl.SetStatus(1, StatusInProgress, "claude", "now"); err == nil {
+		t.Fatal("expected gate to block on needs_fixes verdict")
+	}
+}
+
+func TestSetStatus_RequireApprovedReview_AllowsWithApproveVerdict(t *testing.T) {
+	fl := &FeatureList{
+		Project: "x", Rules: Rules{
+			OneFeatureAtATime: true, ValidStatuses: ValidStatuses,
+			RequireApprovedSpecToImplement: true,
+			RequireApprovedReview:          true,
+		},
+		Features: []Feature{
+			{
+				ID: 1, Name: "a", Status: StatusSpecReady, SDD: true,
+				Review: &ReviewDecision{Verdict: VerdictApprove, At: "2026-05-14T10:00:00Z"},
+			},
+		},
+	}
+	if err := fl.SetStatus(1, StatusInProgress, "claude", "now"); err != nil {
+		t.Errorf("approve verdict should let the transition through, got %v", err)
+	}
+	if fl.Features[0].Status != StatusInProgress {
+		t.Errorf("status not updated: %q", fl.Features[0].Status)
+	}
+}
+
+func TestSetStatus_RequireApprovedReview_OffByDefault(t *testing.T) {
+	// Standard SDDRules() (the default for `korva harness init --sdd`)
+	// must NOT enable the new gate, so existing harnesses keep
+	// working.
+	fl := &FeatureList{
+		Project: "x", Rules: SDDRules(),
+		Features: []Feature{{ID: 1, Name: "a", Status: StatusSpecReady, SDD: true}},
+	}
+	if err := fl.SetStatus(1, StatusInProgress, "claude", "now"); err != nil {
+		t.Errorf("non-19.C harness should not require a review, got %v", err)
+	}
+}
+
+func TestSetStatus_RequireApprovedReview_IgnoresNonSDDFeatures(t *testing.T) {
+	// A non-SDD feature in a strict harness should still transition
+	// freely — the gate is targeted at SDD-flagged features only.
+	fl := &FeatureList{
+		Project: "x", Rules: Rules{
+			OneFeatureAtATime: true, ValidStatuses: ValidStatuses,
+			RequireApprovedReview: true,
+		},
+		Features: []Feature{{ID: 1, Name: "a", Status: StatusPending, SDD: false}},
+	}
+	if err := fl.SetStatus(1, StatusInProgress, "claude", "now"); err != nil {
+		t.Errorf("non-SDD feature should bypass the gate, got %v", err)
+	}
+}
+
 func TestIsKnownReviewVerdict(t *testing.T) {
 	for _, v := range ValidReviewVerdicts {
 		if !IsKnownReviewVerdict(v) {

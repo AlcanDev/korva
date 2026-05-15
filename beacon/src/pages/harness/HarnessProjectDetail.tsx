@@ -136,6 +136,11 @@ function FeaturesTable({ features }: { features: FeatureListFeature[] }) {
       </section>
     )
   }
+  // Show the Review column only when at least one feature carries a
+  // recorded verdict. Most non-SDD backlogs have none → hide entirely
+  // to keep the table tight; the moment one shows up, the column
+  // appears for every row (consistent visual scan).
+  const anyReviewed = features.some(f => Boolean(f.review))
   return (
     <section aria-label="Features" className="mb-8">
       <h2 className="text-sm font-semibold text-[#8b949e] uppercase tracking-wider mb-3">Features</h2>
@@ -146,6 +151,7 @@ function FeaturesTable({ features }: { features: FeatureListFeature[] }) {
               <th scope="col" className="px-3 py-2 w-12">#</th>
               <th scope="col" className="px-3 py-2">Title</th>
               <th scope="col" className="px-3 py-2 w-28">Status</th>
+              {anyReviewed && <th scope="col" className="px-3 py-2 w-32">Review</th>}
               <th scope="col" className="px-3 py-2 w-16 text-right">SDD</th>
             </tr>
           </thead>
@@ -160,6 +166,11 @@ function FeaturesTable({ features }: { features: FeatureListFeature[] }) {
                 <td className="px-3 py-2">
                   <StatusPill status={f.status} />
                 </td>
+                {anyReviewed && (
+                  <td className="px-3 py-2">
+                    <ReviewCell review={f.review} />
+                  </td>
+                )}
                 <td className="px-3 py-2 text-right text-xs text-[#8b949e]">
                   {f.sdd ? '✓' : '—'}
                 </td>
@@ -169,6 +180,38 @@ function FeaturesTable({ features }: { features: FeatureListFeature[] }) {
         </table>
       </div>
     </section>
+  )
+}
+
+// ── review pill ───────────────────────────────────────────────────────────
+
+const REVIEW_COLORS: Record<string, { bg: string; fg: string; label: string; ring: string }> = {
+  approve:     { bg: '#23863640', fg: '#3fb950', label: 'approve',     ring: '#3fb95040' },
+  needs_fixes: { bg: '#9e6a0340', fg: '#d29922', label: 'needs fixes', ring: '#d2992240' },
+  reject:      { bg: '#da363340', fg: '#f85149', label: 'reject',      ring: '#f8514940' },
+}
+
+// ReviewCell renders the persisted review verdict pill + a small
+// hover-only tooltip with the reviewer + recorded timestamp + note.
+// A feature without a recorded review shows a muted "—" so the
+// column doesn't break the visual scan.
+function ReviewCell({ review }: { review: import('@/api/harness').ReviewDecision | undefined }) {
+  if (!review) {
+    return <span className="text-xs text-[#6e7681]" aria-label="no review recorded">—</span>
+  }
+  const c = REVIEW_COLORS[review.verdict] ?? REVIEW_COLORS.needs_fixes
+  const ts = formatRelative(review.at)
+  const reviewer = review.reviewer || 'unknown'
+  const tooltip = `Reviewed by ${reviewer} · ${ts}${review.note ? ` · ${review.note}` : ''}`
+  return (
+    <span
+      className="inline-flex items-center text-[11px] font-medium px-2 py-0.5 rounded-full border whitespace-nowrap"
+      style={{ background: c.bg, color: c.fg, borderColor: c.ring }}
+      title={tooltip}
+      aria-label={`Review verdict ${c.label}, ${tooltip}`}
+    >
+      {c.label}
+    </span>
   )
 }
 

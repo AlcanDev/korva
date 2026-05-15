@@ -129,10 +129,18 @@ type FeatureList struct {
 
 // Rules pins the invariants the state machine enforces. Embedded in the
 // file so a human reading it knows the contract.
+//
+// Phase 19.C — `RequireApprovedReview` is an opt-in tightening of
+// the SDD workflow: when true, transitioning an SDD feature from
+// `spec_ready` to `in_progress` requires a persisted
+// `Feature.Review` with `Verdict == VerdictApprove`. The default is
+// false, so existing harnesses (including those bootstrapped with
+// `--sdd` before 19.C) keep working.
 type Rules struct {
 	OneFeatureAtATime              bool            `json:"one_feature_at_a_time"`
 	RequireTestsToClose            bool            `json:"require_tests_to_close"`
 	RequireApprovedSpecToImplement bool            `json:"require_approved_spec_to_implement,omitempty"`
+	RequireApprovedReview          bool            `json:"require_approved_review,omitempty"`
 	ValidStatuses                  []FeatureStatus `json:"valid_status"`
 }
 
@@ -351,6 +359,21 @@ func (fl *FeatureList) SetStatus(id int, status FeatureStatus, owner string, now
 	if fl.Rules.RequireApprovedSpecToImplement && f.SDD &&
 		status == StatusInProgress && f.Status == StatusPending {
 		return fmt.Errorf("feature %d is SDD-gated — run `korva harness ready %d` first (must pass through spec_ready)", id, id)
+	}
+	// Phase 19.C — when the harness has `require_approved_review`
+	// enabled, the spec_ready → in_progress transition requires a
+	// persisted approved-verdict review. The reviewer subagent
+	// (Phase 18.A/B) is responsible for recording it via
+	// `korva harness review <id> --record`. The error message is
+	// actionable so a stuck operator knows exactly what to do.
+	if fl.Rules.RequireApprovedReview && f.SDD &&
+		status == StatusInProgress && f.Status == StatusSpecReady {
+		if f.Review == nil {
+			return fmt.Errorf("feature %d requires an approved review — run `korva harness review %d --record` first (rules.require_approved_review is on)", id, id)
+		}
+		if f.Review.Verdict != VerdictApprove {
+			return fmt.Errorf("feature %d has review verdict %q — only `approve` allows the start transition (rules.require_approved_review is on)", id, f.Review.Verdict)
+		}
 	}
 	if !legalTransition(f.Status, status, f.SDD) {
 		return fmt.Errorf("illegal transition: %s → %s (sdd=%v)", f.Status, status, f.SDD)

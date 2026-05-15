@@ -631,4 +631,13 @@ var migrations = []string{
 	// Validated against internal/harness.AllEditors at the API layer.
 	`ALTER TABLE interactions ADD COLUMN editor TEXT NOT NULL DEFAULT ''`,
 	`CREATE INDEX IF NOT EXISTS idx_interactions_editor ON interactions(editor, created_at DESC)`,
+
+	// ── Phase 19.A — MCP-channel editor telemetry ────────────────────────────────
+	// Sibling of interactions.editor for the stdio MCP channel. Extracted
+	// from the `clientInfo.name` field of the MCP `initialize` request and
+	// normalized against internal/harness.AllEditors. Empty string when
+	// the client didn't identify itself (older MCP clients) OR sent a
+	// name that doesn't map to a known editor.
+	`ALTER TABLE mcp_calls ADD COLUMN editor TEXT NOT NULL DEFAULT ''`,
+	`CREATE INDEX IF NOT EXISTS idx_mcp_calls_editor ON mcp_calls(editor, created_at DESC)`,
 }

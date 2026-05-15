@@ -64,6 +64,22 @@ export interface FeatureListFeature {
   sdd?: boolean
   owner_agent?: string
   updated_at?: string
+  // Phase 19.B — last persisted spec review verdict, set by
+  // `korva harness review <id> --record` or its MCP equivalent.
+  // Optional: only SDD features that have been reviewed at least
+  // once carry it.
+  review?: ReviewDecision
+}
+
+export type ReviewVerdict = 'approve' | 'needs_fixes' | 'reject'
+
+export interface ReviewDecision {
+  verdict: ReviewVerdict
+  reviewer?: string
+  at: string
+  issue_count: number
+  error_count: number
+  note?: string
 }
 
 export interface FeatureListPayload {

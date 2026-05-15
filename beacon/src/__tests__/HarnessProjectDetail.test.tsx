@@ -193,3 +193,99 @@ describe('HarnessProjectDetail', () => {
     expect(back).toHaveAttribute('href', '/app/harness')
   })
 })
+
+// ─────────────────────── Phase 19.B — review verdict column ─────────────────
+
+describe('HarnessProjectDetail — review verdict surface', () => {
+  function reviewedPayload(reviewVerdict: 'approve' | 'needs_fixes' | 'reject') {
+    return JSON.stringify({
+      project: 'auth_layer',
+      rules: {
+        one_feature_at_a_time: true, require_tests_to_close: true,
+        require_approved_spec_to_implement: true,
+        valid_status: ['pending', 'spec_ready', 'in_progress', 'done', 'blocked'],
+      },
+      features: [
+        {
+          id: 1, name: 'login', title: 'Email login', status: 'spec_ready', sdd: true,
+          review: {
+            verdict: reviewVerdict, reviewer: 'alice@acme.io',
+            at: '2026-05-14T10:00:00Z', issue_count: 2, error_count: 0,
+            note: 'tighten R3',
+          },
+        },
+        // A second feature with no review — proves the column still
+        // renders an "—" for the unrelated row.
+        { id: 2, name: 'logout', title: 'Logout', status: 'pending', sdd: false },
+      ],
+    })
+  }
+
+  function stubReviewedFetch(payload: string) {
+    stubFetch(url => {
+      if (url.includes('/transitions')) {
+        return new Response(JSON.stringify({ transitions: [], count: 0, limit: 200 }), { status: 200 })
+      }
+      return new Response(
+        JSON.stringify({
+          team_id: 't', project: 'auth_layer', root: '/r',
+          payload, updated_at: new Date().toISOString(),
+        }),
+        { status: 200 },
+      )
+    })
+  }
+
+  it('hides the Review column when no feature carries a verdict', async () => {
+    stubFetch(url => {
+      if (url.includes('/transitions')) {
+        return new Response(JSON.stringify({ transitions: [], count: 0, limit: 200 }), { status: 200 })
+      }
+      return new Response(
+        JSON.stringify({
+          team_id: 't', project: 'p', root: '/r',
+          payload: samplePayload, updated_at: new Date().toISOString(),
+        }),
+        { status: 200 },
+      )
+    })
+    renderAt('/app/harness/p?root=/r')
+    await waitFor(() => expect(screen.getByText('Email login')).toBeInTheDocument())
+    // The "Review" column header must NOT be present.
+    expect(screen.queryByRole('columnheader', { name: /^review$/i })).toBeNull()
+  })
+
+  it('renders the Review column with the approve pill', async () => {
+    stubReviewedFetch(reviewedPayload('approve'))
+    renderAt('/app/harness/auth_layer?root=/r')
+    await waitFor(() => expect(screen.getByText('Email login')).toBeInTheDocument())
+    expect(screen.getByRole('columnheader', { name: /^review$/i })).toBeInTheDocument()
+    // Pill text + the tooltip-ish aria-label.
+    expect(screen.getByText('approve')).toBeInTheDocument()
+    const pill = screen.getByLabelText(/Review verdict approve/i)
+    expect(pill).toHaveAttribute('title', expect.stringContaining('alice@acme.io'))
+    expect(pill.getAttribute('title')).toContain('tighten R3')
+  })
+
+  it('renders the needs_fixes pill with humanized label', async () => {
+    stubReviewedFetch(reviewedPayload('needs_fixes'))
+    renderAt('/app/harness/auth_layer?root=/r')
+    await waitFor(() => expect(screen.getByText('needs fixes')).toBeInTheDocument())
+  })
+
+  it('renders the reject pill', async () => {
+    stubReviewedFetch(reviewedPayload('reject'))
+    renderAt('/app/harness/auth_layer?root=/r')
+    await waitFor(() => expect(screen.getByText('reject')).toBeInTheDocument())
+  })
+
+  it('shows the em-dash placeholder for unreviewed rows in the same table', async () => {
+    stubReviewedFetch(reviewedPayload('approve'))
+    renderAt('/app/harness/auth_layer?root=/r')
+    await waitFor(() => expect(screen.getByText('Email login')).toBeInTheDocument())
+    // The second feature has no review; it should render an em-dash
+    // with a no-review aria-label so screen-readers don't conflate
+    // empty with "approve".
+    expect(screen.getByLabelText(/no review recorded/i)).toBeInTheDocument()
+  })
+})
