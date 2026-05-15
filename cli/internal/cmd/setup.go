@@ -148,7 +148,13 @@ func runSetup(cmd *cobra.Command, args []string) error {
 
 func setupVSCodeEditor(bin string) error {
 	if !isInstalled("code") {
-		return fmt.Errorf("not installed")
+		// Fallback: VS Code installed but the `code` CLI not yet added to PATH
+		// (macOS requires "Shell Command: Install 'code' command in PATH" manually).
+		// Mirror Cursor/Claude detection: accept if the settings directory exists.
+		settingsDir, _ := vscodeSettingsPath()
+		if _, statErr := os.Stat(filepath.Dir(settingsDir)); os.IsNotExist(statErr) {
+			return fmt.Errorf("not installed")
+		}
 	}
 
 	// --local: only write workspace file
