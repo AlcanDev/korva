@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.33.0](https://github.com/AlcanDev/korva/compare/v1.32.0...v1.33.0) (2026-05-15)
+
+
+### 🚀 Features
+
+* **phase-19:** MCP telemetry + verdict surface + approved-review gate + unified adoption ([#72](https://github.com/AlcanDev/korva/issues/72)) ([c66bbb6](https://github.com/AlcanDev/korva/commit/c66bbb6f1682a081fd6933db538ff88c94395d22))
+
 ## [1.32.0](https://github.com/AlcanDev/korva/compare/v1.31.0...v1.32.0) (2026-05-14)
 
 
