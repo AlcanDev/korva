@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.35.0](https://github.com/AlcanDev/korva/compare/v1.34.0...v1.35.0) (2026-05-15)
+
+
+### 🚀 Features
+
+* **cloud:** CLI team connect/sync + beacon local-first messaging ([6304412](https://github.com/AlcanDev/korva/commit/63044123e5c07642a7d83dc1572d2a39949b9b8a))
+
 ## [1.34.0](https://github.com/AlcanDev/korva/compare/v1.33.0...v1.34.0) (2026-05-15)
 
 
