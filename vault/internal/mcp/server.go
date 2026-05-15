@@ -59,16 +59,17 @@ type contextCacheEntry struct {
 
 // Server is the MCP stdio server.
 type Server struct {
-	store        *store.Store
-	reader       *bufio.Reader
-	writer       io.Writer
-	logger       *log.Logger
-	session      *mcpSession                   // nil = anonymous; set during handleInitialize if valid token
-	cloud        CloudSearcher                 // nil = local-only mode
-	lic          *license.License              // nil = community tier; set via WithLicense()
-	profile      Profile                       // controls which tools are exposed; set once in New()
-	contextCache map[string]*contextCacheEntry // key=project; session fingerprint cache
-	editor       string                        // resolved from initialize.params.clientInfo.name (Phase 19.A); "" = anonymous
+	store           *store.Store
+	reader          *bufio.Reader
+	writer          io.Writer
+	logger          *log.Logger
+	session         *mcpSession                   // nil = anonymous; set during handleInitialize if valid token
+	cloud           CloudSearcher                 // nil = local-only mode
+	lic             *license.License              // nil = community tier; set via WithLicense()
+	profile         Profile                       // controls which tools are exposed; set once in New()
+	contextCache    map[string]*contextCacheEntry // key=project; session fingerprint cache
+	editor          string                        // resolved from initialize.params.clientInfo.name (Phase 19.A); "" = anonymous
+	activeSessionID string                        // set by vault_session_start; auto-fills session_id on vault_save
 }
 
 // WithCloudSearch attaches an optional cloud searcher for hybrid context.
@@ -530,6 +531,10 @@ func (s *Server) toolSave(args map[string]any) (any, error) {
 		detectionSource = dr.Source
 	}
 
+	sessionID := stringArg(args, "session_id")
+	if sessionID == "" {
+		sessionID = s.activeSessionID
+	}
 	obs := store.Observation{
 		Project:    project,
 		Team:       stringArg(args, "team"),
@@ -541,6 +546,7 @@ func (s *Server) toolSave(args map[string]any) (any, error) {
 		Tags:       stringSliceArg(args, "tags"),
 		TopicKey:   stringArg(args, "topic_key"),
 		WorkingDir: workingDir,
+		SessionID:  sessionID,
 	}
 	// Auto-fill team from the active session so members don't have to pass it explicitly.
 	if obs.Team == "" && s.session != nil {
@@ -717,15 +723,20 @@ func (s *Server) toolBulkSave(args map[string]any) (any, error) {
 			errs = append(errs, fmt.Sprintf("item[%d]: not an object", i))
 			continue
 		}
+		itemSessionID := stringArg(m, "session_id")
+		if itemSessionID == "" {
+			itemSessionID = s.activeSessionID
+		}
 		obs := store.Observation{
-			Project: stringArg(m, "project"),
-			Team:    stringArg(m, "team"),
-			Country: stringArg(m, "country"),
-			Type:    store.ObservationType(stringArg(m, "type")),
-			Title:   stringArg(m, "title"),
-			Content: stringArg(m, "content"),
-			Author:  stringArg(m, "author"),
-			Tags:    stringSliceArg(m, "tags"),
+			Project:   stringArg(m, "project"),
+			Team:      stringArg(m, "team"),
+			Country:   stringArg(m, "country"),
+			Type:      store.ObservationType(stringArg(m, "type")),
+			Title:     stringArg(m, "title"),
+			Content:   stringArg(m, "content"),
+			Author:    stringArg(m, "author"),
+			Tags:      stringSliceArg(m, "tags"),
+			SessionID: itemSessionID,
 		}
 		if obs.Team == "" && s.session != nil {
 			obs.Team = s.session.teamID
@@ -1303,16 +1314,23 @@ func (s *Server) toolSessionStart(args map[string]any) (any, error) {
 	if err != nil {
 		return nil, err
 	}
+	s.activeSessionID = id
 	return map[string]string{"session_id": id, "status": "started"}, nil
 }
 
 func (s *Server) toolSessionEnd(args map[string]any) (any, error) {
 	id := stringArg(args, "session_id")
 	if id == "" {
+		id = s.activeSessionID
+	}
+	if id == "" {
 		return nil, fmt.Errorf("session_id is required")
 	}
 	if err := s.store.SessionEnd(id, stringArg(args, "summary")); err != nil {
 		return nil, err
+	}
+	if s.activeSessionID == id {
+		s.activeSessionID = ""
 	}
 	return map[string]string{"status": "ended"}, nil
 }
