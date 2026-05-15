@@ -18,6 +18,7 @@ type Paths struct {
 	InstallID        string
 	LicenseFile      string
 	LicenseStateFile string
+	TeamKeyFile      string // ~/.korva/team.key — raw license key for cloud config sync (0600)
 	SessionTokenFile string // ~/.korva/session.token — member auth session
 	SkillsSyncFile   string // ~/.korva/skills_sync.json — last successful sync timestamp
 	ProfilesDir      string
@@ -44,6 +45,7 @@ func PlatformPaths() (*Paths, error) {
 		InstallID:        filepath.Join(base, "install.id"),
 		LicenseFile:      filepath.Join(base, "license.key"),
 		LicenseStateFile: filepath.Join(base, "license.state.json"),
+		TeamKeyFile:      filepath.Join(base, "team.key"),
 		SessionTokenFile: filepath.Join(base, "session.token"),
 		SkillsSyncFile:   filepath.Join(base, "skills_sync.json"),
 		ProfilesDir:      filepath.Join(base, "profiles"),
@@ -93,6 +95,18 @@ func (p *Paths) PrivateLoreDir() string {
 	return filepath.Join(p.LoreDir, "private")
 }
 
+// TeamConfigDir returns the directory where cloud-synced team config is stored.
+// Layout: ~/.korva/team-config/<section>/<name>
+func (p *Paths) TeamConfigDir() string {
+	return filepath.Join(p.HomeDir, "team-config")
+}
+
+// TeamConfigSyncState returns the path to the JSON file that records the last
+// successful cloud config sync (timestamp + bundle version hash).
+func (p *Paths) TeamConfigSyncState() string {
+	return filepath.Join(p.HomeDir, "team-config-sync.json")
+}
+
 // PublicLoreDir returns the directory for public curated scrolls.
 func (p *Paths) PublicLoreDir() string {
 	return filepath.Join(p.LoreDir, "public")
@@ -108,6 +122,7 @@ func (p *Paths) EnsureAll() error {
 		p.PublicLoreDir(),
 		p.VaultDir,
 		p.LogsDir,
+		p.TeamConfigDir(),
 	}
 
 	for _, dir := range dirs {

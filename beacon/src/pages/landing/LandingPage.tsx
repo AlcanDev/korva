@@ -464,7 +464,7 @@ function SentinelSection() {
   )
 }
 
-/* ─── Privacy / 3 Kingdoms ──────────────────────────────── */
+/* ─── Privacy / 3-layer architecture ───────────────────── */
 function PrivacySection() {
   return (
     <section style={{
@@ -478,10 +478,10 @@ function PrivacySection() {
           Privacy by Architecture
         </p>
         <h2 style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 'clamp(28px, 3vw, 44px)', lineHeight: 1.1, letterSpacing: '-0.02em', margin: '0 auto 16px', maxWidth: 600 }}>
-          3 Kingdoms. Zero data leaves your machine.
+          Local-first. Cloud-connected on your terms.
         </h2>
         <p style={{ fontFamily: 'var(--font-body)', fontSize: 16, color: 'var(--text-muted)', maxWidth: 520, margin: '0 auto' }}>
-          Your code, decisions, and secrets never reach our servers. The vault runs on localhost. MCP uses stdin/stdout. Privacy is structural, not a policy.
+          The vault runs on localhost. Team config lives in the cloud, encrypted per team, pulled locally on demand. Privacy is structural, not a policy.
         </p>
       </div>
 
@@ -497,11 +497,11 @@ function PrivacySection() {
           },
           {
             num: '2',
-            title: 'Team Profile',
-            sub: 'github.com/YOUR-ORG/korva-profile',
+            title: 'Cloud Config',
+            sub: 'licensing.korva.dev · portal.korva.dev',
             color: '#D29922',
-            items: ['Private scrolls', 'Custom Sentinel rules', 'Team AI instructions', 'Your architecture IP'],
-            note: 'Clones to your machine. Never merges to public.',
+            items: ['Private scrolls', 'Custom Sentinel rules', 'Team AI instructions', 'AES-256 encrypted per team'],
+            note: 'Pulled locally on demand. The cloud never pushes.',
           },
           {
             num: '3',

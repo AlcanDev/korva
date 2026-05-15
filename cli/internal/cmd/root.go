@@ -57,6 +57,7 @@ func init() {
 	rootCmd.AddCommand(projectsCmd)
 	rootCmd.AddCommand(exportCmd)
 	rootCmd.AddCommand(harnessCmd)
+	rootCmd.AddCommand(connectCmd)
 }
 
 func printSuccess(msg string) {
