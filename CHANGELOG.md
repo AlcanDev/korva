@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.35.1](https://github.com/AlcanDev/korva/compare/v1.35.0...v1.35.1) (2026-05-15)
+
+
+### 🐛 Bug Fixes
+
+* **teamconfig:** skip Unix permission check on Windows ([f51b4d0](https://github.com/AlcanDev/korva/commit/f51b4d0fd8667078a8fdec9e9c2545b793699911))
+
 ## [1.35.0](https://github.com/AlcanDev/korva/compare/v1.34.0...v1.35.0) (2026-05-15)
 
 
