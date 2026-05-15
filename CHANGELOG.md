@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.35.2](https://github.com/AlcanDev/korva/compare/v1.35.1...v1.35.2) (2026-05-15)
+
+
+### 🐛 Bug Fixes
+
+* **setup:** detect VS Code via settings dir when code CLI not in PATH ([5de7d58](https://github.com/AlcanDev/korva/commit/5de7d5845bc8f7d9bb6ca04db9f7b14819d95a38))
+
 ## [1.35.1](https://github.com/AlcanDev/korva/compare/v1.35.0...v1.35.1) (2026-05-15)
 
 
