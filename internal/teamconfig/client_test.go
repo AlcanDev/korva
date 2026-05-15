@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 )
@@ -247,10 +248,12 @@ func TestTeamKey_RoundTrip(t *testing.T) {
 	if err := SaveTeamKey(f, key); err != nil {
 		t.Fatalf("SaveTeamKey: %v", err)
 	}
-	// Check file permissions
-	info, _ := os.Stat(f)
-	if info.Mode().Perm() != 0600 {
-		t.Errorf("team.key must be 0600, got %v", info.Mode().Perm())
+	// Check file permissions (Windows does not enforce Unix mode bits)
+	if runtime.GOOS != "windows" {
+		info, _ := os.Stat(f)
+		if info.Mode().Perm() != 0600 {
+			t.Errorf("team.key must be 0600, got %v", info.Mode().Perm())
+		}
 	}
 	got, err := LoadTeamKey(f)
 	if err != nil {
