@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.36.0](https://github.com/AlcanDev/korva/compare/v1.35.3...v1.36.0) (2026-05-15)
+
+
+### 🚀 Features
+
+* **beacon:** debounce search, fetch timeout, live private scrolls ([#83](https://github.com/AlcanDev/korva/issues/83)) ([3ba2638](https://github.com/AlcanDev/korva/commit/3ba263807829e17cbf8820db032d398537105fcf))
+
 ## [1.35.3](https://github.com/AlcanDev/korva/compare/v1.35.2...v1.35.3) (2026-05-15)
 
 
