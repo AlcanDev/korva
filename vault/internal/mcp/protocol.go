@@ -84,10 +84,10 @@ type Schema struct {
 
 // Property is a JSON Schema property definition.
 type Property struct {
-	Type        string      `json:"type"`
-	Description string      `json:"description,omitempty"`
-	Enum        []string    `json:"enum,omitempty"`
-	Items       *ItemsSpec  `json:"items,omitempty"`
+	Type        string     `json:"type"`
+	Description string     `json:"description,omitempty"`
+	Enum        []string   `json:"enum,omitempty"`
+	Items       *ItemsSpec `json:"items,omitempty"`
 }
 
 // ItemsSpec is the JSON Schema "items" definition for array properties.

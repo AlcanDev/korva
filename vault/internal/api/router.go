@@ -839,7 +839,7 @@ func hiveBatchIngest(s *store.Store) http.HandlerFunc {
 				writeError(w, http.StatusBadRequest, "invalid gzip body")
 				return
 			}
-			defer gr.Close()
+			defer func() { _ = gr.Close() }()
 			body, err = readLimited(gr, maxBodyBytes)
 		} else {
 			body, err = readLimited(r.Body, maxBodyBytes)
