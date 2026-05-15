@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.34.0](https://github.com/AlcanDev/korva/compare/v1.33.0...v1.34.0) (2026-05-15)
+
+
+### 🚀 Features
+
+* **phase-20:** production stabilization — coverage, readiness, runbook, E2E smoke ([#74](https://github.com/AlcanDev/korva/issues/74)) ([f3a6466](https://github.com/AlcanDev/korva/commit/f3a6466cce540fadb6e0683e3c76ab6750b84d9b))
+
 ## [1.33.0](https://github.com/AlcanDev/korva/compare/v1.32.0...v1.33.0) (2026-05-15)
 
 
