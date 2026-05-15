@@ -190,6 +190,24 @@ export function useAdminDeletePrompt() {
   })
 }
 
+// ── Private Scrolls ───────────────────────────────────────────────────────────
+
+export interface PrivateScroll {
+  id: string
+  name: string
+  content: string
+  created_at: string
+  updated_at: string
+}
+
+export function useAdminPrivateScrolls() {
+  return useQuery({
+    queryKey: ['admin', 'scrolls', 'private'],
+    queryFn: () => adminFetch<PrivateScroll[]>('/admin/scrolls/private'),
+    retry: false,
+  })
+}
+
 // ── Auth check ────────────────────────────────────────────────────────────────
 
 export async function checkAdminKey(key: string): Promise<boolean> {

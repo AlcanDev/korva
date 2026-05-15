@@ -1,4 +1,5 @@
-import { BookOpen } from 'lucide-react'
+import { BookOpen, Lock } from 'lucide-react'
+import { useAdminPrivateScrolls } from '@/api/admin'
 
 const CURATED_SCROLLS = [
   { id: 'nestjs-hexagonal', team: 'backend', description: 'Hexagonal architecture with NestJS + Fastify' },
@@ -27,6 +28,8 @@ const TEAM_COLORS: Record<string, string> = {
 }
 
 export default function LoreManager() {
+  const { data: privateScrolls, isLoading } = useAdminPrivateScrolls()
+
   return (
     <div className="p-6 max-w-5xl">
       <header className="mb-5">
@@ -34,7 +37,9 @@ export default function LoreManager() {
         <p className="text-sm text-[#8b949e] mt-0.5">Knowledge Scrolls — architecture rules for your AI assistant</p>
       </header>
 
-      <div className="space-y-2">
+      {/* Curated catalog */}
+      <h2 className="text-xs font-semibold text-[#6e7681] uppercase tracking-wider mb-2">Curated Scrolls</h2>
+      <div className="space-y-2 mb-6">
         {CURATED_SCROLLS.map((scroll) => (
           <div
             key={scroll.id}
@@ -63,9 +68,44 @@ export default function LoreManager() {
         ))}
       </div>
 
-      <p className="text-xs text-[#6e7681] mt-4">
-        Private team scrolls are installed via <code className="text-[#79c0ff]">korva init --profile</code>
-      </p>
+      {/* Private team scrolls (from vault) */}
+      <h2 className="text-xs font-semibold text-[#6e7681] uppercase tracking-wider mb-2">
+        Private Team Scrolls
+      </h2>
+      {isLoading ? (
+        <div className="space-y-2">
+          {[1, 2].map((i) => (
+            <div key={i} className="h-12 bg-[#161b22] border border-[#21262d] rounded-lg animate-pulse" />
+          ))}
+        </div>
+      ) : !privateScrolls || privateScrolls.length === 0 ? (
+        <p className="text-xs text-[#6e7681] py-3">
+          No private scrolls installed.{' '}
+          <code className="text-[#79c0ff]">korva init --profile</code> to load team scrolls.
+        </p>
+      ) : (
+        <div className="space-y-2">
+          {privateScrolls.map((scroll) => (
+            <div
+              key={scroll.id}
+              className="border border-[#21262d] rounded-lg px-4 py-3 bg-[#161b22] flex items-center gap-3"
+            >
+              <Lock size={14} className="text-[#a371f7] flex-shrink-0" />
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-[#e6edf3]">{scroll.name}</span>
+                  <span className="text-xs px-1.5 py-0.5 rounded-full bg-[#a371f722] text-[#a371f7]">
+                    private
+                  </span>
+                </div>
+                <p className="text-xs text-[#8b949e] mt-0.5 truncate">
+                  {new Date(scroll.updated_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

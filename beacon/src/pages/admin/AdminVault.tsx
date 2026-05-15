@@ -3,6 +3,7 @@ import { Search, Trash2, Tag, Calendar, User, AlertCircle, ChevronLeft, ChevronR
 import { useAdminSearch, useAdminDeleteObservation, type Observation } from '@/api/admin'
 import { PageHeader } from '@/components/PageHeader'
 import { useI18n } from '@/contexts/i18n'
+import { useDebounce } from '@/hooks/useDebounce'
 
 const TYPE_OPTIONS = [
   '', 'decision', 'pattern', 'bugfix', 'learning', 'context',
@@ -27,7 +28,9 @@ export default function AdminVault() {
     })
   }
 
-  const { data, isLoading } = useAdminSearch(query, project, type, PAGE_SIZE, offset)
+  const debouncedQuery = useDebounce(query)
+  const debouncedProject = useDebounce(project)
+  const { data, isLoading } = useAdminSearch(debouncedQuery, debouncedProject, type, PAGE_SIZE, offset)
   const deleteMutation = useAdminDeleteObservation()
 
   const results = data?.results ?? []

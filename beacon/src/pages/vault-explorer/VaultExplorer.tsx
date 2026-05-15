@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Search, Tag } from 'lucide-react'
 import { useSearch, type Observation } from '@/api/vault'
+import { useDebounce } from '@/hooks/useDebounce'
 
 const TYPE_COLORS: Record<string, string> = {
   decision: '#238636',
@@ -19,7 +20,8 @@ export default function VaultExplorer() {
   const [country, setCountry] = useState('')
   const [type, setType] = useState('')
 
-  const { data, isLoading } = useSearch(query, { project, team, country, type })
+  const debouncedQuery = useDebounce(query)
+  const { data, isLoading } = useSearch(debouncedQuery, { project, team, country, type })
 
   return (
     <div className="p-6 max-w-5xl">

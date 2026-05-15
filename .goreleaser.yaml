@@ -192,6 +192,7 @@ brews:
       owner: alcandev
       name: homebrew-tap
       token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    directory: Formula
     name: korva
     description: "AI ecosystem CLI for enterprise development teams"
     homepage: "https://korva.dev"
