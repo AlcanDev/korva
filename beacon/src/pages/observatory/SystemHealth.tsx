@@ -101,7 +101,7 @@ export default function SystemHealth() {
           <StatusRow label="Custom rules" value={data.sentinel.custom_count} mono />
           <StatusRow
             label="Hooks installed"
-            value={data.sentinel.hooks_installed.join(', ') || '—'}
+            value={(data.sentinel.hooks_installed ?? []).join(', ') || '—'}
             mono
           />
         </StatusCard>
@@ -109,7 +109,7 @@ export default function SystemHealth() {
         <StatusCard title="Lore" icon={<BookOpen size={14} />} status="info">
           <StatusRow
             label="Active scrolls"
-            value={data.lore.active_scrolls.join(', ') || '—'}
+            value={(data.lore.active_scrolls ?? []).join(', ') || '—'}
             mono
           />
           <StatusRow label="Available" value={data.lore.available_scrolls_count} mono />
