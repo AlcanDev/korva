@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.36.4](https://github.com/AlcanDev/korva/compare/v1.36.3...v1.36.4) (2026-05-16)
+
+
+### 🐛 Bug Fixes
+
+* **onboarding:** brew service block, caveats, and version comparison ([#91](https://github.com/AlcanDev/korva/issues/91)) ([f766666](https://github.com/AlcanDev/korva/commit/f766666a5b0577d5391e39667d0071def8c23c7a))
+
 ## [1.36.3](https://github.com/AlcanDev/korva/compare/v1.36.2...v1.36.3) (2026-05-16)
 
 
