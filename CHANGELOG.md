@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.36.5](https://github.com/AlcanDev/korva/compare/v1.36.4...v1.36.5) (2026-05-16)
+
+
+### 🐛 Bug Fixes
+
+* **test:** replace 1ns timeout with pre-canceled context in Windows flaky test ([#93](https://github.com/AlcanDev/korva/issues/93)) ([221f477](https://github.com/AlcanDev/korva/commit/221f477ba0e0567b0dd4b90cd37addbb64f9c254))
+
 ## [1.36.4](https://github.com/AlcanDev/korva/compare/v1.36.3...v1.36.4) (2026-05-16)
 
 
