@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.36.2](https://github.com/AlcanDev/korva/compare/v1.36.1...v1.36.2) (2026-05-16)
+
+
+### 🐛 Bug Fixes
+
+* **release:** move GoReleaser into release-please.yml as dependent job ([#87](https://github.com/AlcanDev/korva/issues/87)) ([f9937fe](https://github.com/AlcanDev/korva/commit/f9937fe4bedcac1e4e6f843ebe6a92e66a91eb77))
+
 ## [1.36.1](https://github.com/AlcanDev/korva/compare/v1.36.0...v1.36.1) (2026-05-16)
 
 
