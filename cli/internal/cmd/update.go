@@ -496,6 +496,36 @@ func normalizeTag(s string) string {
 	return strings.TrimPrefix(s, "v")
 }
 
+// isNewerVersion returns true if candidate is strictly newer than current.
+// Compares major.minor.patch numerically; returns false on any parse error.
+func isNewerVersion(candidate, current string) bool {
+	parse := func(v string) (major, minor, patch int, ok bool) {
+		v = normalizeTag(v)
+		parts := strings.SplitN(v, ".", 3)
+		if len(parts) != 3 {
+			return 0, 0, 0, false
+		}
+		fmt.Sscanf(parts[0], "%d", &major) //nolint:errcheck
+		fmt.Sscanf(parts[1], "%d", &minor) //nolint:errcheck
+		// strip pre-release suffix from patch (e.g. "1-beta")
+		patchStr := strings.SplitN(parts[2], "-", 2)[0]
+		fmt.Sscanf(patchStr, "%d", &patch) //nolint:errcheck
+		return major, minor, patch, true
+	}
+	cMaj, cMin, cPat, ok1 := parse(candidate)
+	aMaj, aMin, aPat, ok2 := parse(current)
+	if !ok1 || !ok2 {
+		return false
+	}
+	if cMaj != aMaj {
+		return cMaj > aMaj
+	}
+	if cMin != aMin {
+		return cMin > aMin
+	}
+	return cPat > aPat
+}
+
 // printUpgradeHint prints the platform-appropriate upgrade command.
 func printUpgradeHint() {
 	fmt.Println("  Upgrade options:")
@@ -579,7 +609,7 @@ func CheckUpdateHint() {
 	// Check the cache first — refresh at most once per 24 h.
 	if c, err := loadVersionCache(); err == nil {
 		if time.Since(c.LastCheck) < 24*time.Hour {
-			if c.Latest != "" && normalizeTag(c.Latest) != normalizeTag(version.Version) {
+			if c.Latest != "" && isNewerVersion(c.Latest, version.Version) {
 				printUpdateBanner(c.Latest, c.ReleaseNotes, c.ReleaseURL, false)
 			}
 			return
@@ -614,7 +644,7 @@ func CheckUpdateHint() {
 	latest := normalizeTag(release.TagName)
 	_ = saveVersionCache(latest, release.Body, release.HTMLURL)
 
-	if latest != normalizeTag(version.Version) {
+	if isNewerVersion(latest, version.Version) {
 		printUpdateBanner(latest, release.Body, release.HTMLURL, false)
 	}
 }
