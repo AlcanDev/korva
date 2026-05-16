@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.36.1](https://github.com/AlcanDev/korva/compare/v1.36.0...v1.36.1) (2026-05-16)
+
+
+### 🐛 Bug Fixes
+
+* **release:** trigger on release:published instead of push:tags ([#85](https://github.com/AlcanDev/korva/issues/85)) ([53f8f7f](https://github.com/AlcanDev/korva/commit/53f8f7faedd1826d64415d2e3593bb8870cbfb65))
+
 ## [1.36.0](https://github.com/AlcanDev/korva/compare/v1.35.3...v1.36.0) (2026-05-15)
 
 
