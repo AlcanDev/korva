@@ -100,8 +100,11 @@ func TestClient_DownloadBundle_ContextCanceled(t *testing.T) {
 	srv := bundleServer(t, sampleBundle(), http.StatusOK)
 	defer srv.Close()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Nanosecond)
-	defer cancel()
+	// Use a pre-canceled context — guaranteed to already be done before the
+	// request starts, avoiding the race condition with 1ns timeouts on Windows
+	// where fast machines may complete the request before the deadline fires.
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
 
 	c := New(srv.URL, "KORVA-TEST-KEY-0003")
 	_, err := c.DownloadBundle(ctx)
