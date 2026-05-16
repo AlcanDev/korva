@@ -1,14 +1,12 @@
 name: Release
 
-# Triggered automatically when release-please creates a vX.Y.Z tag.
-# Also triggered if you push a tag manually: git tag v1.2.3 && git push --tags
-#
-# CI is NOT re-run here — it already passed on the PR that was merged before
-# this tag was created. Branch protection on main enforces that.
+# release-please publishes GitHub Releases using GITHUB_TOKEN. GitHub does NOT
+# fire the `push: tags` event for actions that use GITHUB_TOKEN, so we listen
+# to `release: types: [published]` instead — that fires reliably in both cases.
+# workflow_dispatch remains available for manual re-runs.
 on:
-  push:
-    tags:
-      - "v*"
+  release:
+    types: [published]
   workflow_dispatch:
     inputs:
       tag:
