@@ -104,13 +104,13 @@ export default function InsightsPanel() {
 
 			<Card>
 				<CardHeader
-					title={`${insights.data?.suggestions.length ?? 0} pattern candidate(s)`}
+					title={`${insights.data?.suggestions?.length ?? 0} pattern candidate(s)`}
 					subtitle="Sorted by severity then count. Click a row to see the sample observations."
 				/>
 				<CardBody className="!p-0">
 					{insights.isLoading ? (
 						<Skeleton height={200} />
-					) : !insights.data || insights.data.suggestions.length === 0 ? (
+					) : !insights.data || (insights.data.suggestions ?? []).length === 0 ? (
 						<div className="p-4">
 							<EmptyState
 								tone="volt"
@@ -122,7 +122,7 @@ export default function InsightsPanel() {
 						</div>
 					) : (
 						<ul className="divide-y divide-white/5">
-							{insights.data.suggestions.map((s) => (
+							{(insights.data.suggestions ?? []).map((s) => (
 								<SuggestionRow key={s.phrase} s={s} />
 							))}
 						</ul>
