@@ -207,5 +207,24 @@ brews:
       bash_completion.install "completions/korva.bash" => "korva"
       zsh_completion.install "completions/korva.zsh" => "_korva"
       fish_completion.install "completions/korva.fish"
+    service: |
+      run [opt_bin/"korva-vault", "--mode=http"]
+      keep_alive true
+      log_path var/"log/korva-vault.log"
+      error_log_path var/"log/korva-vault.log"
+    caveats: |
+      Korva Vault is a background service that stores AI memory locally.
+
+      Start it now (and automatically at login):
+        brew services start korva
+
+      Then finish setup (run once per machine):
+        korva init --admin --owner you@example.com
+        korva setup --all --global
+
+      Open the dashboard:
+        open http://localhost:7437
+
+      Docs: https://korva.dev/docs/getting-started
     test: |
       system "#{bin}/korva", "--version"
