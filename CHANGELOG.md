@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.36.3](https://github.com/AlcanDev/korva/compare/v1.36.2...v1.36.3) (2026-05-16)
+
+
+### 🐛 Bug Fixes
+
+* **beacon:** guard null arrays in SystemHealth to prevent crash ([#89](https://github.com/AlcanDev/korva/issues/89)) ([078ab9e](https://github.com/AlcanDev/korva/commit/078ab9e0e4642bea1bbfb4cb836426d291196b96))
+
 ## [1.36.2](https://github.com/AlcanDev/korva/compare/v1.36.1...v1.36.2) (2026-05-16)
 
 
