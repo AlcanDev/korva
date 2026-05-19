@@ -41,6 +41,18 @@ var authLogoutCmd = &cobra.Command{
 	RunE:  runAuthLogout,
 }
 
+var authTokenCmd = &cobra.Command{
+	Use:   "token",
+	Short: "Print the current session token (for editor MCP config)",
+	Long: `Print the plaintext session token stored at ~/.korva/session.token.
+
+Useful for wiring the remote MCP endpoint into your editor:
+  curl -H "Authorization: Bearer $(korva auth token)" https://mcp.korva.dev/mcp
+
+Exits non-zero with a hint when no session is active.`,
+	RunE: runAuthToken,
+}
+
 // authLoginOpts captures the flags for `korva auth login`. The email comes
 // from --email; the code is normally typed interactively (so it can be
 // scripted via `--code` for tests / automation).
@@ -70,16 +82,33 @@ func init() {
 	authCmd.AddCommand(authStatusCmd)
 	authCmd.AddCommand(authLogoutCmd)
 	authCmd.AddCommand(authLoginCmd)
+	authCmd.AddCommand(authTokenCmd)
 
 	authLoginCmd.Flags().StringVarP(&authLoginOpts.Email, "email", "e", "", "email registered by your team admin (required)")
 	authLoginCmd.Flags().StringVar(&authLoginOpts.Code, "code", "", "skip the prompt and pass the OTP directly (for scripts/tests)")
 }
 
-// vaultBase returns the local vault base URL from config (default port 7437).
+// vaultBase returns the vault base URL the CLI should target. Resolution
+// order, highest priority first:
+//  1. KORVA_VAULT_ENDPOINT env var (e.g. "https://api.korva.dev").
+//  2. vault.endpoint in ~/.korva/config.json (set via `korva config set`).
+//  3. http://127.0.0.1:<vault.port> when vault.port is configured.
+//  4. http://127.0.0.1:7437 (local default).
+//
+// The trailing slash is stripped so callers can safely concatenate paths
+// like vaultBase()+"/auth/redeem".
 func vaultBase() string {
+	if v := strings.TrimRight(strings.TrimSpace(os.Getenv("KORVA_VAULT_ENDPOINT")), "/"); v != "" {
+		return v
+	}
 	cfg, err := config.Load(mustPaths().ConfigFile)
-	if err == nil && cfg.Vault.Port > 0 {
-		return fmt.Sprintf("http://127.0.0.1:%d", cfg.Vault.Port)
+	if err == nil {
+		if e := strings.TrimRight(strings.TrimSpace(cfg.Vault.Endpoint), "/"); e != "" {
+			return e
+		}
+		if cfg.Vault.Port > 0 {
+			return fmt.Sprintf("http://127.0.0.1:%d", cfg.Vault.Port)
+		}
 	}
 	return "http://127.0.0.1:7437"
 }
@@ -92,6 +121,23 @@ func mustPaths() *config.Paths {
 		os.Exit(1)
 	}
 	return paths
+}
+
+func runAuthToken(cmd *cobra.Command, _ []string) error {
+	path := mustPaths().SessionTokenFile
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return fmt.Errorf("no session token at %s — run `korva auth login` or `korva auth redeem <token>` first", path)
+		}
+		return fmt.Errorf("read %s: %w", path, err)
+	}
+	token := strings.TrimSpace(string(data))
+	if token == "" {
+		return fmt.Errorf("session token file is empty (%s)", path)
+	}
+	fmt.Fprintln(cmd.OutOrStdout(), token)
+	return nil
 }
 
 func runAuthRedeem(cmd *cobra.Command, args []string) error {

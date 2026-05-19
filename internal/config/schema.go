@@ -49,6 +49,12 @@ type LicenseConfig struct {
 
 // VaultConfig holds Vault server settings.
 type VaultConfig struct {
+	// Endpoint is the full base URL the CLI uses to reach the vault. When
+	// set (e.g. "https://api.korva.dev") it takes precedence over Port and
+	// enables the CLI to target a cloud/self-hosted vault. When empty the
+	// CLI falls back to http://127.0.0.1:Port for local-mode workflows.
+	// The env var KORVA_VAULT_ENDPOINT overrides this field.
+	Endpoint        string   `json:"endpoint,omitempty"`
 	Port            int      `json:"port"`
 	AutoStart       bool     `json:"auto_start"`
 	SyncRepo        string   `json:"sync_repo,omitempty"`

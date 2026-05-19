@@ -271,17 +271,12 @@ func adminCall(method, path string, body []byte, out any) error {
 	if err != nil {
 		return fmt.Errorf("admin key required — run `korva init --admin` first")
 	}
-	cfg, _ := config.Load(paths.ConfigFile)
-	port := cfg.Vault.Port
-	if port == 0 {
-		port = 7437
-	}
 
 	var reader io.Reader
 	if body != nil {
 		reader = bytes.NewReader(body)
 	}
-	req, err := http.NewRequest(method, fmt.Sprintf("http://127.0.0.1:%d%s", port, path), reader)
+	req, err := http.NewRequest(method, vaultBase()+path, reader)
 	if err != nil {
 		return err
 	}
