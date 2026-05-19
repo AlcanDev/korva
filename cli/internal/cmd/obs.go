@@ -57,8 +57,7 @@ func init() {
 // --- handlers ---
 
 func runObsList(cmd *cobra.Command, _ []string) error {
-	paths := mustPaths()
-	port := vaultPort(paths)
+	_ = mustPaths() // ensure paths resolve early; URL comes from vaultBase()
 
 	project, _ := cmd.Flags().GetString("project")
 	obsType, _ := cmd.Flags().GetString("type")
@@ -75,13 +74,12 @@ func runObsList(cmd *cobra.Command, _ []string) error {
 	params.Set("limit", fmt.Sprintf("%d", limit))
 	params.Set("offset", fmt.Sprintf("%d", offset))
 
-	apiURL := fmt.Sprintf("http://127.0.0.1:%d/api/v1/search?%s", port, params.Encode())
+	apiURL := fmt.Sprintf("%s/api/v1/search?%s", vaultBase(), params.Encode())
 	return doObsSearch(apiURL, "")
 }
 
 func runObsSearch(cmd *cobra.Command, args []string) error {
-	paths := mustPaths()
-	port := vaultPort(paths)
+	_ = mustPaths() // ensure paths resolve early; URL comes from vaultBase()
 
 	project, _ := cmd.Flags().GetString("project")
 	obsType, _ := cmd.Flags().GetString("type")
@@ -101,15 +99,14 @@ func runObsSearch(cmd *cobra.Command, args []string) error {
 		params.Set("cloud", "1")
 	}
 
-	apiURL := fmt.Sprintf("http://127.0.0.1:%d/api/v1/search?%s", port, params.Encode())
+	apiURL := fmt.Sprintf("%s/api/v1/search?%s", vaultBase(), params.Encode())
 	return doObsSearch(apiURL, args[0])
 }
 
 func runObsGet(_ *cobra.Command, args []string) error {
-	paths := mustPaths()
-	port := vaultPort(paths)
+	_ = mustPaths() // ensure paths resolve early; URL comes from vaultBase()
 
-	apiURL := fmt.Sprintf("http://127.0.0.1:%d/api/v1/observations/%s", port, args[0])
+	apiURL := fmt.Sprintf("%s/api/v1/observations/%s", vaultBase(), args[0])
 
 	client := &http.Client{Timeout: 5 * time.Second}
 	resp, err := client.Get(apiURL)

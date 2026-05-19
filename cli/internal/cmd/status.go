@@ -61,10 +61,10 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	// Vault
 	fmt.Println("")
 	fmt.Println("  Vault:")
-	vaultURL := fmt.Sprintf("http://127.0.0.1:%d/healthz", cfg.Vault.Port)
+	vaultURL := vaultBase() + "/healthz"
 	if vaultRunning(vaultURL) {
 		fmt.Printf("    ● Online  (%s)\n", vaultURL)
-		showVaultStats(cfg.Vault.Port)
+		showVaultStats(vaultBase())
 	} else {
 		fmt.Printf("    ○ Offline  (start with: korva-vault)\n")
 	}
@@ -128,9 +128,9 @@ func httpReachable(url string) bool {
 	return resp.StatusCode >= 200 && resp.StatusCode < 300
 }
 
-func showVaultStats(port int) {
+func showVaultStats(base string) {
 	client := &http.Client{Timeout: 1 * time.Second}
-	resp, err := client.Get(fmt.Sprintf("http://127.0.0.1:%d/api/v1/stats", port))
+	resp, err := client.Get(base + "/api/v1/stats")
 	if err != nil {
 		return
 	}
