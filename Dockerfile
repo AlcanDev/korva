@@ -1,5 +1,5 @@
 # ── Stage 1: build Beacon SPA ─────────────────────────────────────────────────
-FROM node:22-alpine AS beacon-builder
+FROM node:26-alpine AS beacon-builder
 
 WORKDIR /src/beacon
 COPY beacon/package.json beacon/package-lock.json ./
