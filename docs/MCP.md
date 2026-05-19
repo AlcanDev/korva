@@ -16,8 +16,14 @@ When you run `korva setup <editor>`, the editor's config file is updated to laun
 
 ## Connecting
 
+Korva exposes two MCP transports — pick the one that matches your deployment.
+
+### Option A — stdio (local vault)
+
+Spawned as a subprocess by the editor. Works offline; reads/writes your local
+`~/.korva/vault/`.
+
 ```jsonc
-// Generic MCP client config — most editors derive from this
 {
   "mcpServers": {
     "korva": {
@@ -29,6 +35,40 @@ When you run `korva setup <editor>`, the editor's config file is updated to laun
 ```
 
 The `korva setup <editor>` commands write the editor-specific equivalent for you.
+
+### Option B — Streamable HTTP (remote / team vault)
+
+For Korva for Teams or self-hosted cloud deployments — every member's editor
+points at the same vault, so observations save in the team's central store.
+
+```jsonc
+{
+  "mcpServers": {
+    "korva": {
+      "url": "https://mcp.korva.dev/mcp",
+      "headers": {
+        "Authorization": "Bearer YOUR_SESSION_TOKEN"
+      }
+    }
+  }
+}
+```
+
+**Where to get the token:**
+
+```bash
+korva config set vault.endpoint https://api.korva.dev
+korva auth login --email you@yourteam.com   # email OTP, or `auth redeem` with invite
+korva auth token                              # prints the bearer for editor config
+```
+
+The remote endpoint is **default-deny**: requests without a valid bearer get
+HTTP 401 + JSON-RPC error `-32001`. Operators can override with
+`KORVA_MCP_ALLOW_ANONYMOUS=true` for local development only.
+
+> **Editor support for HTTP MCP**: Claude Code, Cursor, Windsurf (recent
+> versions). Editors that only do stdio (Aider, some Continue builds) need
+> the local-mode setup above.
 
 ---
 
