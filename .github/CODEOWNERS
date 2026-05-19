@@ -1,0 +1,15 @@
+# Default owner: every PR auto-requests review from @AlcanDev.
+# Path-specific owners override the global default below.
+*       @AlcanDev
+
+# Security-sensitive surfaces. Even when @AlcanDev is sole maintainer, this
+# list documents which paths need extra eyes when contributors arrive.
+/.github/                       @AlcanDev
+/.gitleaks.toml                 @AlcanDev
+/SECURITY.md                    @AlcanDev
+/Dockerfile                     @AlcanDev
+/docker-compose.yml             @AlcanDev
+/internal/privacy/              @AlcanDev
+/internal/license/              @AlcanDev
+/vault/internal/api/auth_*.go   @AlcanDev
+/vault/internal/api/admin_*.go  @AlcanDev
