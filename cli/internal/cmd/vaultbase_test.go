@@ -3,19 +3,34 @@ package cmd
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 )
+
+// configSandboxDir returns the directory PlatformPaths() will resolve to
+// for the given sandbox root, picking the right subdirectory layout per
+// OS. Tests use it so they don't have to know whether ~/.korva or
+// %APPDATA%\korva is in effect.
+func configSandboxDir(t *testing.T, root string) string {
+	t.Helper()
+	if runtime.GOOS == "windows" {
+		return filepath.Join(root, "korva")
+	}
+	return filepath.Join(root, ".korva")
+}
 
 // TestVaultBasePriority verifies the resolution order documented on
 // vaultBase(): env var > config endpoint > config port > built-in default.
 // Each case mutates only the inputs that matter so failures pinpoint the
 // exact precedence rule that regressed.
 func TestVaultBasePriority(t *testing.T) {
-	// Sandbox HOME so the test doesn't touch the real ~/.korva/config.json.
+	// Sandbox both HOME (Linux/macOS) and APPDATA (Windows) so the test
+	// doesn't touch the real config file on any platform.
 	tmp := t.TempDir()
 	t.Setenv("HOME", tmp)
+	t.Setenv("APPDATA", tmp)
 
-	configDir := filepath.Join(tmp, ".korva")
+	configDir := configSandboxDir(t, tmp)
 	if err := os.MkdirAll(configDir, 0o755); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
@@ -84,11 +99,13 @@ func TestVaultBasePriority(t *testing.T) {
 func TestAuthTokenCommand(t *testing.T) {
 	tmp := t.TempDir()
 	t.Setenv("HOME", tmp)
+	t.Setenv("APPDATA", tmp)
 
-	if err := os.MkdirAll(filepath.Join(tmp, ".korva"), 0o755); err != nil {
+	dir := configSandboxDir(t, tmp)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
-	tokenPath := filepath.Join(tmp, ".korva", "session.token")
+	tokenPath := filepath.Join(dir, "session.token")
 
 	// 1. Missing file → clear error pointing at the path + next step.
 	err := runAuthToken(rootCmd, nil)

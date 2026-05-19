@@ -117,13 +117,13 @@ func TestCORSPreflightPreservesGET(t *testing.T) {
 // TestIsMCPPath unit-checks the path matcher used by the carve-out.
 func TestIsMCPPath(t *testing.T) {
 	cases := map[string]bool{
-		"/mcp":         true,
-		"/mcp/":        true,
+		"/mcp":          true,
+		"/mcp/":         true,
 		"/mcp/anything": true,
-		"/mcpish":      false,
-		"/api/v1/mcp":  false,
-		"":             false,
-		"/":            false,
+		"/mcpish":       false,
+		"/api/v1/mcp":   false,
+		"":              false,
+		"/":             false,
 	}
 	for p, want := range cases {
 		if got := isMCPPath(p); got != want {
