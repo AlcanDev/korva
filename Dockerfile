@@ -18,11 +18,21 @@ COPY . .
 # Embed the Beacon dist built in stage 1.
 COPY --from=beacon-builder /src/beacon/dist ./vault/internal/ui/dist
 
-ARG VERSION=dev
-ARG COMMIT=none
-ARG BUILD_DATE=unknown
+# Build args may be passed explicitly (CI, Coolify) or left empty — in which
+# case we auto-detect from git history so the binary always reports a real
+# version. The shell expansion below resolves each arg in priority order:
+#   1. explicit --build-arg
+#   2. git describe / rev-parse / date -u
+# Order matters: COMMIT defaults to short SHA, never empty.
+ARG VERSION=""
+ARG COMMIT=""
+ARG BUILD_DATE=""
 
 RUN go work sync && \
+    VERSION="${VERSION:-$(git describe --tags --always --dirty 2>/dev/null || echo dev)}" && \
+    COMMIT="${COMMIT:-$(git rev-parse --short HEAD 2>/dev/null || echo none)}" && \
+    BUILD_DATE="${BUILD_DATE:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}" && \
+    echo "Building korva-vault: version=${VERSION} commit=${COMMIT} date=${BUILD_DATE}" && \
     CGO_ENABLED=0 GOOS=linux go build \
       -tags embedui \
       -ldflags="-s -w \
