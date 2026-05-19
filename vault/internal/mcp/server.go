@@ -164,30 +164,33 @@ func (s *Server) Run() error {
 
 		var req Request
 		if err := json.Unmarshal([]byte(line), &req); err != nil {
-			s.writeError(nil, -32700, "parse error", err.Error())
+			s.write(makeError(nil, -32700, "parse error", err.Error()))
 			continue
 		}
 
-		s.handleRequest(req)
+		s.write(s.HandleRequest(req))
 	}
 }
 
-func (s *Server) handleRequest(req Request) {
+// HandleRequest dispatches a parsed JSON-RPC request and returns the response
+// to write to the transport. Exported so non-stdio transports (HTTP) can reuse
+// the same dispatch logic.
+func (s *Server) HandleRequest(req Request) Response {
 	switch req.Method {
 	case "initialize":
-		s.handleInitialize(req)
+		return s.handleInitialize(req)
 	case "tools/list":
-		s.handleToolsList(req)
+		return s.handleToolsList(req)
 	case "tools/call":
-		s.handleToolsCall(req)
+		return s.handleToolsCall(req)
 	case "ping":
-		s.writeResult(req.ID, map[string]string{"pong": "pong"})
+		return makeResult(req.ID, map[string]string{"pong": "pong"})
 	default:
-		s.writeError(req.ID, -32601, "method not found", req.Method)
+		return makeError(req.ID, -32601, "method not found", req.Method)
 	}
 }
 
-func (s *Server) handleInitialize(req Request) {
+func (s *Server) handleInitialize(req Request) Response {
 	// Attempt to resolve an optional session token from the initialize params.
 	// Clients that have a ~/.korva/session.token should pass it here so that
 	// MCP tools automatically carry team context.
@@ -206,7 +209,9 @@ func (s *Server) handleInitialize(req Request) {
 			} `json:"clientInfo"`
 		}
 		if json.Unmarshal(req.Params, &params) == nil {
-			if params.SessionToken != "" {
+			// Only fall back to the params token when the transport hasn't
+			// already established a session (HTTP Bearer header wins).
+			if s.session == nil && params.SessionToken != "" {
 				s.resolveSession(params.SessionToken)
 			}
 			if e := resolveMCPClientEditor(params.ClientInfo.Name); e != "" {
@@ -215,7 +220,7 @@ func (s *Server) handleInitialize(req Request) {
 		}
 	}
 
-	s.writeResult(req.ID, InitializeResult{
+	return makeResult(req.ID, InitializeResult{
 		ProtocolVersion: "2024-11-05",
 		Capabilities:    Capabilities{Tools: &ToolsCapability{}},
 		ServerInfo: ServerInfo{
@@ -350,26 +355,24 @@ func (s *Server) fetchTeamContext() (skills, scrolls []map[string]any) {
 	return
 }
 
-func (s *Server) handleToolsList(req Request) {
-	s.writeResult(req.ID, map[string]any{
+func (s *Server) handleToolsList(req Request) Response {
+	return makeResult(req.ID, map[string]any{
 		"tools": toolsForProfile(s.profile),
 	})
 }
 
-func (s *Server) handleToolsCall(req Request) {
+func (s *Server) handleToolsCall(req Request) Response {
 	var params ToolCallParams
 	if err := json.Unmarshal(req.Params, &params); err != nil {
-		s.writeError(req.ID, -32602, "invalid params", err.Error())
-		return
+		return makeError(req.ID, -32602, "invalid params", err.Error())
 	}
 
 	result, err := s.dispatch(params.Name, params.Arguments)
 	if err != nil {
-		s.writeToolError(req.ID, err.Error())
-		return
+		return makeToolError(req.ID, err.Error())
 	}
 
-	s.writeResult(req.ID, ToolCallResult{
+	return makeResult(req.ID, ToolCallResult{
 		Content: []ContentBlock{{Type: "text", Text: toJSON(result)}},
 	})
 }
@@ -1724,27 +1727,29 @@ func (s *Server) toolMergeProjects(args map[string]any) (any, error) {
 	}, nil
 }
 
-// --- write helpers ---
+// --- response builders (transport-agnostic) ---
 
-func (s *Server) writeResult(id any, result any) {
-	s.write(Response{JSONRPC: "2.0", ID: id, Result: result})
+func makeResult(id, result any) Response {
+	return Response{JSONRPC: "2.0", ID: id, Result: result}
 }
 
-func (s *Server) writeError(id any, code int, message, data string) {
-	s.write(Response{
+func makeError(id any, code int, message, data string) Response {
+	return Response{
 		JSONRPC: "2.0",
 		ID:      id,
 		Error:   &RPCError{Code: code, Message: message, Data: data},
-	})
+	}
 }
 
-func (s *Server) writeToolError(id any, msg string) {
-	s.writeResult(id, ToolCallResult{
+func makeToolError(id any, msg string) Response {
+	return makeResult(id, ToolCallResult{
 		Content: []ContentBlock{{Type: "text", Text: msg}},
 		IsError: true,
 	})
 }
 
+// write serializes a Response and emits it on the stdio writer. Only used by
+// Run(); HTTP transport marshals directly into the response body.
 func (s *Server) write(v any) {
 	data, err := json.Marshal(v)
 	if err != nil {
