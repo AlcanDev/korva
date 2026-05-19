@@ -145,31 +145,30 @@ func loadSessionToken() string {
 
 // Run starts the MCP server loop. It blocks until stdin is closed or an
 // unrecoverable error occurs.
+//
+// Production callers leave the reader/writer fields zero and Run() drives
+// the loop against os.Stdin / os.Stdout via Serve(). Tests that pre-seed
+// s.reader (typically with strings.NewReader) and s.writer (typically
+// with bytes.Buffer) keep their existing behavior — the fields take
+// precedence so the established test helpers don't have to change.
+//
+// New code that needs the stdio loop with a non-*Server dispatcher (e.g.
+// a remote HTTP proxy) should call Serve(d, r, w, logger) directly.
 func (s *Server) Run() error {
-	s.logger.Printf("Korva Vault MCP server starting (%s)", version.String())
-
-	for {
-		line, err := s.reader.ReadString('\n')
-		if err != nil {
-			if err == io.EOF {
-				return nil
-			}
-			return fmt.Errorf("reading stdin: %w", err)
-		}
-
-		line = strings.TrimSpace(line)
-		if line == "" {
-			continue
-		}
-
-		var req Request
-		if err := json.Unmarshal([]byte(line), &req); err != nil {
-			s.write(makeError(nil, -32700, "parse error", err.Error()))
-			continue
-		}
-
-		s.write(s.HandleRequest(req))
+	// Compare the *concrete* types here rather than assigning to an
+	// io.Reader local first — a nil *bufio.Reader wrapped in io.Reader
+	// is NOT == nil and the staticcheck SA4023 lint catches it.
+	var r io.Reader
+	if s.reader != nil {
+		r = s.reader
+	} else {
+		r = os.Stdin
 	}
+	w := s.writer
+	if w == nil {
+		w = os.Stdout
+	}
+	return Serve(s, r, w, s.logger)
 }
 
 // HandleRequest dispatches a parsed JSON-RPC request and returns the response
@@ -1746,17 +1745,6 @@ func makeToolError(id any, msg string) Response {
 		Content: []ContentBlock{{Type: "text", Text: msg}},
 		IsError: true,
 	})
-}
-
-// write serializes a Response and emits it on the stdio writer. Only used by
-// Run(); HTTP transport marshals directly into the response body.
-func (s *Server) write(v any) {
-	data, err := json.Marshal(v)
-	if err != nil {
-		s.logger.Printf("marshal error: %v", err)
-		return
-	}
-	fmt.Fprintf(s.writer, "%s\n", data)
 }
 
 // --- argument helpers ---
