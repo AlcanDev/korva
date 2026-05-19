@@ -1,0 +1,106 @@
+# Dependabot — automated dependency updates.
+#
+# Strategy: surface security and minor/patch updates weekly across every
+# ecosystem the monorepo uses. Major bumps still get a PR but are reviewed
+# manually (no auto-merge). Groups bundle related ecosystems so the PR list
+# stays manageable.
+
+version: 2
+updates:
+  # ─── Go modules (one entry per go.mod in the workspace) ────────────────────
+  - package-ecosystem: gomod
+    directory: /internal
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: America/Santiago
+    open-pull-requests-limit: 5
+    labels: [dependencies, go]
+    commit-message:
+      prefix: chore
+      include: scope
+    groups:
+      go-stdlib-adjacent:
+        patterns: ["golang.org/x/*"]
+      sql-stack:
+        patterns: ["modernc.org/sqlite", "github.com/oklog/ulid/*"]
+
+  - package-ecosystem: gomod
+    directory: /vault
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    labels: [dependencies, go]
+    commit-message:
+      prefix: chore
+      include: scope
+    groups:
+      charm:
+        patterns: ["github.com/charmbracelet/*"]
+
+  - package-ecosystem: gomod
+    directory: /cli
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    labels: [dependencies, go]
+    commit-message:
+      prefix: chore
+      include: scope
+
+  - package-ecosystem: gomod
+    directory: /sentinel/validator
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 3
+    labels: [dependencies, go]
+    commit-message:
+      prefix: chore
+      include: scope
+
+  # ─── Beacon (Node / npm) ────────────────────────────────────────────────────
+  - package-ecosystem: npm
+    directory: /beacon
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    labels: [dependencies, javascript]
+    commit-message:
+      prefix: chore
+      include: scope
+    groups:
+      react-stack:
+        patterns: ["react", "react-dom", "@types/react", "@types/react-dom"]
+      testing:
+        patterns: ["vitest", "@testing-library/*", "axe-core", "jsdom"]
+      vite-toolchain:
+        patterns: ["vite", "@vitejs/*", "typescript", "@biomejs/biome"]
+
+  # ─── GitHub Actions versions ────────────────────────────────────────────────
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    labels: [dependencies, ci]
+    commit-message:
+      prefix: ci
+      include: scope
+
+  # ─── Docker base images (Dockerfile FROM directives) ───────────────────────
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 3
+    labels: [dependencies, docker]
+    commit-message:
+      prefix: chore
+      include: scope
