@@ -339,6 +339,26 @@ func (a *hiveSearchAdapter) Search(ctx context.Context, query string, limit int)
 }
 
 func runMCP(s *store.Store, hiveClient *hive.Client, lic *license.License) {
+	// Remote mode: KORVA_VAULT_ENDPOINT points at a vault that already
+	// exposes the full MCP surface over Streamable HTTP. The local process
+	// becomes a thin stdio→HTTPS proxy and never touches the local store.
+	// This is how team memory works end-to-end: every member's editor
+	// writes to the same upstream backend.
+	if endpoint := strings.TrimSpace(os.Getenv("KORVA_VAULT_ENDPOINT")); endpoint != "" {
+		token := mcp.LoadSessionToken()
+		if token == "" {
+			log.Printf("MCP remote: no session token found (set KORVA_SESSION_TOKEN or run `korva auth login`). " +
+				"Upstream will reject with 401 unless it has KORVA_MCP_ALLOW_ANONYMOUS=true.")
+		}
+		rd := mcp.NewRemoteDispatcher(endpoint, token)
+		logger := log.New(os.Stderr, "[vault-mcp-remote] ", log.LstdFlags)
+		logger.Printf("proxying to %s/mcp", endpoint)
+		if err := mcp.Serve(rd, os.Stdin, os.Stdout, logger); err != nil {
+			log.Fatalf("MCP remote proxy error: %v", err)
+		}
+		return
+	}
+
 	server := mcp.New(s)
 	if hiveClient != nil {
 		server.WithCloudSearch(&hiveSearchAdapter{c: hiveClient})
