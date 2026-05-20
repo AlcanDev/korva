@@ -87,11 +87,6 @@ type RouterConfig struct {
 	// Production wires a lazy verifier so the IdP is contacted on
 	// first request rather than at startup. Nil disables OIDC routes.
 	OIDCVerifier OIDCVerifier
-	// MCPHandler, when non-nil, is mounted at /mcp to expose the MCP server
-	// over Streamable HTTP. Bearer-token authenticated; the handler manages
-	// its own per-request session isolation. Nil disables the remote MCP
-	// endpoint — stdio MCP is unaffected.
-	MCPHandler http.Handler
 }
 
 // EventBus is the package-level event bus used to fan out activity to the
@@ -404,15 +399,6 @@ func Router(ctx context.Context, s *store.Store, cfg RouterConfig) http.Handler 
 	mux.Handle("GET /api/v1/harness/projects", sessMW(withCORS(harnessListProjects(s))))
 	mux.Handle("GET /api/v1/harness/projects/{project}", sessMW(withCORS(harnessGetProject(s))))
 	mux.Handle("GET /api/v1/harness/transitions", sessMW(withCORS(harnessListTransitions(s))))
-
-	// Streamable HTTP MCP endpoint. Mounted only when the entrypoint
-	// supplies a handler so non-cloud deployments stay stdio-only.
-	// The handler implements its own auth (Authorization: Bearer …) and
-	// its own CORS policy — withCORS is not applied here.
-	if cfg.MCPHandler != nil {
-		mux.Handle("/mcp", cfg.MCPHandler)
-		mux.Handle("/mcp/", cfg.MCPHandler)
-	}
 
 	// Wrap the entire mux with a per-IP fixed-window rate limiter.
 	// 120 req/min is generous for AI editor usage; prevents runaway loops.

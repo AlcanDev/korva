@@ -136,16 +136,6 @@ func main() {
 		log.Printf("OIDC: disabled (set KORVA_OIDC_ISSUER_URL + CLIENT_ID + CLIENT_SECRET + REDIRECT_URL to enable)")
 	}
 
-	// MCP over Streamable HTTP — same handlers as stdio, authenticated by
-	// Authorization: Bearer <session_token>. Mounted at /mcp by the API
-	// router. A separate Server instance from runMCP() so each transport
-	// owns its session state independently.
-	mcpHTTP := mcp.New(s)
-	if hiveResult.Client != nil {
-		mcpHTTP.WithCloudSearch(&hiveSearchAdapter{c: hiveResult.Client})
-	}
-	mcpHTTP.WithLicense(lic)
-
 	routerCfg := api.RouterConfig{
 		AdminKeyPath:     paths.AdminKey,
 		AdminKeyOverride: os.Getenv("KORVA_ADMIN_KEY"),
@@ -166,7 +156,6 @@ func main() {
 		ConfigPathLocal:  configPathLocal,
 		OIDCConfig:       oidcCfg,
 		OIDCVerifier:     oidcVerifier,
-		MCPHandler:       mcpHTTP.HTTPHandler(),
 	}
 
 	switch *mode {
@@ -398,8 +387,7 @@ func runHTTP(ctx context.Context, s *store.Store, cfg api.RouterConfig, host str
 
 		// Direct vault API paths (curl, CLI, MCP HTTP client)
 		// /v1/ is the Hive-compatible ingest API (health + batch + search).
-		// /mcp is the Streamable HTTP MCP endpoint mounted by the API router.
-		if p == "/healthz" || p == "/mcp" || strings.HasPrefix(p, "/api/") || strings.HasPrefix(p, "/v1/") || strings.HasPrefix(p, "/mcp/") {
+		if p == "/healthz" || strings.HasPrefix(p, "/api/") || strings.HasPrefix(p, "/v1/") {
 			vaultAPI.ServeHTTP(w, r)
 			return
 		}
