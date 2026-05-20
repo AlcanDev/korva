@@ -25,16 +25,7 @@ services:
     # Default: build from the repo Dockerfile so cloned checkouts and Coolify
     # deploys work without registry credentials. Set `image:` (and comment
     # `build:`) when you publish to GHCR and want to skip the build step.
-    build:
-      context: .
-      args:
-        # Pass-through for explicit version metadata. Coolify exposes
-        # COOLIFY_COMMIT_SHA / COOLIFY_BRANCH on every deploy. CI / local
-        # builds can override via KORVA_VERSION. When all three are empty,
-        # the Dockerfile falls back to `git describe` inside the build.
-        VERSION: "${KORVA_VERSION:-}"
-        COMMIT: "${KORVA_COMMIT:-${COOLIFY_COMMIT_SHA:-}}"
-        BUILD_DATE: "${KORVA_BUILD_DATE:-}"
+    build: .
     # image: ghcr.io/alcandev/korva-vault:latest
     container_name: korva-vault
     restart: unless-stopped

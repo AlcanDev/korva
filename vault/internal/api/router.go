@@ -418,35 +418,7 @@ func Router(ctx context.Context, s *store.Store, cfg RouterConfig) http.Handler 
 	// 120 req/min is generous for AI editor usage; prevents runaway loops.
 	limiter := NewRateLimiter(120, time.Minute)
 	limiter.StartCleanup(ctx, cleanupInterval)
-
-	// Global CORS preflight. Go 1.22+ ServeMux registers routes as
-	// `METHOD /path` and returns 405 for any other method — so OPTIONS
-	// requests never reach the per-route withCORS wrapper. We intercept
-	// preflight here and answer 204 with the same headers withCORS uses
-	// on actual responses. The /mcp* paths are carved out because the
-	// MCP handler advertises a wider Allow-Origin (`*` for multi-editor
-	// support) and we don't want to override that.
-	return corsPreflight(limiter.Middleware(mux))
-}
-
-// corsPreflight short-circuits CORS preflight requests with 204 + headers
-// before they hit the mux's method matcher (which rejects OPTIONS with 405).
-func corsPreflight(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodOptions && !isMCPPath(r.URL.Path) {
-			w.Header().Set("Access-Control-Allow-Origin", corsOrigin())
-			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Admin-Key, X-Session-Token, X-Korva-Editor")
-			w.Header().Set("Access-Control-Max-Age", "86400")
-			w.WriteHeader(http.StatusNoContent)
-			return
-		}
-		next.ServeHTTP(w, r)
-	})
-}
-
-func isMCPPath(p string) bool {
-	return p == "/mcp" || (len(p) > 4 && p[:5] == "/mcp/")
+	return limiter.Middleware(mux)
 }
 
 // --- handlers ---
