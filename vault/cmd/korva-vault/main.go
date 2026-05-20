@@ -136,16 +136,6 @@ func main() {
 		log.Printf("OIDC: disabled (set KORVA_OIDC_ISSUER_URL + CLIENT_ID + CLIENT_SECRET + REDIRECT_URL to enable)")
 	}
 
-	// MCP over Streamable HTTP — same handlers as stdio, authenticated by
-	// Authorization: Bearer <session_token>. Mounted at /mcp by the API
-	// router. A separate Server instance from runMCP() so each transport
-	// owns its session state independently.
-	mcpHTTP := mcp.New(s)
-	if hiveResult.Client != nil {
-		mcpHTTP.WithCloudSearch(&hiveSearchAdapter{c: hiveResult.Client})
-	}
-	mcpHTTP.WithLicense(lic)
-
 	routerCfg := api.RouterConfig{
 		AdminKeyPath:     paths.AdminKey,
 		AdminKeyOverride: os.Getenv("KORVA_ADMIN_KEY"),
@@ -166,7 +156,6 @@ func main() {
 		ConfigPathLocal:  configPathLocal,
 		OIDCConfig:       oidcCfg,
 		OIDCVerifier:     oidcVerifier,
-		MCPHandler:       mcpHTTP.HTTPHandler(),
 	}
 
 	switch *mode {
@@ -339,26 +328,6 @@ func (a *hiveSearchAdapter) Search(ctx context.Context, query string, limit int)
 }
 
 func runMCP(s *store.Store, hiveClient *hive.Client, lic *license.License) {
-	// Remote mode: KORVA_VAULT_ENDPOINT points at a vault that already
-	// exposes the full MCP surface over Streamable HTTP. The local process
-	// becomes a thin stdio→HTTPS proxy and never touches the local store.
-	// This is how team memory works end-to-end: every member's editor
-	// writes to the same upstream backend.
-	if endpoint := strings.TrimSpace(os.Getenv("KORVA_VAULT_ENDPOINT")); endpoint != "" {
-		token := mcp.LoadSessionToken()
-		if token == "" {
-			log.Printf("MCP remote: no session token found (set KORVA_SESSION_TOKEN or run `korva auth login`). " +
-				"Upstream will reject with 401 unless it has KORVA_MCP_ALLOW_ANONYMOUS=true.")
-		}
-		rd := mcp.NewRemoteDispatcher(endpoint, token)
-		logger := log.New(os.Stderr, "[vault-mcp-remote] ", log.LstdFlags)
-		logger.Printf("proxying to %s/mcp", endpoint)
-		if err := mcp.Serve(rd, os.Stdin, os.Stdout, logger); err != nil {
-			log.Fatalf("MCP remote proxy error: %v", err)
-		}
-		return
-	}
-
 	server := mcp.New(s)
 	if hiveClient != nil {
 		server.WithCloudSearch(&hiveSearchAdapter{c: hiveClient})
@@ -418,8 +387,7 @@ func runHTTP(ctx context.Context, s *store.Store, cfg api.RouterConfig, host str
 
 		// Direct vault API paths (curl, CLI, MCP HTTP client)
 		// /v1/ is the Hive-compatible ingest API (health + batch + search).
-		// /mcp is the Streamable HTTP MCP endpoint mounted by the API router.
-		if p == "/healthz" || p == "/mcp" || strings.HasPrefix(p, "/api/") || strings.HasPrefix(p, "/v1/") || strings.HasPrefix(p, "/mcp/") {
+		if p == "/healthz" || strings.HasPrefix(p, "/api/") || strings.HasPrefix(p, "/v1/") {
 			vaultAPI.ServeHTTP(w, r)
 			return
 		}

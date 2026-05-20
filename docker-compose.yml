@@ -2,38 +2,26 @@ version: "3.9"
 
 # ── Korva — stack completo para equipo ───────────────────────────────────────
 #
-# Local (single host, no proxy):
+# Uso rápido (solo vault):
 #   docker compose up -d vault
 #
-# Production (Coolify / VPS with Traefik):
-#   Set KORVA_APP_DOMAIN, KORVA_API_DOMAIN, KORVA_MCP_DOMAIN and the
-#   matching CORS / OIDC / email vars in your .env, then deploy. See
-#   docs/DEPLOY_COOLIFY.md for the full walkthrough.
+# Stack completo (vault + licensing server):
+#   KORVA_LICENSING_SECRET=change-me \
+#   KORVA_LICENSING_KEY_PEM="$(cat priv.pem)" \
+#   docker compose up -d
 #
-# Required env in production:
-#   KORVA_APP_DOMAIN              — e.g. app.korva.dev
-#   KORVA_API_DOMAIN              — e.g. api.korva.dev
-#   KORVA_MCP_DOMAIN              — e.g. mcp.korva.dev
-#   KORVA_CORS_ORIGIN             — usually https://${KORVA_APP_DOMAIN}
-#   KORVA_OIDC_*                  — when enabling SSO
-#   KORVA_EMAIL_API_KEY / _FROM   — when enabling Resend
+# Variables de entorno requeridas:
+#   KORVA_ADMIN_KEY_PATH          — ruta local de admin.key (vault)
+#   KORVA_LICENSING_SECRET        — bearer secret para /v1/issue
+#   KORVA_LICENSING_KEY_PEM       — contenido del priv.pem (o usa _KEY_FILE)
 
 services:
 
   # ── Vault (memoria compartida del equipo) ─────────────────────────────────
   vault:
-    # Default: build from the repo Dockerfile so cloned checkouts and Coolify
-    # deploys work without registry credentials. Set `image:` (and comment
-    # `build:`) when you publish to GHCR and want to skip the build step.
-    build:
-      # The Dockerfile auto-detects VERSION / COMMIT / BUILD_DATE via
-      # `git describe`+`git rev-parse`+`date -u` when its ARGs are empty,
-      # so the build always produces a tagged binary even without an
-      # `args:` block here. Coolify's compose preprocessor mishandles
-      # `${VAR:-}` defaults — see deploy log from PR #115 era. CI builds
-      # that want explicit values pass them via `docker build --build-arg`.
-      context: .
-    # image: ghcr.io/alcandev/korva-vault:latest
+    image: ghcr.io/alcandev/korva-vault:latest
+    # Para build local:
+    # build: .
     container_name: korva-vault
     restart: unless-stopped
     ports:
@@ -47,17 +35,9 @@ services:
       KORVA_VAULT_PORT: 7437
       KORVA_VAULT_HOST: 0.0.0.0
       KORVA_VAULT_MODE: http
-      # CORS origin for Beacon — set to the public app URL in production.
-      # Local dev defaults to http://localhost:5173 inside the binary.
-      KORVA_CORS_ORIGIN:          "${KORVA_CORS_ORIGIN:-}"
-      # MCP HTTP transport. Default-deny: requests without a valid bearer
-      # are rejected with 401. Set to "true" only for local development.
-      KORVA_MCP_ALLOW_ANONYMOUS:  "${KORVA_MCP_ALLOW_ANONYMOUS:-false}"
       # ── OIDC / SSO (Phase 15.D) ────────────────────────────────────────
       # Leave the four required vars empty to keep OIDC disabled. Set all
       # four to enable /auth/oidc/login + /auth/oidc/callback.
-      # In production the redirect URL must be:
-      #   https://${KORVA_API_DOMAIN}/auth/oidc/callback
       # See docs/SELF_HOSTING_OIDC.md for IdP-specific setup recipes
       # (Okta, Azure AD, Google Workspace, Authentik, Keycloak).
       KORVA_OIDC_ISSUER_URL:      "${KORVA_OIDC_ISSUER_URL:-}"
@@ -69,13 +49,6 @@ services:
       KORVA_OIDC_ALLOWED_DOMAINS: "${KORVA_OIDC_ALLOWED_DOMAINS:-}"
       # Optional — override the default scope list (openid,email,profile).
       KORVA_OIDC_SCOPES:          "${KORVA_OIDC_SCOPES:-}"
-      # ── Email (Resend) ─────────────────────────────────────────────────
-      # In production: KORVA_EMAIL_FROM should live on a subdomain like
-      # send.korva.dev so its SPF/DKIM don't conflict with the apex domain's
-      # marketing sender.
-      KORVA_EMAIL_API_KEY:        "${KORVA_EMAIL_API_KEY:-}"
-      KORVA_EMAIL_FROM:           "${KORVA_EMAIL_FROM:-}"
-      KORVA_EMAIL_FROM_NAME:      "${KORVA_EMAIL_FROM_NAME:-Korva}"
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:7437/healthz"]
       interval: 30s
@@ -83,29 +56,10 @@ services:
       retries: 3
       start_period: 10s
     labels:
-      # Three subdomains, one backend. Host-based routing — no path rewriting
-      # needed because the vault's internal mux already handles /healthz,
-      # /v1/*, /api/v1/*, /vault-api/*, /mcp and the SPA fallback.
       - "traefik.enable=true"
-      - "traefik.http.services.korva-vault.loadbalancer.server.port=7437"
-
-      # app.korva.dev — Beacon dashboard (also proxies /vault-api back to itself)
-      - "traefik.http.routers.korva-app.rule=Host(`${KORVA_APP_DOMAIN:-app.localhost}`)"
-      - "traefik.http.routers.korva-app.entrypoints=websecure"
-      - "traefik.http.routers.korva-app.tls.certresolver=letsencrypt"
-      - "traefik.http.routers.korva-app.service=korva-vault"
-
-      # api.korva.dev — REST API for CLI and third parties
-      - "traefik.http.routers.korva-api.rule=Host(`${KORVA_API_DOMAIN:-api.localhost}`)"
-      - "traefik.http.routers.korva-api.entrypoints=websecure"
-      - "traefik.http.routers.korva-api.tls.certresolver=letsencrypt"
-      - "traefik.http.routers.korva-api.service=korva-vault"
-
-      # mcp.korva.dev — Streamable HTTP MCP endpoint for editors
-      - "traefik.http.routers.korva-mcp.rule=Host(`${KORVA_MCP_DOMAIN:-mcp.localhost}`)"
-      - "traefik.http.routers.korva-mcp.entrypoints=websecure"
-      - "traefik.http.routers.korva-mcp.tls.certresolver=letsencrypt"
-      - "traefik.http.routers.korva-mcp.service=korva-vault"
+      - "traefik.http.routers.korva.rule=Host(`${KORVA_DOMAIN:-vault.localhost}`)"
+      - "traefik.http.routers.korva.entrypoints=websecure"
+      - "traefik.http.routers.korva.tls.certresolver=letsencrypt"
 
   # ── Licensing server (Korva for Teams) ────────────────────────────────────
   # Solo necesario para operadores que venden licencias Korva for Teams.

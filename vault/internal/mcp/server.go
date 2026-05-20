@@ -129,13 +129,6 @@ func New(s *store.Store) *Server {
 // KORVA_SESSION_TOKEN or, if unset, from ~/.korva/session.token.
 // Returns an empty string when neither source is available.
 func loadSessionToken() string {
-	return LoadSessionToken()
-}
-
-// LoadSessionToken is the exported variant of loadSessionToken. Both the
-// in-process Server and the RemoteDispatcher need the same precedence rules
-// (env var > on-disk token), so the logic lives here once.
-func LoadSessionToken() string {
 	if t := os.Getenv("KORVA_SESSION_TOKEN"); t != "" {
 		return strings.TrimSpace(t)
 	}
@@ -152,51 +145,49 @@ func LoadSessionToken() string {
 
 // Run starts the MCP server loop. It blocks until stdin is closed or an
 // unrecoverable error occurs.
-//
-// Production callers leave the reader/writer fields zero and Run() drives
-// the loop against os.Stdin / os.Stdout via Serve(). Tests that pre-seed
-// s.reader (typically with strings.NewReader) and s.writer (typically
-// with bytes.Buffer) keep their existing behavior — the fields take
-// precedence so the established test helpers don't have to change.
-//
-// New code that needs the stdio loop with a non-*Server dispatcher (e.g.
-// a remote HTTP proxy) should call Serve(d, r, w, logger) directly.
 func (s *Server) Run() error {
-	// Compare the *concrete* types here rather than assigning to an
-	// io.Reader local first — a nil *bufio.Reader wrapped in io.Reader
-	// is NOT == nil and the staticcheck SA4023 lint catches it.
-	var r io.Reader
-	if s.reader != nil {
-		r = s.reader
-	} else {
-		r = os.Stdin
+	s.logger.Printf("Korva Vault MCP server starting (%s)", version.String())
+
+	for {
+		line, err := s.reader.ReadString('\n')
+		if err != nil {
+			if err == io.EOF {
+				return nil
+			}
+			return fmt.Errorf("reading stdin: %w", err)
+		}
+
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+
+		var req Request
+		if err := json.Unmarshal([]byte(line), &req); err != nil {
+			s.writeError(nil, -32700, "parse error", err.Error())
+			continue
+		}
+
+		s.handleRequest(req)
 	}
-	w := s.writer
-	if w == nil {
-		w = os.Stdout
-	}
-	return Serve(s, r, w, s.logger)
 }
 
-// HandleRequest dispatches a parsed JSON-RPC request and returns the response
-// to write to the transport. Exported so non-stdio transports (HTTP) can reuse
-// the same dispatch logic.
-func (s *Server) HandleRequest(req Request) Response {
+func (s *Server) handleRequest(req Request) {
 	switch req.Method {
 	case "initialize":
-		return s.handleInitialize(req)
+		s.handleInitialize(req)
 	case "tools/list":
-		return s.handleToolsList(req)
+		s.handleToolsList(req)
 	case "tools/call":
-		return s.handleToolsCall(req)
+		s.handleToolsCall(req)
 	case "ping":
-		return makeResult(req.ID, map[string]string{"pong": "pong"})
+		s.writeResult(req.ID, map[string]string{"pong": "pong"})
 	default:
-		return makeError(req.ID, -32601, "method not found", req.Method)
+		s.writeError(req.ID, -32601, "method not found", req.Method)
 	}
 }
 
-func (s *Server) handleInitialize(req Request) Response {
+func (s *Server) handleInitialize(req Request) {
 	// Attempt to resolve an optional session token from the initialize params.
 	// Clients that have a ~/.korva/session.token should pass it here so that
 	// MCP tools automatically carry team context.
@@ -215,9 +206,7 @@ func (s *Server) handleInitialize(req Request) Response {
 			} `json:"clientInfo"`
 		}
 		if json.Unmarshal(req.Params, &params) == nil {
-			// Only fall back to the params token when the transport hasn't
-			// already established a session (HTTP Bearer header wins).
-			if s.session == nil && params.SessionToken != "" {
+			if params.SessionToken != "" {
 				s.resolveSession(params.SessionToken)
 			}
 			if e := resolveMCPClientEditor(params.ClientInfo.Name); e != "" {
@@ -226,7 +215,7 @@ func (s *Server) handleInitialize(req Request) Response {
 		}
 	}
 
-	return makeResult(req.ID, InitializeResult{
+	s.writeResult(req.ID, InitializeResult{
 		ProtocolVersion: "2024-11-05",
 		Capabilities:    Capabilities{Tools: &ToolsCapability{}},
 		ServerInfo: ServerInfo{
@@ -361,24 +350,26 @@ func (s *Server) fetchTeamContext() (skills, scrolls []map[string]any) {
 	return
 }
 
-func (s *Server) handleToolsList(req Request) Response {
-	return makeResult(req.ID, map[string]any{
+func (s *Server) handleToolsList(req Request) {
+	s.writeResult(req.ID, map[string]any{
 		"tools": toolsForProfile(s.profile),
 	})
 }
 
-func (s *Server) handleToolsCall(req Request) Response {
+func (s *Server) handleToolsCall(req Request) {
 	var params ToolCallParams
 	if err := json.Unmarshal(req.Params, &params); err != nil {
-		return makeError(req.ID, -32602, "invalid params", err.Error())
+		s.writeError(req.ID, -32602, "invalid params", err.Error())
+		return
 	}
 
 	result, err := s.dispatch(params.Name, params.Arguments)
 	if err != nil {
-		return makeToolError(req.ID, err.Error())
+		s.writeToolError(req.ID, err.Error())
+		return
 	}
 
-	return makeResult(req.ID, ToolCallResult{
+	s.writeResult(req.ID, ToolCallResult{
 		Content: []ContentBlock{{Type: "text", Text: toJSON(result)}},
 	})
 }
@@ -1733,25 +1724,34 @@ func (s *Server) toolMergeProjects(args map[string]any) (any, error) {
 	}, nil
 }
 
-// --- response builders (transport-agnostic) ---
+// --- write helpers ---
 
-func makeResult(id, result any) Response {
-	return Response{JSONRPC: "2.0", ID: id, Result: result}
+func (s *Server) writeResult(id any, result any) {
+	s.write(Response{JSONRPC: "2.0", ID: id, Result: result})
 }
 
-func makeError(id any, code int, message, data string) Response {
-	return Response{
+func (s *Server) writeError(id any, code int, message, data string) {
+	s.write(Response{
 		JSONRPC: "2.0",
 		ID:      id,
 		Error:   &RPCError{Code: code, Message: message, Data: data},
-	}
+	})
 }
 
-func makeToolError(id any, msg string) Response {
-	return makeResult(id, ToolCallResult{
+func (s *Server) writeToolError(id any, msg string) {
+	s.writeResult(id, ToolCallResult{
 		Content: []ContentBlock{{Type: "text", Text: msg}},
 		IsError: true,
 	})
+}
+
+func (s *Server) write(v any) {
+	data, err := json.Marshal(v)
+	if err != nil {
+		s.logger.Printf("marshal error: %v", err)
+		return
+	}
+	fmt.Fprintf(s.writer, "%s\n", data)
 }
 
 // --- argument helpers ---

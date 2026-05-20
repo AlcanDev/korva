@@ -87,11 +87,6 @@ type RouterConfig struct {
 	// Production wires a lazy verifier so the IdP is contacted on
 	// first request rather than at startup. Nil disables OIDC routes.
 	OIDCVerifier OIDCVerifier
-	// MCPHandler, when non-nil, is mounted at /mcp to expose the MCP server
-	// over Streamable HTTP. Bearer-token authenticated; the handler manages
-	// its own per-request session isolation. Nil disables the remote MCP
-	// endpoint — stdio MCP is unaffected.
-	MCPHandler http.Handler
 }
 
 // EventBus is the package-level event bus used to fan out activity to the
@@ -405,48 +400,11 @@ func Router(ctx context.Context, s *store.Store, cfg RouterConfig) http.Handler 
 	mux.Handle("GET /api/v1/harness/projects/{project}", sessMW(withCORS(harnessGetProject(s))))
 	mux.Handle("GET /api/v1/harness/transitions", sessMW(withCORS(harnessListTransitions(s))))
 
-	// Streamable HTTP MCP endpoint. Mounted only when the entrypoint
-	// supplies a handler so non-cloud deployments stay stdio-only.
-	// The handler implements its own auth (Authorization: Bearer …) and
-	// its own CORS policy — withCORS is not applied here.
-	if cfg.MCPHandler != nil {
-		mux.Handle("/mcp", cfg.MCPHandler)
-		mux.Handle("/mcp/", cfg.MCPHandler)
-	}
-
 	// Wrap the entire mux with a per-IP fixed-window rate limiter.
 	// 120 req/min is generous for AI editor usage; prevents runaway loops.
 	limiter := NewRateLimiter(120, time.Minute)
 	limiter.StartCleanup(ctx, cleanupInterval)
-
-	// Global CORS preflight. Go 1.22+ ServeMux registers routes as
-	// `METHOD /path` and returns 405 for any other method — so OPTIONS
-	// requests never reach the per-route withCORS wrapper. We intercept
-	// preflight here and answer 204 with the same headers withCORS uses
-	// on actual responses. The /mcp* paths are carved out because the
-	// MCP handler advertises a wider Allow-Origin (`*` for multi-editor
-	// support) and we don't want to override that.
-	return corsPreflight(limiter.Middleware(mux))
-}
-
-// corsPreflight short-circuits CORS preflight requests with 204 + headers
-// before they hit the mux's method matcher (which rejects OPTIONS with 405).
-func corsPreflight(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodOptions && !isMCPPath(r.URL.Path) {
-			w.Header().Set("Access-Control-Allow-Origin", corsOrigin())
-			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Admin-Key, X-Session-Token, X-Korva-Editor")
-			w.Header().Set("Access-Control-Max-Age", "86400")
-			w.WriteHeader(http.StatusNoContent)
-			return
-		}
-		next.ServeHTTP(w, r)
-	})
-}
-
-func isMCPPath(p string) bool {
-	return p == "/mcp" || (len(p) > 4 && p[:5] == "/mcp/")
+	return limiter.Middleware(mux)
 }
 
 // --- handlers ---
