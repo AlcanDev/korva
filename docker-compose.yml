@@ -26,13 +26,16 @@ services:
     # deploys work without registry credentials. Set `image:` (and comment
     # `build:`) when you publish to GHCR and want to skip the build step.
     build:
-      # The Dockerfile auto-detects VERSION / COMMIT / BUILD_DATE via
-      # `git describe`+`git rev-parse`+`date -u` when its ARGs are empty,
-      # so the build always produces a tagged binary even without an
-      # `args:` block here. Coolify's compose preprocessor mishandles
-      # `${VAR:-}` defaults — see deploy log from PR #115 era. CI builds
-      # that want explicit values pass them via `docker build --build-arg`.
       context: .
+      args:
+        # Pass-through for explicit version metadata. Coolify exposes
+        # COOLIFY_COMMIT_SHA on every deploy; CI passes KORVA_VERSION;
+        # local builds leave both empty and the Dockerfile falls back
+        # to `git describe`. Compose's variable parser rejects nested
+        # defaults like ${A:-${B:-}}, so we keep each value flat.
+        VERSION: "${KORVA_VERSION:-}"
+        COMMIT: "${COOLIFY_COMMIT_SHA:-}"
+        BUILD_DATE: "${KORVA_BUILD_DATE:-}"
     # image: ghcr.io/alcandev/korva-vault:latest
     container_name: korva-vault
     restart: unless-stopped
