@@ -129,13 +129,6 @@ func New(s *store.Store) *Server {
 // KORVA_SESSION_TOKEN or, if unset, from ~/.korva/session.token.
 // Returns an empty string when neither source is available.
 func loadSessionToken() string {
-	return LoadSessionToken()
-}
-
-// LoadSessionToken is the exported variant of loadSessionToken. Both the
-// in-process Server and the RemoteDispatcher need the same precedence rules
-// (env var > on-disk token), so the logic lives here once.
-func LoadSessionToken() string {
 	if t := os.Getenv("KORVA_SESSION_TOKEN"); t != "" {
 		return strings.TrimSpace(t)
 	}
