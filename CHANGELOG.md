@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.37.0](https://github.com/AlcanDev/korva/compare/v1.36.5...v1.37.0) (2026-05-30)
+
+
+### 🚀 Features
+
+* **beacon:** rebrand Korva logo to "Vault K" mark + web assets ([dc2693c](https://github.com/AlcanDev/korva/commit/dc2693c00088c14a50f9432fd38fbab25a703da4))
+* **mcp:** RemoteDispatcher proxies stdio MCP to a remote vault ([#115](https://github.com/AlcanDev/korva/issues/115)) ([4b161a8](https://github.com/AlcanDev/korva/commit/4b161a853d0d2104614182f1b91e58f2632e4254))
+* **vault:** Streamable HTTP MCP + 3-subdomain Coolify deploy ([#96](https://github.com/AlcanDev/korva/issues/96)) ([a2c37eb](https://github.com/AlcanDev/korva/commit/a2c37eb2681a5a3a3a5b8fb4649d46f95b72e992))
+
+
+### 🐛 Bug Fixes
+
+* **compose:** drop build.args block — Coolify mishandles \${VAR:-} syntax ([#117](https://github.com/AlcanDev/korva/issues/117)) ([f780106](https://github.com/AlcanDev/korva/commit/f780106508e7e3d08894ea103f03ae63c7658452))
+* **compose:** un-nest build-arg default that broke Coolify deploy ([#116](https://github.com/AlcanDev/korva/issues/116)) ([63a4333](https://github.com/AlcanDev/korva/commit/63a43337366b8ddf06af8c8ac0f001215eea512e))
+* CORS preflight, deploy version, CLI remote endpoint + token cmd ([#98](https://github.com/AlcanDev/korva/issues/98)) ([a4387de](https://github.com/AlcanDev/korva/commit/a4387dec525e7c365e13ca12f7e7122204b4dea4))
+
 ## [1.36.5](https://github.com/AlcanDev/korva/compare/v1.36.4...v1.36.5) (2026-05-16)
 
 
