@@ -1,5 +1,15 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <rect width="32" height="32" rx="8" fill="#22C55E"/>
-  <text x="50%" y="50%" text-anchor="middle" dominant-baseline="central"
-    font-family="system-ui, sans-serif" font-weight="800" font-size="18" fill="#000">K</text>
+  <defs>
+    <linearGradient id="g" x1="6" y1="6" x2="26" y2="26" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#00F5A0"/>
+      <stop offset="1" stop-color="#22D3EE"/>
+    </linearGradient>
+  </defs>
+  <rect width="32" height="32" rx="8" fill="#05080F"/>
+  <g stroke="url(#g)" stroke-width="3.6" stroke-linecap="round">
+    <line x1="10" y1="7" x2="10" y2="25"/>
+    <line x1="10" y1="16" x2="22" y2="7"/>
+    <line x1="10" y1="16" x2="22" y2="25"/>
+  </g>
+  <circle cx="22" cy="7" r="2.3" fill="#FF6B35"/>
 </svg>
