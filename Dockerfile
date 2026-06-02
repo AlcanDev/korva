@@ -33,7 +33,7 @@ RUN go work sync && \
       ./vault/cmd/korva-vault/
 
 # ── Stage 3: runtime ──────────────────────────────────────────────────────────
-FROM alpine:3.21
+FROM alpine:3.23
 
 RUN apk add --no-cache ca-certificates tzdata wget && \
     addgroup -S korva && adduser -S korva -G korva
