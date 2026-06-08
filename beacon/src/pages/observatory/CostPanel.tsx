@@ -166,8 +166,8 @@ export default function CostPanel() {
 					</div>
 
 					{/* Phase 9.2 — Anomaly alerts (only renders when something fired) */}
-					{anomalies.data && anomalies.data.anomalies.length > 0 && (
-						<AnomaliesSection anomalies={anomalies.data.anomalies} />
+					{anomalies.data && (anomalies.data.anomalies ?? []).length > 0 && (
+						<AnomaliesSection anomalies={anomalies.data.anomalies ?? []} />
 					)}
 
 					{/* Daily curve */}
